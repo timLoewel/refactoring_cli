@@ -7,9 +7,9 @@ export interface ParamDefinition {
   required: boolean;
 }
 
-export interface ParamSchema<T = Record<string, unknown>> {
+export interface ParamSchema {
   definitions: ParamDefinition[];
-  validate: (raw: unknown) => T;
+  validate: (raw: unknown) => unknown;
 }
 
 export interface FileDiff {
@@ -30,12 +30,12 @@ export interface PreconditionResult {
   errors: string[];
 }
 
-export interface RefactoringDefinition<TParams = Record<string, unknown>> {
+export interface RefactoringDefinition {
   name: string;
   kebabName: string;
   description: string;
   tier: 1 | 2 | 3 | 4;
-  params: ParamSchema<TParams>;
-  preconditions: (project: Project, params: TParams) => PreconditionResult;
-  apply: (project: Project, params: TParams) => RefactoringResult;
+  params: ParamSchema;
+  preconditions: (project: Project, params: unknown) => PreconditionResult;
+  apply: (project: Project, params: unknown) => RefactoringResult;
 }
