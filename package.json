@@ -13,8 +13,8 @@
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "prepare": "husky"
   },
   "keywords": [
@@ -32,7 +32,7 @@
     "*.ts": [
       "eslint --fix",
       "prettier --write",
-      "jest --findRelatedTests --passWithNoTests"
+      "node --experimental-vm-modules node_modules/.bin/jest --findRelatedTests --passWithNoTests"
     ]
   },
   "dependencies": {
