@@ -1,7 +1,18 @@
 npx lint-staged
 
+# Reject warning suppressions in staged files
+SUPPRESSION_PATTERNS='ignoreCodes|@ts-ignore|@ts-expect-error|eslint-disable|eslint-disable-next-line|noinspection|\|\| true'
+if git diff --cached --diff-filter=ACMR -U0 -- '*.ts' '*.mjs' '*.json' | grep -P "^\+" | grep -vP "^\+\+\+" | grep -qP "$SUPPRESSION_PATTERNS"; then
+  echo "ERROR: Staged changes contain warning/error suppressions."
+  echo "Matches:"
+  git diff --cached --diff-filter=ACMR -U0 -- '*.ts' '*.mjs' '*.json' | grep -P "^\+" | grep -vP "^\+\+\+" | grep -P "$SUPPRESSION_PATTERNS"
+  echo ""
+  echo "Fix the underlying issue instead of suppressing it."
+  exit 1
+fi
+
 # Roam quality gates
 if command -v roam &> /dev/null; then
-  roam health --gate || true
-  roam diff || true
+  roam health --gate
+  roam diff
 fi
