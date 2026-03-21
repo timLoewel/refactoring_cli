@@ -92,21 +92,90 @@ function preconditions(project: Project, p: ReplaceControlFlagWithBreakParams): 
   return { ok: errors.length === 0, errors };
 }
 
+const LOOP_KINDS = new Set([
+  SyntaxKind.WhileStatement,
+  SyntaxKind.ForStatement,
+  SyntaxKind.ForInStatement,
+  SyntaxKind.ForOfStatement,
+  SyntaxKind.DoStatement,
+]);
+
+function findLoopUsingFlag(sf: Node, flagName: string): Node | undefined {
+  const loops = sf.getDescendants().filter((n) => LOOP_KINDS.has(n.getKind()));
+  return loops.find((loop) =>
+    loop.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => id.getText() === flagName),
+  );
+}
+
+function replaceFlagAssignmentsWithBreak(loop: Node, flagName: string): void {
+  const flagAssignments = loop.getDescendantsOfKind(SyntaxKind.BinaryExpression).filter((bin) => {
+    const left = bin.getLeft();
+    const op = bin.getOperatorToken().getText();
+    return Node.isIdentifier(left) && left.getText() === flagName && op === "=";
+  });
+
+  const sorted = [...flagAssignments].sort((a, b) => b.getStart() - a.getStart());
+  for (const assignment of sorted) {
+    const exprStmt = assignment.getParent();
+    if (exprStmt && Node.isExpressionStatement(exprStmt)) {
+      exprStmt.replaceWithText("break;");
+    }
+  }
+}
+
+function updateLoopCondition(loop: Node, flagName: string): void {
+  if (Node.isWhileStatement(loop)) {
+    const condition = loop.getExpression();
+    const condText = condition.getText();
+    if (condText === flagName || condText === `!${flagName}`) {
+      condition.replaceWithText("true");
+    }
+  }
+}
+
+function removeFlagDeclaration(varDecl: Node): void {
+  const declList = varDecl.getParent();
+  if (declList && Node.isVariableDeclarationList(declList)) {
+    const stmt = declList.getParent();
+    if (stmt && Node.isVariableStatement(stmt)) {
+      stmt.remove();
+    }
+  }
+}
+
+function inlineRemainingFlagChecks(loop: Node, flagName: string): void {
+  const remainingRefs = loop
+    .getDescendantsOfKind(SyntaxKind.Identifier)
+    .filter((id) => id.getText() === flagName);
+
+  const sorted = [...remainingRefs].sort((a, b) => b.getStart() - a.getStart());
+  for (const ref of sorted) {
+    const parent = ref.getParent();
+    if (!parent || !Node.isIfStatement(parent) || parent.getExpression() !== ref) continue;
+
+    const thenStmt = parent.getThenStatement();
+    if (Node.isBlock(thenStmt)) {
+      parent.replaceWithText(
+        thenStmt
+          .getStatements()
+          .map((s) => s.getText())
+          .join("\n"),
+      );
+    } else {
+      parent.replaceWithText(thenStmt.getText());
+    }
+  }
+}
+
 function apply(project: Project, p: ReplaceControlFlagWithBreakParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `File not found: ${p.file}`,
-      diff: [],
-    };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
   }
 
   const varDecl = sf
     .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
     .find((d) => d.getName() === p.target);
-
   if (!varDecl) {
     return {
       success: false,
@@ -116,21 +185,7 @@ function apply(project: Project, p: ReplaceControlFlagWithBreakParams): Refactor
     };
   }
 
-  const loopKinds = new Set([
-    SyntaxKind.WhileStatement,
-    SyntaxKind.ForStatement,
-    SyntaxKind.ForInStatement,
-    SyntaxKind.ForOfStatement,
-    SyntaxKind.DoStatement,
-  ]);
-
-  // Find the loop that uses the flag
-  const loops = sf.getDescendants().filter((n) => loopKinds.has(n.getKind()));
-
-  const targetLoop = loops.find((loop) =>
-    loop.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => id.getText() === p.target),
-  );
-
+  const targetLoop = findLoopUsingFlag(sf, p.target);
   if (!targetLoop) {
     return {
       success: false,
@@ -140,69 +195,10 @@ function apply(project: Project, p: ReplaceControlFlagWithBreakParams): Refactor
     };
   }
 
-  // Find assignments to the flag inside the loop: `flag = true` or `flag = false`
-  const flagAssignments = targetLoop
-    .getDescendantsOfKind(SyntaxKind.BinaryExpression)
-    .filter((bin) => {
-      const left = bin.getLeft();
-      const op = bin.getOperatorToken().getText();
-      return Node.isIdentifier(left) && left.getText() === p.target && op === "=";
-    });
-
-  // Replace each assignment statement with `break`
-  // Process in reverse order to preserve positions
-  const sortedAssignments = [...flagAssignments].sort((a, b) => b.getStart() - a.getStart());
-
-  for (const assignment of sortedAssignments) {
-    const exprStmt = assignment.getParent();
-    if (exprStmt && Node.isExpressionStatement(exprStmt)) {
-      exprStmt.replaceWithText("break;");
-    }
-  }
-
-  // Remove the loop condition check on the flag (e.g. `while (flag)` → `while (true)`)
-  if (Node.isWhileStatement(targetLoop)) {
-    const condition = targetLoop.getExpression();
-    const condText = condition.getText();
-    if (condText === p.target || condText === `!${p.target}`) {
-      condition.replaceWithText("true");
-    }
-  }
-
-  // Remove the variable declaration of the flag
-  const declList = varDecl.getParent();
-  if (declList && Node.isVariableDeclarationList(declList)) {
-    const stmt = declList.getParent();
-    if (stmt && Node.isVariableStatement(stmt)) {
-      stmt.remove();
-    }
-  }
-
-  // Remove any remaining references to the flag (e.g. in the loop condition that checks it)
-  // Find any if-statements inside the loop that check the flag and replace with the body
-  const remainingRefs = targetLoop
-    .getDescendantsOfKind(SyntaxKind.Identifier)
-    .filter((id) => id.getText() === p.target);
-
-  // Replace remaining flag checks in if-conditions by removing the if guard
-  const sortedRefs = [...remainingRefs].sort((a, b) => b.getStart() - a.getStart());
-  for (const ref of sortedRefs) {
-    const parent = ref.getParent();
-    if (!parent) continue;
-    // If this identifier is the direct condition of an if-statement, inline the then-block
-    if (Node.isIfStatement(parent) && parent.getExpression() === ref) {
-      const thenStmt = parent.getThenStatement();
-      if (Node.isBlock(thenStmt)) {
-        const innerStatements = thenStmt
-          .getStatements()
-          .map((s) => s.getText())
-          .join("\n");
-        parent.replaceWithText(innerStatements);
-      } else {
-        parent.replaceWithText(thenStmt.getText());
-      }
-    }
-  }
+  replaceFlagAssignmentsWithBreak(targetLoop, p.target);
+  updateLoopCondition(targetLoop, p.target);
+  removeFlagDeclaration(varDecl);
+  inlineRemainingFlagChecks(targetLoop, p.target);
 
   return {
     success: true,

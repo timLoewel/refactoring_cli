@@ -1,5 +1,5 @@
 import { SyntaxKind } from "ts-morph";
-import type { Project } from "ts-morph";
+import type { Project, Node } from "ts-morph";
 import type {
   RefactoringDefinition,
   ParamSchema,
@@ -71,6 +71,45 @@ function preconditions(project: Project, p: ReplaceLoopWithPipelineParams): Prec
   return { ok: errors.length === 0, errors };
 }
 
+function buildForEachReplacement(
+  expression: string,
+  varName: string,
+  statementsText: string[],
+): string {
+  const bodyLines = statementsText.map((s) => `  ${s}`).join("\n");
+  return `${expression}.forEach((${varName}) => {\n${bodyLines}\n});`;
+}
+
+function buildSinglePushReplacement(
+  expression: string,
+  varName: string,
+  pushText: string,
+  fallback: string,
+): string {
+  const pushMatch = pushText.match(/^(\w+)\.push\((.+)\);?$/s);
+  if (!pushMatch) return fallback;
+
+  const arrayName = pushMatch[1];
+  const mappedExpr = pushMatch[2];
+  if (mappedExpr === undefined) return fallback;
+  if (mappedExpr.trim() === varName) return `const ${arrayName} = [...${expression}];`;
+  return `const ${arrayName} = ${expression}.map((${varName}) => ${mappedExpr});`;
+}
+
+function buildPipelineReplacement(expression: string, varName: string, statements: Node[]): string {
+  const statementsText = statements.map((s) => s.getText());
+  const isPush = (text: string): boolean => /\w+\.push\(/.test(text);
+  const pushCount = statementsText.filter(isPush).length;
+  const fallback = buildForEachReplacement(expression, varName, statementsText);
+
+  if (pushCount === statements.length && pushCount === 1) {
+    const pushText = (statementsText.find(isPush) ?? "").trim();
+    return buildSinglePushReplacement(expression, varName, pushText, fallback);
+  }
+
+  return fallback;
+}
+
 function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
@@ -81,7 +120,6 @@ function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringR
   const loop = sf
     .getDescendantsOfKind(SyntaxKind.ForOfStatement)
     .find((l) => l.getStartLineNumber() === lineNum);
-
   if (!loop) {
     return {
       success: false,
@@ -96,56 +134,12 @@ function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringR
     return { success: false, filesChanged: [], description: `Loop has no block body`, diff: [] };
   }
 
-  // Extract the iterable expression
   const expression = loop.getExpression().getText();
-
-  // Extract the loop variable
-  const initializer = loop.getInitializer().getText();
-  // Strip "const " / "let " prefix if present
-  const varName = initializer.replace(/^(const|let|var)\s+/, "");
-
-  const statements = body.getStatements();
-
-  // Detect push patterns: resultArray.push(expr) => map + forEach
-  const pushStatements = statements.filter((s) => {
-    const text = s.getText();
-    return /\w+\.push\(/.test(text);
-  });
-
-  const otherStatements = statements.filter((s) => {
-    const text = s.getText();
-    return !/\w+\.push\(/.test(text);
-  });
-
-  let replacement: string;
-
-  if (pushStatements.length === statements.length && pushStatements.length === 1) {
-    // Single push: replace with map or forEach
-    const firstPushStmt = pushStatements[0];
-    const pushText = firstPushStmt ? firstPushStmt.getText().trim() : "";
-    const pushMatch = pushText.match(/^(\w+)\.push\((.+)\);?$/s);
-    if (pushMatch) {
-      const arrayName = pushMatch[1];
-      const mappedExpr = pushMatch[2];
-      if (mappedExpr !== undefined && mappedExpr.trim() === varName) {
-        replacement = `const ${arrayName} = [...${expression}];`;
-      } else if (mappedExpr !== undefined) {
-        replacement = `const ${arrayName} = ${expression}.map((${varName}) => ${mappedExpr});`;
-      } else {
-        replacement = `${expression}.forEach((${varName}) => {\n  ${statements.map((s) => s.getText()).join("\n  ")}\n});`;
-      }
-    } else {
-      replacement = `${expression}.forEach((${varName}) => {\n  ${statements.map((s) => s.getText()).join("\n  ")}\n});`;
-    }
-  } else if (otherStatements.length === 0 && pushStatements.length > 1) {
-    // Multiple pushes: use forEach
-    const body2 = statements.map((s) => `  ${s.getText()}`).join("\n");
-    replacement = `${expression}.forEach((${varName}) => {\n${body2}\n});`;
-  } else {
-    // General case: use forEach
-    const bodyLines = statements.map((s) => `  ${s.getText()}`).join("\n");
-    replacement = `${expression}.forEach((${varName}) => {\n${bodyLines}\n});`;
-  }
+  const varName = loop
+    .getInitializer()
+    .getText()
+    .replace(/^(const|let|var)\s+/, "");
+  const replacement = buildPipelineReplacement(expression, varName, body.getStatements());
 
   loop.replaceWithText(replacement);
 

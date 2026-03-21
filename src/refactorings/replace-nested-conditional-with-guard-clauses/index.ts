@@ -69,6 +69,61 @@ function preconditions(
   return { ok: errors.length === 0, errors };
 }
 
+function extractBlockText(node: Node): string {
+  if (node.getKind() === SyntaxKind.Block) {
+    const children = node.getChildSyntaxList()?.getChildren();
+    if (children) {
+      return children.map((s: Node) => s.getText()).join("\n");
+    }
+  }
+  return node.getText();
+}
+
+interface GuardClauseResult {
+  guardClauses: string[];
+  mainBody: string;
+  otherStatements: string[];
+}
+
+function processStatements(statements: Node[]): GuardClauseResult {
+  const guardClauses: string[] = [];
+  const otherStatements: string[] = [];
+  let mainBody = "";
+
+  for (const stmt of statements) {
+    const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
+    if (!ifStmt) {
+      otherStatements.push(stmt.getText());
+      continue;
+    }
+
+    const elseClause = ifStmt.getElseStatement();
+    if (!elseClause) {
+      otherStatements.push(stmt.getText());
+      continue;
+    }
+
+    const condition = ifStmt.getExpression().getText();
+    const thenBlock = ifStmt.getThenStatement();
+    const thenReturns = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+
+    if (thenReturns.length > 0) {
+      guardClauses.push(`if (${condition}) {\n  ${extractBlockText(thenBlock)}\n}`);
+      mainBody = extractBlockText(elseClause);
+    } else {
+      const elseReturns = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+      const firstElseReturn = elseReturns[0];
+      const earlyReturnExpr = firstElseReturn
+        ? (firstElseReturn.getExpression()?.getText() ?? "undefined")
+        : "undefined";
+      guardClauses.push(`if (!(${condition})) return ${earlyReturnExpr};`);
+      mainBody = extractBlockText(thenBlock);
+    }
+  }
+
+  return { guardClauses, mainBody, otherStatements };
+}
+
 function apply(
   project: Project,
   p: ReplaceNestedConditionalWithGuardClausesParams,
@@ -81,7 +136,6 @@ function apply(
   const fn = sf
     .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
     .find((f) => f.getName() === p.target);
-
   if (!fn) {
     return {
       success: false,
@@ -92,99 +146,18 @@ function apply(
   }
 
   const body = fn.getBody();
-  if (!body) {
+  if (!body || !Node.isBlock(body)) {
     return {
       success: false,
       filesChanged: [],
-      description: `Function '${p.target}' has no body`,
+      description: `Function '${p.target}' has no block body`,
       diff: [],
     };
   }
 
-  if (!Node.isBlock(body)) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Function '${p.target}' body is not a block`,
-      diff: [],
-    };
-  }
-  const statements = body.getStatements();
-  const guardClauses: string[] = [];
-  let mainBody = "";
+  const { guardClauses, mainBody, otherStatements } = processStatements(body.getStatements());
 
-  // Convert nested if-else into guard clauses
-  // Strategy: for each top-level if that has an else, invert the condition as a guard
-  const newStatements: string[] = [];
-
-  for (const stmt of statements) {
-    if (stmt.getKind() !== SyntaxKind.IfStatement) {
-      newStatements.push(stmt.getText());
-      continue;
-    }
-
-    const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
-    if (!ifStmt) {
-      newStatements.push(stmt.getText());
-      continue;
-    }
-
-    const elseClause = ifStmt.getElseStatement();
-    if (!elseClause) {
-      newStatements.push(stmt.getText());
-      continue;
-    }
-
-    const condition = ifStmt.getExpression().getText();
-    const thenBlock = ifStmt.getThenStatement();
-
-    // Check if thenBlock is a simple early return
-    const thenReturns = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-    if (thenReturns.length > 0) {
-      // Already a guard-clause style; keep but flatten else
-      const thenText =
-        thenBlock.getKind() === SyntaxKind.Block
-          ? (thenBlock
-              .getChildSyntaxList()
-              ?.getChildren()
-              .map((s: Node) => s.getText())
-              .join("\n") ?? thenBlock.getText())
-          : thenBlock.getText();
-      guardClauses.push(`if (${condition}) {\n  ${thenText}\n}`);
-
-      // Unwrap the else
-      const elseText =
-        elseClause.getKind() === SyntaxKind.Block
-          ? (elseClause
-              .getChildSyntaxList()
-              ?.getChildren()
-              .map((s: Node) => s.getText())
-              .join("\n") ?? elseClause.getText())
-          : elseClause.getText();
-      mainBody = elseText;
-    } else {
-      // Invert the condition as a guard clause
-      const invertedCondition = `!(${condition})`;
-      const elseReturns = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-      const firstElseReturn = elseReturns[0];
-      const earlyReturnExpr = firstElseReturn
-        ? (firstElseReturn.getExpression()?.getText() ?? "undefined")
-        : "undefined";
-      guardClauses.push(`if (${invertedCondition}) return ${earlyReturnExpr};`);
-
-      const thenText =
-        thenBlock.getKind() === SyntaxKind.Block
-          ? (thenBlock
-              .getChildSyntaxList()
-              ?.getChildren()
-              .map((s: Node) => s.getText())
-              .join("\n") ?? thenBlock.getText())
-          : thenBlock.getText();
-      mainBody = thenText;
-    }
-  }
-
-  const allLines = [...newStatements.filter((s) => !s.includes("if (")), ...guardClauses];
+  const allLines = [...otherStatements.filter((s) => !s.includes("if (")), ...guardClauses];
   if (mainBody) allLines.push(mainBody);
 
   const newBodyText = allLines.map((s) => `  ${s}`).join("\n");

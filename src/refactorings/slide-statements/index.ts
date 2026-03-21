@@ -99,19 +99,46 @@ function preconditions(project: Project, p: SlideStatementsParams): Precondition
   return { ok: errors.length === 0, errors };
 }
 
+interface MoveResult {
+  success: boolean;
+  reason?: string;
+}
+
+function moveStatementInBlock(
+  parent: {
+    getStatements: () => Statement[];
+    insertStatements: (index: number, text: string) => void;
+  },
+  targetStmt: Statement,
+  destStmt: Statement,
+): MoveResult {
+  const stmts = parent.getStatements();
+  const targetIndex = stmts.indexOf(targetStmt);
+  const destIndex = stmts.indexOf(destStmt);
+  if (targetIndex === -1 || destIndex === -1) {
+    return { success: false, reason: "Could not determine statement indices" };
+  }
+
+  const statementText = targetStmt.getText();
+  const insertIndex = destIndex > targetIndex ? destIndex + 1 : destIndex;
+  parent.insertStatements(insertIndex, statementText);
+
+  const updatedStmts = parent.getStatements();
+  const originalIndex = destIndex > targetIndex ? targetIndex : targetIndex + 1;
+  const stmtToRemove = updatedStmts[originalIndex];
+  if (stmtToRemove) {
+    stmtToRemove.remove();
+  }
+  return { success: true };
+}
+
 function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `File not found: ${p.file}`,
-      diff: [],
-    };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
   }
 
   const allStatements = sf.getStatements();
-
   const targetStmt = findStatementAtLine(allStatements, p.target);
   if (!targetStmt) {
     return {
@@ -134,7 +161,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
 
   const targetParent = targetStmt.getParent();
   const destParent = destStmt.getParent();
-
   if (!targetParent || !destParent || targetParent !== destParent) {
     return {
       success: false,
@@ -144,53 +170,21 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
     };
   }
 
-  const statementText = targetStmt.getText();
-
-  if (Node.isSourceFile(targetParent)) {
-    const stmts = targetParent.getStatements();
-    const targetIndex = stmts.indexOf(targetStmt);
-    const destIndex = stmts.indexOf(destStmt);
-    if (targetIndex === -1 || destIndex === -1) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: "Could not determine statement indices",
-        diff: [],
-      };
-    }
-    const insertIndex = destIndex > targetIndex ? destIndex + 1 : destIndex;
-    targetParent.insertStatements(insertIndex, statementText);
-    const updatedStmts = targetParent.getStatements();
-    const originalIndex = destIndex > targetIndex ? targetIndex : targetIndex + 1;
-    const stmtToRemove = updatedStmts[originalIndex];
-    if (stmtToRemove) {
-      stmtToRemove.remove();
-    }
-  } else if (Node.isBlock(targetParent)) {
-    const stmts = targetParent.getStatements();
-    const targetIndex = stmts.indexOf(targetStmt);
-    const destIndex = stmts.indexOf(destStmt);
-    if (targetIndex === -1 || destIndex === -1) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: "Could not determine statement indices",
-        diff: [],
-      };
-    }
-    const insertIndex = destIndex > targetIndex ? destIndex + 1 : destIndex;
-    targetParent.insertStatements(insertIndex, statementText);
-    const updatedStmts = targetParent.getStatements();
-    const originalIndex = destIndex > targetIndex ? targetIndex : targetIndex + 1;
-    const stmtToRemove = updatedStmts[originalIndex];
-    if (stmtToRemove) {
-      stmtToRemove.remove();
-    }
-  } else {
+  if (!Node.isSourceFile(targetParent) && !Node.isBlock(targetParent)) {
     return {
       success: false,
       filesChanged: [],
       description: "Statements are not inside a block or source file",
+      diff: [],
+    };
+  }
+
+  const result = moveStatementInBlock(targetParent, targetStmt, destStmt);
+  if (!result.success) {
+    return {
+      success: false,
+      filesChanged: [],
+      description: result.reason ?? "Move failed",
       diff: [],
     };
   }
