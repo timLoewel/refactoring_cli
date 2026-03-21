@@ -1,0 +1,19 @@
+# Test fixtures — standalone programs, not part of the dependency graph
+**/*.fixture.ts
+src/testing/__fixtures__/**
+
+# Test files and infrastructure — not production architecture
+**/*.test.ts
+src/testing/**
+
+# Shared infrastructure types — excluded because roam's graph metrics flag
+# shared interfaces/types as "god components" when many modules import them.
+# This project has 40 refactoring modules that all implement the same interface
+# and use the same Project type. That's the intended plugin architecture, not a
+# design smell. Including these files inflates degree metrics by ~40 per symbol.
+src/engine/refactoring.types.ts
+src/engine/project-model.ts
+src/cli/output.ts
+# Barrel file that imports all 40 refactoring modules — flagged as god component
+# solely because it aggregates them for registry registration.
+src/refactorings/index.ts

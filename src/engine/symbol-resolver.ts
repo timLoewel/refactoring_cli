@@ -28,15 +28,108 @@ export interface UnusedOptions {
   ignoreTests?: boolean;
 }
 
+interface DeclEntry {
+  name: string;
+  nameNode: Node;
+  line: number;
+  exported: boolean;
+}
+
+/** Extract named declarations from a source file, grouped by kind. */
+function extractDeclarations(sf: SourceFile): Map<SymbolKind, DeclEntry[]> {
+  const result = new Map<SymbolKind, DeclEntry[]>();
+
+  result.set(
+    "variable",
+    sf.getVariableDeclarations().map((d) => ({
+      name: d.getName(),
+      nameNode: d.getNameNode(),
+      line: d.getStartLineNumber(),
+      exported: isExported(d),
+    })),
+  );
+
+  result.set(
+    "function",
+    sf
+      .getFunctions()
+      .filter((d) => d.getName() !== undefined)
+      .map((d) => ({
+        name: d.getName() ?? "",
+        nameNode: d.getNameNode() ?? d,
+        line: d.getStartLineNumber(),
+        exported: isExported(d),
+      })),
+  );
+
+  result.set(
+    "class",
+    sf
+      .getClasses()
+      .filter((d) => d.getName() !== undefined)
+      .map((d) => ({
+        name: d.getName() ?? "",
+        nameNode: d.getNameNode() ?? d,
+        line: d.getStartLineNumber(),
+        exported: isExported(d),
+      })),
+  );
+
+  result.set(
+    "interface",
+    sf.getInterfaces().map((d) => ({
+      name: d.getName(),
+      nameNode: d.getNameNode(),
+      line: d.getStartLineNumber(),
+      exported: isExported(d),
+    })),
+  );
+
+  result.set(
+    "type",
+    sf.getTypeAliases().map((d) => ({
+      name: d.getName(),
+      nameNode: d.getNameNode(),
+      line: d.getStartLineNumber(),
+      exported: isExported(d),
+    })),
+  );
+
+  result.set(
+    "enum",
+    sf.getEnums().map((d) => ({
+      name: d.getName(),
+      nameNode: d.getNameNode(),
+      line: d.getStartLineNumber(),
+      exported: isExported(d),
+    })),
+  );
+
+  return result;
+}
+
+const ALL_KINDS: SymbolKind[] = ["variable", "function", "class", "interface", "type", "enum"];
+
 export function searchSymbols(
   project: Project,
   pattern: string,
   options: SearchOptions = {},
 ): SymbolInfo[] {
   const results: SymbolInfo[] = [];
+  const kinds = options.kind ? [options.kind] : ALL_KINDS;
 
   for (const sf of project.getSourceFiles()) {
-    collectSymbols(sf, pattern, options, results);
+    const filePath = sf.getFilePath();
+    const decls = extractDeclarations(sf);
+
+    for (const kind of kinds) {
+      const entries = decls.get(kind) ?? [];
+      for (const entry of entries) {
+        if (!matchesPattern(entry.name, pattern)) continue;
+        if (options.exported && !entry.exported) continue;
+        results.push(makeSymbolInfo(entry.name, kind, filePath, entry.line, entry.exported));
+      }
+    }
   }
 
   return results;
@@ -47,7 +140,7 @@ export function findReferences(
   symbolName: string,
   options: { transitive?: boolean; kind?: SymbolKind } = {},
 ): ReferenceInfo[] {
-  const declarations = findDeclarations(project, symbolName, options.kind);
+  const declarations = findDeclarationNodes(project, symbolName, options.kind);
   const allRefs: ReferenceInfo[] = [];
   const seen = new Set<string>();
 
@@ -57,25 +150,7 @@ export function findReferences(
   }
 
   if (options.transitive) {
-    const callerNames = new Set<string>();
-    for (const ref of allRefs) {
-      if (!ref.isDefinition) {
-        const callerName = extractCallerName(project, ref.filePath, ref.line);
-        if (callerName && callerName !== symbolName) {
-          callerNames.add(callerName);
-        }
-      }
-    }
-    for (const callerName of callerNames) {
-      const transitiveRefs = findReferences(project, callerName, { transitive: false });
-      for (const ref of transitiveRefs) {
-        const key = `${ref.filePath}:${String(ref.line)}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          allRefs.push(ref);
-        }
-      }
-    }
+    collectTransitiveRefs(project, symbolName, allRefs, seen);
   }
 
   return allRefs;
@@ -110,95 +185,6 @@ function isTestFile(filePath: string): boolean {
   return /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(filePath);
 }
 
-function collectSymbols(
-  sf: SourceFile,
-  pattern: string,
-  options: SearchOptions,
-  results: SymbolInfo[],
-): void {
-  const filePath = sf.getFilePath();
-
-  for (const decl of sf.getVariableDeclarations()) {
-    if (matchesPattern(decl.getName(), pattern)) {
-      const info = makeSymbolInfo(
-        decl.getName(),
-        "variable",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-
-  for (const decl of sf.getFunctions()) {
-    const name = decl.getName();
-    if (name && matchesPattern(name, pattern)) {
-      const info = makeSymbolInfo(
-        name,
-        "function",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-
-  for (const decl of sf.getClasses()) {
-    const name = decl.getName();
-    if (name && matchesPattern(name, pattern)) {
-      const info = makeSymbolInfo(
-        name,
-        "class",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-
-  for (const decl of sf.getInterfaces()) {
-    if (matchesPattern(decl.getName(), pattern)) {
-      const info = makeSymbolInfo(
-        decl.getName(),
-        "interface",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-
-  for (const decl of sf.getTypeAliases()) {
-    if (matchesPattern(decl.getName(), pattern)) {
-      const info = makeSymbolInfo(
-        decl.getName(),
-        "type",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-
-  for (const decl of sf.getEnums()) {
-    if (matchesPattern(decl.getName(), pattern)) {
-      const info = makeSymbolInfo(
-        decl.getName(),
-        "enum",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      );
-      if (matchesOptions(info, options)) results.push(info);
-    }
-  }
-}
-
 function matchesPattern(name: string, pattern: string): boolean {
   return name === pattern || name.toLowerCase().includes(pattern.toLowerCase());
 }
@@ -213,18 +199,10 @@ function makeSymbolInfo(
   return { name, kind, filePath, line, exported };
 }
 
-function matchesOptions(info: SymbolInfo, options: SearchOptions): boolean {
-  if (options.kind && info.kind !== options.kind) return false;
-  if (options.exported && !info.exported) return false;
-  return true;
-}
-
 function isExported(node: Node): boolean {
-  // Check if the node or its parent has export keyword
   if ("isExported" in node && typeof node.isExported === "function") {
     return (node as { isExported: () => boolean }).isExported();
   }
-  // For variable declarations, check the parent statement
   const parent = node.getParent();
   if (parent && "isExported" in parent && typeof parent.isExported === "function") {
     return (parent as { isExported: () => boolean }).isExported();
@@ -232,47 +210,28 @@ function isExported(node: Node): boolean {
   return false;
 }
 
-function findDeclarations(project: Project, name: string, kind?: SymbolKind): Node[] {
+function findDeclarationNodes(project: Project, name: string, kind?: SymbolKind): Node[] {
   const nodes: Node[] = [];
+  const kinds = kind ? [kind] : ALL_KINDS;
+
   for (const sf of project.getSourceFiles()) {
-    if (kind === "function" || !kind) {
-      for (const fn of sf.getFunctions()) {
-        if (fn.getName() === name) nodes.push(fn.getNameNode() ?? fn);
-      }
-    }
-    if (kind === "class" || !kind) {
-      for (const cls of sf.getClasses()) {
-        if (cls.getName() === name) nodes.push(cls.getNameNode() ?? cls);
-      }
-    }
-    if (kind === "variable" || !kind) {
-      for (const v of sf.getVariableDeclarations()) {
-        if (v.getName() === name) nodes.push(v.getNameNode());
-      }
-    }
-    if (kind === "interface" || !kind) {
-      for (const i of sf.getInterfaces()) {
-        if (i.getName() === name) nodes.push(i.getNameNode());
-      }
-    }
-    if (kind === "type" || !kind) {
-      for (const t of sf.getTypeAliases()) {
-        if (t.getName() === name) nodes.push(t.getNameNode());
-      }
-    }
-    if (kind === "enum" || !kind) {
-      for (const e of sf.getEnums()) {
-        if (e.getName() === name) nodes.push(e.getNameNode());
+    const decls = extractDeclarations(sf);
+    for (const k of kinds) {
+      const entries = decls.get(k) ?? [];
+      for (const entry of entries) {
+        if (entry.name === name) {
+          nodes.push(entry.nameNode);
+        }
       }
     }
   }
+
   return nodes;
 }
 
 function collectReferences(node: Node, seen: Set<string>): ReferenceInfo[] {
   const refs: ReferenceInfo[] = [];
 
-  // Cast to Identifier which has findReferences
   let referencedSymbols: ReferencedSymbol[];
   try {
     referencedSymbols = (node as Identifier).findReferences();
@@ -302,23 +261,48 @@ function collectReferences(node: Node, seen: Set<string>): ReferenceInfo[] {
   return refs;
 }
 
+function collectTransitiveRefs(
+  project: Project,
+  symbolName: string,
+  allRefs: ReferenceInfo[],
+  seen: Set<string>,
+): void {
+  const callerNames = new Set<string>();
+  for (const ref of allRefs) {
+    if (!ref.isDefinition) {
+      const callerName = extractCallerName(project, ref.filePath, ref.line);
+      if (callerName && callerName !== symbolName) {
+        callerNames.add(callerName);
+      }
+    }
+  }
+  for (const callerName of callerNames) {
+    const transitiveRefs = findReferences(project, callerName, { transitive: false });
+    for (const ref of transitiveRefs) {
+      const key = `${ref.filePath}:${String(ref.line)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        allRefs.push(ref);
+      }
+    }
+  }
+}
+
 function extractCallerName(project: Project, filePath: string, line: number): string | null {
   const sf = project.getSourceFile(filePath);
   if (!sf) return null;
 
-  // Walk up from the line to find the containing function/method
   const pos = sf.compilerNode.getPositionOfLineAndCharacter(line - 1, 0);
   const node = sf.getDescendantAtPos(pos);
   if (!node) return null;
 
   let current: Node | undefined = node;
   while (current) {
-    if (current.getKind() === SyntaxKind.FunctionDeclaration) {
+    if (
+      current.getKind() === SyntaxKind.FunctionDeclaration ||
+      current.getKind() === SyntaxKind.MethodDeclaration
+    ) {
       const name = (current as { getName?: () => string | undefined }).getName?.();
-      if (name) return name;
-    }
-    if (current.getKind() === SyntaxKind.MethodDeclaration) {
-      const name = (current as { getName?: () => string }).getName?.();
       if (name) return name;
     }
     current = current.getParent();
@@ -329,54 +313,14 @@ function extractCallerName(project: Project, filePath: string, line: number): st
 function getAllSymbolsInFile(sf: SourceFile): SymbolInfo[] {
   const symbols: SymbolInfo[] = [];
   const filePath = sf.getFilePath();
+  const decls = extractDeclarations(sf);
 
-  for (const decl of sf.getVariableDeclarations()) {
-    symbols.push(
-      makeSymbolInfo(
-        decl.getName(),
-        "variable",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      ),
-    );
-  }
-  for (const decl of sf.getFunctions()) {
-    const name = decl.getName();
-    if (name) {
-      symbols.push(
-        makeSymbolInfo(name, "function", filePath, decl.getStartLineNumber(), isExported(decl)),
-      );
+  for (const kind of ALL_KINDS) {
+    const entries = decls.get(kind) ?? [];
+    for (const entry of entries) {
+      symbols.push(makeSymbolInfo(entry.name, kind, filePath, entry.line, entry.exported));
     }
   }
-  for (const decl of sf.getClasses()) {
-    const name = decl.getName();
-    if (name) {
-      symbols.push(
-        makeSymbolInfo(name, "class", filePath, decl.getStartLineNumber(), isExported(decl)),
-      );
-    }
-  }
-  for (const decl of sf.getInterfaces()) {
-    symbols.push(
-      makeSymbolInfo(
-        decl.getName(),
-        "interface",
-        filePath,
-        decl.getStartLineNumber(),
-        isExported(decl),
-      ),
-    );
-  }
-  for (const decl of sf.getTypeAliases()) {
-    symbols.push(
-      makeSymbolInfo(decl.getName(), "type", filePath, decl.getStartLineNumber(), isExported(decl)),
-    );
-  }
-  for (const decl of sf.getEnums()) {
-    symbols.push(
-      makeSymbolInfo(decl.getName(), "enum", filePath, decl.getStartLineNumber(), isExported(decl)),
-    );
-  }
+
   return symbols;
 }
