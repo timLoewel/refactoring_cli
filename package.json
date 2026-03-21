@@ -30,7 +30,7 @@
   },
   "lint-staged": {
     "*.ts": [
-      "eslint --fix",
+      "eslint --fix --no-warn-ignored",
       "prettier --write",
       "node --experimental-vm-modules node_modules/.bin/jest --findRelatedTests --passWithNoTests"
     ]

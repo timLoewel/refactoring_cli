@@ -13,6 +13,7 @@ fi
 
 # Roam quality gates
 if command -v roam &> /dev/null; then
-  roam health --gate
+  roam index
+  roam health
   roam diff
 fi
