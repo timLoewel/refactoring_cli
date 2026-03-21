@@ -23,6 +23,12 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+  {
+    files: ["**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off",
+    },
+  },
   prettier,
   {
     ignores: ["dist/", "node_modules/", "**/*.fixture.ts", "jest.config.ts", "eslint.config.mjs"],
