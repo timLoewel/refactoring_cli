@@ -1,0 +1,7 @@
+npx lint-staged
+
+# Roam quality gates
+if command -v roam &> /dev/null; then
+  roam health --gate || true
+  roam diff || true
+fi
