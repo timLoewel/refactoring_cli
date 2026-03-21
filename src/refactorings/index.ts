@@ -45,6 +45,36 @@ import { replaceExceptionWithPrecheck } from "./replace-exception-with-precheck/
 import { replaceDerivedVariableWithQuery } from "./replace-derived-variable-with-query/index.js";
 import { substituteAlgorithm } from "./substitute-algorithm/index.js";
 
+// Tier 3 — Class & Object
+import { extractClass } from "./extract-class/index.js";
+import { inlineClass } from "./inline-class/index.js";
+import { moveFunction } from "./move-function/index.js";
+import { moveField } from "./move-field/index.js";
+import { encapsulateRecord } from "./encapsulate-record/index.js";
+import { encapsulateVariable } from "./encapsulate-variable/index.js";
+import { encapsulateCollection } from "./encapsulate-collection/index.js";
+import { replacePrimitiveWithObject } from "./replace-primitive-with-object/index.js";
+import { changeReferenceToValue } from "./change-reference-to-value/index.js";
+import { changeValueToReference } from "./change-value-to-reference/index.js";
+import { hideDelegate } from "./hide-delegate/index.js";
+import { removeMiddleMan } from "./remove-middle-man/index.js";
+import { combineFunctionsIntoClass } from "./combine-functions-into-class/index.js";
+import { renameField } from "./rename-field/index.js";
+
+// Tier 4 — Inheritance
+import { extractSuperclass } from "./extract-superclass/index.js";
+import { collapseHierarchy } from "./collapse-hierarchy/index.js";
+import { pullUpMethod } from "./pull-up-method/index.js";
+import { pullUpField } from "./pull-up-field/index.js";
+import { pullUpConstructorBody } from "./pull-up-constructor-body/index.js";
+import { pushDownMethod } from "./push-down-method/index.js";
+import { pushDownField } from "./push-down-field/index.js";
+import { removeSubclass } from "./remove-subclass/index.js";
+import { replaceSubclassWithDelegate } from "./replace-subclass-with-delegate/index.js";
+import { replaceSuperclassWithDelegate } from "./replace-superclass-with-delegate/index.js";
+import { replaceConstructorWithFactoryFunction } from "./replace-constructor-with-factory-function/index.js";
+import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclasses/index.js";
+
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
   extractVariable,
@@ -88,6 +118,34 @@ const allRefactorings: RefactoringDefinition[] = [
   replaceExceptionWithPrecheck,
   replaceDerivedVariableWithQuery,
   substituteAlgorithm,
+  // Tier 3
+  extractClass,
+  inlineClass,
+  moveFunction,
+  moveField,
+  encapsulateRecord,
+  encapsulateVariable,
+  encapsulateCollection,
+  replacePrimitiveWithObject,
+  changeReferenceToValue,
+  changeValueToReference,
+  hideDelegate,
+  removeMiddleMan,
+  combineFunctionsIntoClass,
+  renameField,
+  // Tier 4
+  extractSuperclass,
+  collapseHierarchy,
+  pullUpMethod,
+  pullUpField,
+  pullUpConstructorBody,
+  pushDownMethod,
+  pushDownField,
+  removeSubclass,
+  replaceSubclassWithDelegate,
+  replaceSuperclassWithDelegate,
+  replaceConstructorWithFactoryFunction,
+  replaceTypeCodeWithSubclasses,
 ];
 
 export function registerAll(): void {
