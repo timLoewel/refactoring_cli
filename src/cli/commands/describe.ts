@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
-import { printOutput, successOutput } from "../output.js";
+import { errorOutput, printOutput, successOutput } from "../output.js";
+import { registry } from "../../engine/refactoring-registry.js";
 
 export function createDescribeCommand(): Command {
   return new Command("describe")
@@ -10,7 +11,21 @@ export function createDescribeCommand(): Command {
       const global = getGlobalOptions(cmd);
       const isJson = global.json ?? false;
 
-      // Stub — will be implemented in Section 7
-      printOutput(successOutput("describe", { name, message: "Not yet implemented" }), isJson);
+      const def = registry.lookup(name);
+      if (!def) {
+        printOutput(errorOutput("describe", [`Unknown refactoring: ${name}`]), isJson);
+        process.exitCode = 1;
+        return;
+      }
+
+      const data = {
+        name: def.name,
+        kebabName: def.kebabName,
+        description: def.description,
+        tier: def.tier,
+        params: def.params.definitions,
+      };
+
+      printOutput(successOutput("describe", data), isJson);
     });
 }
