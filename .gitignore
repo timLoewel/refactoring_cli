@@ -2,3 +2,11 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+# Roam index DB (generated, rebuild with `roam index`)
+.roam/index.db
+.roam/index.db-shm
+.roam/index.db-wal
+
+# Local user settings
+.claude/settings.local.json
