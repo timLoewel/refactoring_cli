@@ -21,7 +21,7 @@
 
 ## 4. Migrate Tier 1 Refactorings (11 modules)
 
-- [ ] 4.1 Migrate extract-variable to use defineRefactoring
+- [x] 4.1 Migrate extract-variable to use defineRefactoring
 - [ ] 4.2 Migrate inline-variable
 - [ ] 4.3 Migrate rename-variable
 - [ ] 4.4 Migrate replace-temp-with-query

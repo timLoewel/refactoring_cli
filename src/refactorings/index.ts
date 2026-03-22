@@ -2,7 +2,7 @@ import { registry } from "../engine/refactoring-registry.js";
 import type { RefactoringDefinition } from "../engine/refactoring.types.js";
 
 // Tier 1 — Variable & Expression
-import { extractVariable } from "./extract-variable/index.js";
+import "./extract-variable/index.js"; // self-registers via defineRefactoring
 import { inlineVariable } from "./inline-variable/index.js";
 import { renameVariable } from "./rename-variable/index.js";
 import { replaceTempWithQuery } from "./replace-temp-with-query/index.js";
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  extractVariable,
   inlineVariable,
   renameVariable,
   replaceTempWithQuery,
