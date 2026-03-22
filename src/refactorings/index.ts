@@ -3,7 +3,7 @@ import type { RefactoringDefinition } from "../engine/refactoring.types.js";
 
 // Tier 1 — Variable & Expression
 import "./extract-variable/index.js"; // self-registers via defineRefactoring
-import { inlineVariable } from "./inline-variable/index.js";
+import "./inline-variable/index.js"; // self-registers via defineRefactoring
 import { renameVariable } from "./rename-variable/index.js";
 import { replaceTempWithQuery } from "./replace-temp-with-query/index.js";
 import { splitVariable } from "./split-variable/index.js";
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  inlineVariable,
   renameVariable,
   replaceTempWithQuery,
   splitVariable,
