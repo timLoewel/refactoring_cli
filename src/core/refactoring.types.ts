@@ -1,4 +1,4 @@
-import type { Project } from "ts-morph";
+import type { Block, ClassDeclaration, FunctionDeclaration, Project, SourceFile } from "ts-morph";
 
 export interface ParamDefinition {
   name: string;
@@ -31,6 +31,21 @@ export interface ApplyResult extends RefactoringResult {
 export interface PreconditionResult {
   ok: boolean;
   errors: string[];
+}
+
+export interface SourceFileContext {
+  sourceFile: SourceFile;
+}
+
+export interface FunctionContext {
+  sourceFile: SourceFile;
+  fn: FunctionDeclaration;
+  body: Block;
+}
+
+export interface ClassContext {
+  sourceFile: SourceFile;
+  cls: ClassDeclaration;
 }
 
 export interface RefactoringDefinition {

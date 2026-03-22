@@ -1,7 +1,7 @@
 import { SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { SourceFileContext } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function convertFunctionToMethod(functionText: string, _functionName: string): string {
   return functionText.replace(/^(export\s+)?function\s+/, "").trim();

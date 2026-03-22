@@ -1,6 +1,6 @@
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { FunctionContext } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { FunctionContext } from "../../core/refactoring.types.js";
 
 function buildAssertionStatement(condition: string, message: string | undefined): string {
   const errorMsg =

@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { errorOutput, printOutput, successOutput } from "../output.js";
-import { loadProject } from "../../engine/project-model.js";
-import { findReferences } from "../../engine/symbol-resolver.js";
+import { loadProject } from "../../project-model.js";
+import { findReferences } from "../../symbol-resolver.js";
 
 export function createReferencesCommand(): Command {
   return new Command("references")

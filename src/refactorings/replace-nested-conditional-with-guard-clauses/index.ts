@@ -1,22 +1,18 @@
 import { SyntaxKind, Node } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { FunctionContext } from "../../engine/refactoring-builder.js";
-
-function extractBlockText(node: Node): string {
-  if (node.getKind() === SyntaxKind.Block) {
-    const children = node.getChildSyntaxList()?.getChildren();
-    if (children) {
-      return children.map((s: Node) => s.getText()).join("\n");
-    }
-  }
-  return node.getText();
-}
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { FunctionContext } from "../../core/refactoring.types.js";
 
 interface GuardClauseResult {
   guardClauses: string[];
   mainBody: string;
   otherStatements: string[];
+}
+
+function nodeText(node: Node): string {
+  if (node.getKind() !== SyntaxKind.Block) return node.getText();
+  const children = node.getChildSyntaxList()?.getChildren();
+  return children ? children.map((s: Node) => s.getText()).join("\n") : node.getText();
 }
 
 function processStatements(statements: Node[]): GuardClauseResult {
@@ -26,32 +22,24 @@ function processStatements(statements: Node[]): GuardClauseResult {
 
   for (const stmt of statements) {
     const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
-    if (!ifStmt) {
-      otherStatements.push(stmt.getText());
-      continue;
-    }
+    const elseClause = ifStmt?.getElseStatement();
 
-    const elseClause = ifStmt.getElseStatement();
-    if (!elseClause) {
+    if (!ifStmt || !elseClause) {
       otherStatements.push(stmt.getText());
       continue;
     }
 
     const condition = ifStmt.getExpression().getText();
     const thenBlock = ifStmt.getThenStatement();
-    const thenReturns = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement);
 
-    if (thenReturns.length > 0) {
-      guardClauses.push(`if (${condition}) {\n  ${extractBlockText(thenBlock)}\n}`);
-      mainBody = extractBlockText(elseClause);
+    if (thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0) {
+      guardClauses.push(`if (${condition}) {\n  ${nodeText(thenBlock)}\n}`);
+      mainBody = nodeText(elseClause);
     } else {
-      const elseReturns = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-      const firstElseReturn = elseReturns[0];
-      const earlyReturnExpr = firstElseReturn
-        ? (firstElseReturn.getExpression()?.getText() ?? "undefined")
-        : "undefined";
+      const firstElseReturn = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
+      const earlyReturnExpr = firstElseReturn?.getExpression()?.getText() ?? "undefined";
       guardClauses.push(`if (!(${condition})) return ${earlyReturnExpr};`);
-      mainBody = extractBlockText(thenBlock);
+      mainBody = nodeText(thenBlock);
     }
   }
 

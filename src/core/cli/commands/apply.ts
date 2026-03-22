@@ -1,9 +1,20 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { errorOutput, printOutput, successOutput } from "../output.js";
-import { loadProject } from "../../engine/project-model.js";
-import { registry } from "../../engine/refactoring-registry.js";
-import { applyRefactoring } from "../../engine/apply.js";
+import { loadProject } from "../../project-model.js";
+import { registry } from "../../refactoring-registry.js";
+import { applyRefactoring } from "../../apply.js";
+
+function parseKeyValueArgs(args: string[]): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  for (const arg of args) {
+    const eqIndex = arg.indexOf("=");
+    if (eqIndex > 0) {
+      params[arg.substring(0, eqIndex)] = arg.substring(eqIndex + 1);
+    }
+  }
+  return params;
+}
 
 export function createApplyCommand(): Command {
   return new Command("apply")
@@ -24,19 +35,7 @@ export function createApplyCommand(): Command {
 
       try {
         const { project } = loadProject({ path: global.path, config: global.config });
-
-        // Collect remaining args as params (key=value pairs)
-        const params: Record<string, unknown> = {};
-        const rawArgs = cmd.args.slice(1); // skip the refactoring name
-        for (const arg of rawArgs) {
-          const eqIndex = arg.indexOf("=");
-          if (eqIndex > 0) {
-            const key = arg.substring(0, eqIndex);
-            const value = arg.substring(eqIndex + 1);
-            params[key] = value;
-          }
-        }
-
+        const params = parseKeyValueArgs(cmd.args.slice(1));
         const result = applyRefactoring(def, project, params, { dryRun: opts.dryRun });
         printOutput(successOutput("apply", result), isJson);
         if (!result.success) {

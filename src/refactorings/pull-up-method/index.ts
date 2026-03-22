@@ -1,20 +1,6 @@
 import type { Project } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
-
-function resolveParentClass(
-  project: Project,
-  file: string,
-  subclassName: string,
-): { parentName: string; error?: string } {
-  const sf = project.getSourceFile(file);
-  if (!sf) return { parentName: "", error: `File not found: ${file}` };
-  const subclass = sf.getClass(subclassName);
-  if (!subclass) return { parentName: "", error: `Class '${subclassName}' not found` };
-  const extendsClause = subclass.getExtends();
-  if (!extendsClause) return { parentName: "", error: `Class '${subclassName}' has no superclass` };
-  return { parentName: extendsClause.getExpression().getText() };
-}
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param } from "../../core/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -23,23 +9,20 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
   const errors: string[] = [];
 
   const sf = project.getSourceFile(file);
-  if (!sf) {
-    return { ok: false, errors: [`File not found in project: ${file}`] };
-  }
+  if (!sf) return { ok: false, errors: [`File not found in project: ${file}`] };
 
   const subclass = sf.getClass(target);
-  if (!subclass) {
-    return { ok: false, errors: [`Class '${target}' not found in file`] };
-  }
+  if (!subclass) return { ok: false, errors: [`Class '${target}' not found in file`] };
 
   if (!subclass.getMethod(method)) {
     errors.push(`Method '${method}' not found in class '${target}'`);
   }
 
-  const { parentName, error } = resolveParentClass(project, file, target);
-  if (error) {
-    errors.push(error);
+  const extendsClause = subclass.getExtends();
+  if (!extendsClause) {
+    errors.push(`Class '${target}' has no superclass`);
   } else {
+    const parentName = extendsClause.getExpression().getText();
     const parentClass = sf.getClass(parentName);
     if (!parentClass) {
       errors.push(`Parent class '${parentName}' not found in file`);

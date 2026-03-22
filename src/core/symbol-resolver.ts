@@ -152,7 +152,13 @@ export function searchSymbols(
   for (const decl of forEachDeclaration(project.getSourceFiles(), kinds)) {
     if (!matchesPattern(decl.name, pattern)) continue;
     if (options.exported && !decl.exported) continue;
-    results.push(makeSymbolInfo(decl.name, decl.kind, decl.filePath, decl.line, decl.exported));
+    results.push({
+      name: decl.name,
+      kind: decl.kind,
+      filePath: decl.filePath,
+      line: decl.line,
+      exported: decl.exported,
+    });
   }
 
   return results;
@@ -188,7 +194,13 @@ export function findUnused(project: Project, options: UnusedOptions = {}): Symbo
   const unused: SymbolInfo[] = [];
   for (const decl of forEachDeclaration(sourceFiles, kinds)) {
     if (!hasNonDefinitionRefs(project, decl.name, decl.kind, options.ignoreTests)) {
-      unused.push(makeSymbolInfo(decl.name, decl.kind, decl.filePath, decl.line, decl.exported));
+      unused.push({
+        name: decl.name,
+        kind: decl.kind,
+        filePath: decl.filePath,
+        line: decl.line,
+        exported: decl.exported,
+      });
     }
   }
   return unused;
@@ -213,16 +225,6 @@ function isTestFile(filePath: string): boolean {
 
 function matchesPattern(name: string, pattern: string): boolean {
   return name === pattern || name.toLowerCase().includes(pattern.toLowerCase());
-}
-
-function makeSymbolInfo(
-  name: string,
-  kind: SymbolKind,
-  filePath: string,
-  line: number,
-  exported: boolean,
-): SymbolInfo {
-  return { name, kind, filePath, line, exported };
 }
 
 function isExported(node: Node): boolean {

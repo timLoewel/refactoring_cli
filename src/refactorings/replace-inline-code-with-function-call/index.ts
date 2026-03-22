@@ -1,6 +1,6 @@
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { SourceFileContext } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileContext>({
   name: "Replace Inline Code With Function Call",

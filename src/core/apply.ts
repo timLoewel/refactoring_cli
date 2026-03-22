@@ -10,55 +10,61 @@ export interface ApplyOptions {
   dryRun?: boolean;
 }
 
+function failedResult(description: string): ApplyResult {
+  return { success: false, filesChanged: [], description, diff: [] };
+}
+
+function tryApply(
+  definition: RefactoringDefinition,
+  project: Project,
+  validatedParams: unknown,
+  beforeSnapshots: Map<string, string>,
+): RefactoringResult | ApplyResult {
+  try {
+    return definition.apply(project, validatedParams);
+  } catch (error) {
+    rollbackSnapshots(project, beforeSnapshots);
+    return failedResult(
+      `Transformation error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function trySave(project: Project, beforeSnapshots: Map<string, string>): string | null {
+  try {
+    project.saveSync();
+    return null;
+  } catch (error) {
+    rollbackSnapshots(project, beforeSnapshots);
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export function applyRefactoring(
   definition: RefactoringDefinition,
   project: Project,
   params: Record<string, unknown>,
   options: ApplyOptions = {},
 ): ApplyResult {
-  // Validate params
   const validatedParams = definition.params.validate(params);
 
-  // Run preconditions
   const preconditionResult = definition.preconditions(project, validatedParams);
   if (!preconditionResult.ok) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Precondition failed: ${preconditionResult.errors.join("; ")}`,
-      diff: [],
-    };
+    return failedResult(`Precondition failed: ${preconditionResult.errors.join("; ")}`);
   }
 
-  // Capture file contents before transformation
   const beforeSnapshots = captureSnapshots(project);
-
-  // Apply transformation
-  let result: RefactoringResult;
-  try {
-    result = definition.apply(project, validatedParams);
-  } catch (error) {
-    // Rollback: revert all files to before state
-    rollbackSnapshots(project, beforeSnapshots);
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Transformation error: ${error instanceof Error ? error.message : String(error)}`,
-      diff: [],
-    };
-  }
+  const result = tryApply(definition, project, validatedParams, beforeSnapshots);
+  if ("diff" in result) return result; // error from tryApply
 
   if (!result.success) {
     rollbackSnapshots(project, beforeSnapshots);
     return { ...result, diff: [] };
   }
 
-  // Compute diffs
-  const afterSnapshots = captureSnapshots(project);
-  const diffs = computeDiffs(beforeSnapshots, afterSnapshots);
+  const diffs = computeDiffs(beforeSnapshots, captureSnapshots(project));
 
   if (options.dryRun) {
-    // Rollback without saving
     rollbackSnapshots(project, beforeSnapshots);
     return {
       success: true,
@@ -68,18 +74,8 @@ export function applyRefactoring(
     };
   }
 
-  // Atomic write: save all changed files
-  try {
-    project.saveSync();
-  } catch (error) {
-    rollbackSnapshots(project, beforeSnapshots);
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Failed to save files: ${error instanceof Error ? error.message : String(error)}`,
-      diff: [],
-    };
-  }
+  const saveError = trySave(project, beforeSnapshots);
+  if (saveError) return failedResult(`Failed to save files: ${saveError}`);
 
   return {
     success: true,

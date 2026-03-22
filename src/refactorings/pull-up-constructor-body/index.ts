@@ -1,121 +1,105 @@
-import type { Project } from "ts-morph";
+import type { ClassDeclaration, ConstructorDeclaration, Project } from "ts-morph";
 import { Node } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
+import type { RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { ClassContext } from "../../core/refactoring.types.js";
 
-function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
-  const file = params["file"] as string;
-  const target = params["target"] as string;
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(file);
-  if (!sf) {
-    return { ok: false, errors: [`File not found in project: ${file}`] };
-  }
-
-  const subclass = sf.getClass(target);
-  if (!subclass) {
-    return { ok: false, errors: [`Class '${target}' not found in file`] };
-  }
-
-  const constructor = subclass.getConstructors()[0];
-  if (!constructor) {
-    return { ok: false, errors: [`Class '${target}' has no constructor`] };
-  }
-
-  const extendsClause = subclass.getExtends();
-  if (!extendsClause) {
-    return { ok: false, errors: [`Class '${target}' does not extend any class`] };
-  }
-
-  const parentName = extendsClause.getExpression().getText();
-  const parentClass = sf.getClass(parentName);
-  if (!parentClass) {
-    errors.push(`Parent class '${parentName}' not found in file`);
-  }
-
-  return { ok: errors.length === 0, errors };
+interface PullUpContext extends ClassContext {
+  subConstructor: ConstructorDeclaration;
+  parentClass: ClassDeclaration;
 }
 
-function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
-  const file = params["file"] as string;
+function resolvePullUpContext(
+  project: Project,
+  params: Record<string, unknown>,
+): { ok: true; value: PullUpContext } | { ok: false; result: RefactoringResult } {
+  const classResult = resolve.class(project, params);
+  if (!classResult.ok) return classResult;
+
+  const { sourceFile, cls } = classResult.value;
   const target = params["target"] as string;
 
-  const sf = project.getSourceFile(file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${file}` };
-  }
-
-  const subclass = sf.getClass(target);
-  if (!subclass) {
-    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
-  }
-
-  const subConstructor = subclass.getConstructors()[0];
+  const subConstructor = cls.getConstructors()[0];
   if (!subConstructor) {
-    return { success: false, filesChanged: [], description: `No constructor in '${target}'` };
+    return {
+      ok: false,
+      result: {
+        success: false,
+        filesChanged: [],
+        description: `Class '${target}' has no constructor`,
+      },
+    };
   }
 
-  const extendsClause = subclass.getExtends();
+  const extendsClause = cls.getExtends();
   if (!extendsClause) {
     return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${target}' has no superclass`,
+      ok: false,
+      result: {
+        success: false,
+        filesChanged: [],
+        description: `Class '${target}' does not extend any class`,
+      },
     };
   }
 
   const parentName = extendsClause.getExpression().getText();
-  const parentClass = sf.getClass(parentName);
+  const parentClass = sourceFile.getClass(parentName);
   if (!parentClass) {
     return {
-      success: false,
-      filesChanged: [],
-      description: `Parent class '${parentName}' not found`,
+      ok: false,
+      result: {
+        success: false,
+        filesChanged: [],
+        description: `Parent class '${parentName}' not found in file`,
+      },
     };
   }
 
-  const subParams = subConstructor
-    .getParameters()
-    .map((param) => param.getText())
-    .join(", ");
-  const subBody = subConstructor.getBody();
-  const bodyStatements = subBody && Node.isBlock(subBody) ? subBody.getStatements() : [];
-  const nonSuperStatements = bodyStatements
-    .map((s) => s.getText())
-    .filter((text: string) => !text.startsWith("super("));
+  return { ok: true, value: { sourceFile, cls, subConstructor, parentClass } };
+}
 
+function addStatementsToParent(
+  parentClass: ClassDeclaration,
+  subConstructor: ConstructorDeclaration,
+  nonSuperStatements: string[],
+): void {
   const existingParentConstructor = parentClass.getConstructors()[0];
   if (existingParentConstructor) {
     for (const statement of nonSuperStatements) {
       existingParentConstructor.addStatements(statement);
     }
   } else {
+    const subParams = subConstructor
+      .getParameters()
+      .map((p) => p.getText())
+      .join(", ");
     parentClass.addConstructor({
       parameters: subParams ? [{ name: subParams }] : [],
       statements: nonSuperStatements,
     });
   }
-
-  // Simplify subclass constructor to only retain the super() call
-  const freshSubBody = subConstructor.getBody();
-  if (freshSubBody && Node.isBlock(freshSubBody)) {
-    const stmtsToRemove = freshSubBody
-      .getStatements()
-      .filter((s) => !s.getText().startsWith("super("));
-    for (const stmt of [...stmtsToRemove].reverse()) {
-      stmt.remove();
-    }
-  }
-
-  return {
-    success: true,
-    filesChanged: [file],
-    description: `Pulled constructor body of '${target}' up to '${parentName}'`,
-  };
 }
 
-export const pullUpConstructorBody = defineRefactoring({
+function removeNonSuperStatements(constructor: ConstructorDeclaration): void {
+  const body = constructor.getBody();
+  if (!body || !Node.isBlock(body)) return;
+  const stmtsToRemove = body.getStatements().filter((s) => !s.getText().startsWith("super("));
+  for (const stmt of [...stmtsToRemove].reverse()) {
+    stmt.remove();
+  }
+}
+
+function getNonSuperStatements(constructor: ConstructorDeclaration): string[] {
+  const body = constructor.getBody();
+  if (!body || !Node.isBlock(body)) return [];
+  return body
+    .getStatements()
+    .map((s) => s.getText())
+    .filter((text) => !text.startsWith("super("));
+}
+
+export const pullUpConstructorBody = defineRefactoring<PullUpContext>({
   name: "Pull Up Constructor Body",
   kebabName: "pull-up-constructor-body",
   description:
@@ -125,6 +109,21 @@ export const pullUpConstructorBody = defineRefactoring({
     param.file(),
     param.string("target", "Name of the subclass whose constructor body to pull up"),
   ],
-  preconditions,
-  apply,
+  resolve: resolvePullUpContext,
+  apply(ctx, params): RefactoringResult {
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+    const { subConstructor, parentClass } = ctx;
+
+    const nonSuperStatements = getNonSuperStatements(subConstructor);
+    addStatementsToParent(parentClass, subConstructor, nonSuperStatements);
+    removeNonSuperStatements(subConstructor);
+
+    const parentName = parentClass.getName() ?? "parent";
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Pulled constructor body of '${target}' up to '${parentName}'`,
+    };
+  },
 });

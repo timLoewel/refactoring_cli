@@ -1,7 +1,7 @@
 import type { Project } from "ts-morph";
 import { SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param } from "../../core/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;

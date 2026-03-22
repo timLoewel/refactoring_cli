@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { printOutput, successOutput } from "../output.js";
-import { registry } from "../../engine/refactoring-registry.js";
+import { registry } from "../../refactoring-registry.js";
 
 export function createListCommand(): Command {
   return new Command("list")

@@ -1,8 +1,8 @@
 import { SyntaxKind } from "ts-morph";
 import type { ClassDeclaration } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { SourceFileContext } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function copyMembersIntoClass(memberTexts: string[], intoClass: ClassDeclaration): void {
   for (const memberText of memberTexts) {

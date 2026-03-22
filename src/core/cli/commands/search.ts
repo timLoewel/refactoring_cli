@@ -1,9 +1,9 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { errorOutput, printOutput, successOutput } from "../output.js";
-import { loadProject } from "../../engine/project-model.js";
-import { searchSymbols } from "../../engine/symbol-resolver.js";
-import type { SymbolKind } from "../../engine/symbol-resolver.js";
+import { loadProject } from "../../project-model.js";
+import type { SearchOptions } from "../../symbol-resolver.js";
+import { searchSymbols } from "../../symbol-resolver.js";
 
 export function createSearchCommand(): Command {
   return new Command("search")
@@ -18,7 +18,7 @@ export function createSearchCommand(): Command {
       try {
         const { project } = loadProject({ path: global.path, config: global.config });
         const results = searchSymbols(project, pattern, {
-          kind: opts.kind as SymbolKind | undefined,
+          kind: opts.kind as SearchOptions["kind"],
           exported: opts.exported,
         });
         printOutput(successOutput("search", { pattern, results }), isJson);

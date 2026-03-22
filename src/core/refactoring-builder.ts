@@ -1,15 +1,18 @@
 import { SyntaxKind } from "ts-morph";
-import type { Block, ClassDeclaration, FunctionDeclaration, Project, SourceFile } from "ts-morph";
+import type { Block, Project } from "ts-morph";
 import type {
+  ClassContext,
+  FunctionContext,
   ParamDefinition,
   ParamSchema,
   PreconditionResult,
   RefactoringDefinition,
   RefactoringResult,
+  SourceFileContext,
 } from "./refactoring.types.js";
 import { registry } from "./refactoring-registry.js";
 
-export interface ParamHelper {
+interface ParamHelper {
   definition: ParamDefinition;
   validate: (raw: Record<string, unknown>) => unknown;
 }
@@ -96,21 +99,6 @@ interface ResolveFailure {
 }
 
 type ResolveResult<T> = ResolveSuccess<T> | ResolveFailure;
-
-export interface SourceFileContext {
-  sourceFile: SourceFile;
-}
-
-export interface FunctionContext {
-  sourceFile: SourceFile;
-  fn: FunctionDeclaration;
-  body: Block;
-}
-
-export interface ClassContext {
-  sourceFile: SourceFile;
-  cls: ClassDeclaration;
-}
 
 // ---------------------------------------------------------------------------
 // Shared resolvers

@@ -1,8 +1,8 @@
 import { Node } from "ts-morph";
 import type { Statement } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
-import type { SourceFileContext } from "../../engine/refactoring-builder.js";
+import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function findStatementAtLine(statements: Statement[], line: number): Statement | undefined {
   return statements.find((s) => {

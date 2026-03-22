@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { errorOutput, printOutput, successOutput } from "../output.js";
-import { loadProject } from "../../engine/project-model.js";
-import type { Diagnostic } from "ts-morph";
+import { loadProject } from "../../project-model.js";
+import type { Diagnostic, Project } from "ts-morph";
 import { DiagnosticCategory } from "ts-morph";
 
 interface BrokenImport {
@@ -30,6 +30,20 @@ function findBrokenImports(diagnostics: Diagnostic[]): BrokenImport[] {
   });
 }
 
+function autoFixImports(project: Project, broken: BrokenImport[]): string[] {
+  const filePaths = [...new Set(broken.map((b) => b.filePath))];
+  const fixed: string[] = [];
+  for (const filePath of filePaths) {
+    const sf = project.getSourceFile(filePath);
+    if (sf) {
+      sf.organizeImports();
+      fixed.push(filePath);
+    }
+  }
+  project.saveSync();
+  return fixed;
+}
+
 export function createFixImportsCommand(): Command {
   return new Command("fix-imports")
     .description("Detect and fix broken imports")
@@ -41,26 +55,14 @@ export function createFixImportsCommand(): Command {
 
       try {
         const { project } = loadProject({ path: global.path, config: global.config });
-        const diagnostics = project.getPreEmitDiagnostics();
-        const broken = findBrokenImports(diagnostics);
+        const broken = findBrokenImports(project.getPreEmitDiagnostics());
 
         if (opts.list || !opts.auto) {
           printOutput(successOutput("fix-imports", { broken, fixed: [] }), isJson);
           return;
         }
 
-        // Auto-fix: organize imports on files with broken imports
-        const filePaths = [...new Set(broken.map((b) => b.filePath))];
-        const fixed: string[] = [];
-        for (const filePath of filePaths) {
-          const sf = project.getSourceFile(filePath);
-          if (sf) {
-            sf.organizeImports();
-            fixed.push(filePath);
-          }
-        }
-        project.saveSync();
-
+        const fixed = autoFixImports(project, broken);
         printOutput(successOutput("fix-imports", { broken, fixed }), isJson);
       } catch (error) {
         printOutput(

@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { getGlobalOptions } from "../context.js";
 import { errorOutput, printOutput, successOutput } from "../output.js";
-import { registry } from "../../engine/refactoring-registry.js";
+import { registry } from "../../refactoring-registry.js";
 
 export function createDescribeCommand(): Command {
   return new Command("describe")
