@@ -134,35 +134,37 @@ function failureResult(description: string): RefactoringResult {
 
 export function resolveSourceFile(
   project: Project,
-  params: { file: string },
+  params: Record<string, unknown>,
 ): ResolveResult<SourceFileContext> {
-  const sourceFile = project.getSourceFile(params.file);
+  const file = params["file"] as string;
+  const sourceFile = project.getSourceFile(file);
   if (!sourceFile) {
-    return { ok: false, result: failureResult(`File not found in project: ${params.file}`) };
+    return { ok: false, result: failureResult(`File not found in project: ${file}`) };
   }
   return { ok: true, value: { sourceFile } };
 }
 
 export function resolveFunction(
   project: Project,
-  params: { file: string; target: string },
+  params: Record<string, unknown>,
 ): ResolveResult<FunctionContext> {
   const fileResult = resolveSourceFile(project, params);
   if (!fileResult.ok) {
     return fileResult;
   }
   const { sourceFile } = fileResult.value;
+  const target = params["target"] as string;
 
   const fn = sourceFile
     .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === params.target);
+    .find((f) => f.getName() === target);
   if (!fn) {
-    return { ok: false, result: failureResult(`Function '${params.target}' not found in file`) };
+    return { ok: false, result: failureResult(`Function '${target}' not found in file`) };
   }
 
   const body = fn.getBody();
   if (!body || body.getKind() !== SyntaxKind.Block) {
-    return { ok: false, result: failureResult(`Function '${params.target}' has no block body`) };
+    return { ok: false, result: failureResult(`Function '${target}' has no block body`) };
   }
 
   return { ok: true, value: { sourceFile, fn, body: body as Block } };
@@ -170,17 +172,18 @@ export function resolveFunction(
 
 export function resolveClass(
   project: Project,
-  params: { file: string; target: string },
+  params: Record<string, unknown>,
 ): ResolveResult<ClassContext> {
   const fileResult = resolveSourceFile(project, params);
   if (!fileResult.ok) {
     return fileResult;
   }
   const { sourceFile } = fileResult.value;
+  const target = params["target"] as string;
 
-  const cls = sourceFile.getClass(params.target);
+  const cls = sourceFile.getClass(target);
   if (!cls) {
-    return { ok: false, result: failureResult(`Class '${params.target}' not found in file`) };
+    return { ok: false, result: failureResult(`Class '${target}' not found in file`) };
   }
 
   return { ok: true, value: { sourceFile, cls } };
@@ -188,19 +191,20 @@ export function resolveClass(
 
 export function resolveVariable(
   project: Project,
-  params: { file: string; target: string },
+  params: Record<string, unknown>,
 ): ResolveResult<VariableContext> {
   const fileResult = resolveSourceFile(project, params);
   if (!fileResult.ok) {
     return fileResult;
   }
   const { sourceFile } = fileResult.value;
+  const target = params["target"] as string;
 
   const declaration = sourceFile
     .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-    .find((d) => d.getName() === params.target);
+    .find((d) => d.getName() === target);
   if (!declaration) {
-    return { ok: false, result: failureResult(`Variable '${params.target}' not found in file`) };
+    return { ok: false, result: failureResult(`Variable '${target}' not found in file`) };
   }
 
   return { ok: true, value: { sourceFile, declaration } };
