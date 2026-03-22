@@ -15,7 +15,7 @@
 ## 3. Auto-Discovered Fixture Tests
 
 - [x] 3.1 Add `discoverAllFixtureModules()` to fixture-runner.ts (scans refactoring dirs for fixtures/ subdirs)
-- [ ] 3.2 Define fixture params convention: fixtures export `params` object alongside `main()`
+- [x] 3.2 Define fixture params convention: fixtures export `params` object alongside `main()`
 - [ ] 3.3 Create `src/refactorings/__tests__/all-fixtures.test.ts` that auto-discovers and runs all fixtures
 - [ ] 3.4 Add params exports to at least 3 existing fixtures (extract-variable, inline-variable, rename-variable) as proof
 

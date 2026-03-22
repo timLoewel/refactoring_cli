@@ -160,6 +160,24 @@ function runFixtureTestInner(
   };
 }
 
+export function loadFixtureParams(fixture: Fixture): Record<string, unknown> | undefined {
+  const filePath = fixture.type === "single" ? fixture.path : join(fixture.path, "entry.ts");
+  if (!existsSync(filePath)) return undefined;
+
+  const content = readFileSync(filePath, "utf-8");
+  const jsCode = ts.transpileModule(content, { compilerOptions: TS_COMPILER_OPTIONS }).outputText;
+
+  const fixtureExports: Record<string, unknown> = {};
+  const fn = new Function("exports", "require", jsCode);
+  fn(fixtureExports, () => ({}));
+
+  const params = fixtureExports["params"];
+  if (params === undefined || params === null) return undefined;
+  if (typeof params !== "object" || Array.isArray(params)) return undefined;
+
+  return params as Record<string, unknown>;
+}
+
 // --- Helpers ---
 
 function createInMemoryProject(extra: Record<string, unknown> = {}): Project {
