@@ -57,3 +57,9 @@
 - [ ] 9.1 Run full test suite (all existing tests + auto-discovered fixture tests)
 - [ ] 9.2 Verify `tsc --noEmit` passes clean
 - [ ] 9.3 Verify roam health >= 60
+
+## 10. Roam Health Quality Gate
+
+- [ ] 10.1 Apply roam-health-fixes change (dead export cleanup, symbol-resolver simplification, apply complexity reduction)
+- [ ] 10.2 Run `roam health` and verify score >= 60
+- [ ] 10.3 Re-enable `roam health --gate` in `.husky/pre-commit` (uncomment the line)
