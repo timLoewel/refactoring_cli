@@ -9,7 +9,7 @@ import "./replace-temp-with-query/index.js"; // self-registers via defineRefacto
 import "./split-variable/index.js"; // self-registers via defineRefactoring
 import "./replace-magic-literal/index.js"; // self-registers via defineRefactoring
 import "./slide-statements/index.js"; // self-registers via defineRefactoring
-import { removeDeadCode } from "./remove-dead-code/index.js";
+import "./remove-dead-code/index.js"; // self-registers via defineRefactoring
 import { introduceAssertion } from "./introduce-assertion/index.js";
 import { returnModifiedValue } from "./return-modified-value/index.js";
 import { replaceControlFlagWithBreak } from "./replace-control-flag-with-break/index.js";
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  removeDeadCode,
   introduceAssertion,
   returnModifiedValue,
   replaceControlFlagWithBreak,
