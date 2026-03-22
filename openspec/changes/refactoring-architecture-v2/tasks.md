@@ -30,7 +30,7 @@
 - [x] 4.7 Migrate slide-statements
 - [x] 4.8 Migrate remove-dead-code
 - [x] 4.9 Migrate introduce-assertion
-- [ ] 4.10 Migrate return-modified-value
+- [x] 4.10 Migrate return-modified-value
 - [ ] 4.11 Migrate replace-control-flag-with-break
 
 ## 5. Migrate Tier 2 Refactorings (29 modules)

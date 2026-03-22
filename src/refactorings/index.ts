@@ -11,7 +11,7 @@ import "./replace-magic-literal/index.js"; // self-registers via defineRefactori
 import "./slide-statements/index.js"; // self-registers via defineRefactoring
 import "./remove-dead-code/index.js"; // self-registers via defineRefactoring
 import "./introduce-assertion/index.js"; // self-registers via defineRefactoring
-import { returnModifiedValue } from "./return-modified-value/index.js";
+import "./return-modified-value/index.js"; // self-registers via defineRefactoring
 import { replaceControlFlagWithBreak } from "./replace-control-flag-with-break/index.js";
 
 // Tier 2 — Function level
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  returnModifiedValue,
   replaceControlFlagWithBreak,
   // Tier 2
   extractFunction,
