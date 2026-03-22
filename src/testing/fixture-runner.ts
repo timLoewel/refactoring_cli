@@ -23,6 +23,36 @@ const TS_COMPILER_OPTIONS = {
   strict: true,
 } as const;
 
+export interface FixtureModule {
+  name: string;
+  refactoringPath: string;
+  fixtures: Fixture[];
+}
+
+export function discoverAllFixtureModules(refactoringsDir: string): FixtureModule[] {
+  if (!existsSync(refactoringsDir)) return [];
+
+  const modules: FixtureModule[] = [];
+  const entries = readdirSync(refactoringsDir);
+
+  for (const entry of entries) {
+    const entryPath = join(refactoringsDir, entry);
+    if (!statSync(entryPath).isDirectory()) continue;
+
+    const fixturesDir = join(entryPath, "fixtures");
+    const fixtures = discoverFixtures(fixturesDir);
+    if (fixtures.length === 0) continue;
+
+    modules.push({
+      name: entry,
+      refactoringPath: entryPath,
+      fixtures,
+    });
+  }
+
+  return modules;
+}
+
 export function discoverFixtures(fixturesDir: string): Fixture[] {
   if (!existsSync(fixturesDir)) return [];
 
