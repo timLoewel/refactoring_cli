@@ -5,7 +5,7 @@ import type { RefactoringDefinition } from "../engine/refactoring.types.js";
 import "./extract-variable/index.js"; // self-registers via defineRefactoring
 import "./inline-variable/index.js"; // self-registers via defineRefactoring
 import "./rename-variable/index.js"; // self-registers via defineRefactoring
-import { replaceTempWithQuery } from "./replace-temp-with-query/index.js";
+import "./replace-temp-with-query/index.js"; // self-registers via defineRefactoring
 import { splitVariable } from "./split-variable/index.js";
 import { replaceMagicLiteral } from "./replace-magic-literal/index.js";
 import { slideStatements } from "./slide-statements/index.js";
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  replaceTempWithQuery,
   splitVariable,
   replaceMagicLiteral,
   slideStatements,
