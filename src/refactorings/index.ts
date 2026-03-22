@@ -8,7 +8,7 @@ import "./rename-variable/index.js"; // self-registers via defineRefactoring
 import "./replace-temp-with-query/index.js"; // self-registers via defineRefactoring
 import "./split-variable/index.js"; // self-registers via defineRefactoring
 import "./replace-magic-literal/index.js"; // self-registers via defineRefactoring
-import { slideStatements } from "./slide-statements/index.js";
+import "./slide-statements/index.js"; // self-registers via defineRefactoring
 import { removeDeadCode } from "./remove-dead-code/index.js";
 import { introduceAssertion } from "./introduce-assertion/index.js";
 import { returnModifiedValue } from "./return-modified-value/index.js";
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  slideStatements,
   removeDeadCode,
   introduceAssertion,
   returnModifiedValue,

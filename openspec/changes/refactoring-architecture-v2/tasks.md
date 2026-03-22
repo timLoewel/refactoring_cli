@@ -27,7 +27,7 @@
 - [x] 4.4 Migrate replace-temp-with-query
 - [x] 4.5 Migrate split-variable
 - [x] 4.6 Migrate replace-magic-literal
-- [ ] 4.7 Migrate slide-statements
+- [x] 4.7 Migrate slide-statements
 - [ ] 4.8 Migrate remove-dead-code
 - [ ] 4.9 Migrate introduce-assertion
 - [ ] 4.10 Migrate return-modified-value

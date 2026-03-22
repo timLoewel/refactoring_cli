@@ -1,65 +1,13 @@
 import { Node } from "ts-morph";
-import type { Project, Statement } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
-
-export interface SlideStatementsParams {
-  file: string;
-  target: number;
-  destination: number;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    {
-      name: "file",
-      type: "string",
-      description: "Path to the TypeScript file",
-      required: true,
-    },
-    {
-      name: "target",
-      type: "number",
-      description: "1-based line number of the statement to move",
-      required: true,
-    },
-    {
-      name: "destination",
-      type: "number",
-      description: "1-based line number to move the statement to",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): SlideStatementsParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (
-      typeof r["target"] !== "number" ||
-      !Number.isInteger(r["target"]) ||
-      (r["target"] as number) < 1
-    ) {
-      throw new Error("param 'target' must be a positive integer");
-    }
-    if (
-      typeof r["destination"] !== "number" ||
-      !Number.isInteger(r["destination"]) ||
-      (r["destination"] as number) < 1
-    ) {
-      throw new Error("param 'destination' must be a positive integer");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as number,
-      destination: r["destination"] as number,
-    };
-  },
-};
+import type { Statement } from "ts-morph";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  numberParam,
+  resolveSourceFile,
+} from "../../engine/refactoring-builder.js";
+import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function findStatementAtLine(statements: Statement[], line: number): Statement | undefined {
   return statements.find((s) => {
@@ -67,36 +15,6 @@ function findStatementAtLine(statements: Statement[], line: number): Statement |
     const lineAndCol = sf.getLineAndColumnAtPos(s.getStart());
     return lineAndCol.line === line;
   });
-}
-
-function preconditions(project: Project, p: SlideStatementsParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  if (p.target === p.destination) {
-    errors.push("target and destination line numbers must differ");
-    return { ok: false, errors };
-  }
-
-  const allStatements = sf.getStatements();
-
-  const targetStmt = findStatementAtLine(allStatements, p.target);
-  if (!targetStmt) {
-    errors.push(`No statement found starting at line ${p.target} in file: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const destStmt = findStatementAtLine(allStatements, p.destination);
-  if (!destStmt) {
-    errors.push(`No statement found starting at line ${p.destination} in file: ${p.file}`);
-  }
-
-  return { ok: errors.length === 0, errors };
 }
 
 interface MoveResult {
@@ -132,74 +50,101 @@ function moveStatementInBlock(
   return { success: true };
 }
 
-function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const allStatements = sf.getStatements();
-  const targetStmt = findStatementAtLine(allStatements, p.target);
-  if (!targetStmt) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `No statement found at line ${p.target}`,
-    };
-  }
-
-  const destStmt = findStatementAtLine(allStatements, p.destination);
-  if (!destStmt) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `No statement found at line ${p.destination}`,
-    };
-  }
-
-  const targetParent = targetStmt.getParent();
-  const destParent = destStmt.getParent();
-  if (!targetParent || !destParent || targetParent !== destParent) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: "Both statements must be in the same block",
-    };
-  }
-
-  if (!Node.isSourceFile(targetParent) && !Node.isBlock(targetParent)) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: "Statements are not inside a block or source file",
-    };
-  }
-
-  const result = moveStatementInBlock(targetParent, targetStmt, destStmt);
-  if (!result.success) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: result.reason ?? "Move failed",
-    };
-  }
-
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Moved statement from line ${p.target} to line ${p.destination}`,
-  };
-}
-
-export const slideStatements: RefactoringDefinition = {
+export const slideStatements = defineRefactoring<SourceFileContext>({
   name: "Slide Statements",
   kebabName: "slide-statements",
+  tier: 1,
   description:
     "Moves a statement to a different position within the same block, allowing reordering without changing behavior.",
-  tier: 1,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as SlideStatementsParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as SlideStatementsParams),
-};
+  params: [
+    fileParam(),
+    numberParam("target", "1-based line number of the statement to move"),
+    numberParam("destination", "1-based line number to move the statement to"),
+  ],
+  resolve: (project, params) =>
+    resolveSourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const sf = ctx.sourceFile;
+    const target = params["target"] as number;
+    const destination = params["destination"] as number;
+
+    if (target === destination) {
+      errors.push("target and destination line numbers must differ");
+      return { ok: false, errors };
+    }
+
+    const allStatements = sf.getStatements();
+
+    const targetStmt = findStatementAtLine(allStatements, target);
+    if (!targetStmt) {
+      errors.push(`No statement found starting at line ${target} in file: ${params["file"] as string}`);
+      return { ok: false, errors };
+    }
+
+    const destStmt = findStatementAtLine(allStatements, destination);
+    if (!destStmt) {
+      errors.push(`No statement found starting at line ${destination} in file: ${params["file"] as string}`);
+    }
+
+    return { ok: errors.length === 0, errors };
+  },
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
+    const sf = ctx.sourceFile;
+    const file = params["file"] as string;
+    const target = params["target"] as number;
+    const destination = params["destination"] as number;
+
+    const allStatements = sf.getStatements();
+    const targetStmt = findStatementAtLine(allStatements, target);
+    if (!targetStmt) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `No statement found at line ${target}`,
+      };
+    }
+
+    const destStmt = findStatementAtLine(allStatements, destination);
+    if (!destStmt) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `No statement found at line ${destination}`,
+      };
+    }
+
+    const targetParent = targetStmt.getParent();
+    const destParent = destStmt.getParent();
+    if (!targetParent || !destParent || targetParent !== destParent) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: "Both statements must be in the same block",
+      };
+    }
+
+    if (!Node.isSourceFile(targetParent) && !Node.isBlock(targetParent)) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: "Statements are not inside a block or source file",
+      };
+    }
+
+    const result = moveStatementInBlock(targetParent, targetStmt, destStmt);
+    if (!result.success) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: result.reason ?? "Move failed",
+      };
+    }
+
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Moved statement from line ${target} to line ${destination}`,
+    };
+  },
+});
