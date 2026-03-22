@@ -1,75 +1,13 @@
 import { SyntaxKind } from "ts-morph";
-import type { Project, Node } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
-
-interface ReplaceLoopWithPipelineParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Line number of the for-of loop to replace (1-based)",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ReplaceLoopWithPipelineParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    const lineNum = Number(r["target"]);
-    if (!Number.isInteger(lineNum) || lineNum < 1) {
-      throw new Error("param 'target' must be a positive integer line number");
-    }
-    return { file: r["file"] as string, target: r["target"] as string };
-  },
-};
-
-function preconditions(project: Project, p: ReplaceLoopWithPipelineParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const lineNum = Number(p.target);
-  const loop = sf
-    .getDescendantsOfKind(SyntaxKind.ForOfStatement)
-    .find((l) => l.getStartLineNumber() === lineNum);
-
-  if (!loop) {
-    errors.push(`No for-of loop found at line ${lineNum} in file: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const body = loop.getChildrenOfKind(SyntaxKind.Block)[0];
-  if (!body) {
-    errors.push(`Loop at line ${lineNum} has no block body`);
-    return { ok: false, errors };
-  }
-
-  const statements = body.getStatements();
-  if (statements.length === 0) {
-    errors.push(`Loop at line ${lineNum} has an empty body`);
-  }
-
-  return { ok: errors.length === 0, errors };
-}
+import type { Node } from "ts-morph";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  stringParam,
+  resolveSourceFile,
+} from "../../engine/refactoring-builder.js";
+import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function buildForEachReplacement(
   expression: string,
@@ -110,54 +48,84 @@ function buildPipelineReplacement(expression: string, varName: string, statement
   return fallback;
 }
 
-function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const lineNum = Number(p.target);
-  const loop = sf
-    .getDescendantsOfKind(SyntaxKind.ForOfStatement)
-    .find((l) => l.getStartLineNumber() === lineNum);
-  if (!loop) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `No for-of loop found at line ${lineNum}`,
-    };
-  }
-
-  const body = loop.getChildrenOfKind(SyntaxKind.Block)[0];
-  if (!body) {
-    return { success: false, filesChanged: [], description: `Loop has no block body` };
-  }
-
-  const expression = loop.getExpression().getText();
-  const varName = loop
-    .getInitializer()
-    .getText()
-    .replace(/^(const|let|var)\s+/, "");
-  const replacement = buildPipelineReplacement(expression, varName, body.getStatements());
-
-  loop.replaceWithText(replacement);
-
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Replaced for-of loop at line ${lineNum} with array pipeline`,
-  };
-}
-
-export const replaceLoopWithPipeline: RefactoringDefinition = {
+export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
   name: "Replace Loop With Pipeline",
   kebabName: "replace-loop-with-pipeline",
+  tier: 2,
   description:
     "Replaces a for-of loop with an equivalent array pipeline using map, filter, or forEach.",
-  tier: 2,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ReplaceLoopWithPipelineParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ReplaceLoopWithPipelineParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Line number of the for-of loop to replace (1-based)"),
+  ],
+  resolve: (project, params) =>
+    resolveSourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const sf = ctx.sourceFile;
+    const targetStr = params["target"] as string;
+    const lineNum = Number(targetStr);
+    if (!Number.isInteger(lineNum) || lineNum < 1) {
+      errors.push("param 'target' must be a positive integer line number");
+      return { ok: false, errors };
+    }
+
+    const loop = sf
+      .getDescendantsOfKind(SyntaxKind.ForOfStatement)
+      .find((l) => l.getStartLineNumber() === lineNum);
+
+    if (!loop) {
+      errors.push(`No for-of loop found at line ${lineNum} in file`);
+      return { ok: false, errors };
+    }
+
+    const body = loop.getChildrenOfKind(SyntaxKind.Block)[0];
+    if (!body) {
+      errors.push(`Loop at line ${lineNum} has no block body`);
+      return { ok: false, errors };
+    }
+
+    const statements = body.getStatements();
+    if (statements.length === 0) {
+      errors.push(`Loop at line ${lineNum} has an empty body`);
+    }
+
+    return { ok: errors.length === 0, errors };
+  },
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
+    const sf = ctx.sourceFile;
+    const file = params["file"] as string;
+    const lineNum = Number(params["target"] as string);
+
+    const loop = sf
+      .getDescendantsOfKind(SyntaxKind.ForOfStatement)
+      .find((l) => l.getStartLineNumber() === lineNum);
+    if (!loop) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `No for-of loop found at line ${lineNum}`,
+      };
+    }
+
+    const body = loop.getChildrenOfKind(SyntaxKind.Block)[0];
+    if (!body) {
+      return { success: false, filesChanged: [], description: `Loop has no block body` };
+    }
+
+    const expression = loop.getExpression().getText();
+    const varName = loop
+      .getInitializer()
+      .getText()
+      .replace(/^(const|let|var)\s+/, "");
+    const replacement = buildPipelineReplacement(expression, varName, body.getStatements());
+
+    loop.replaceWithText(replacement);
+
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Replaced for-of loop at line ${lineNum} with array pipeline`,
+    };
+  },
+});

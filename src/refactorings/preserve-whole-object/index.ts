@@ -1,117 +1,69 @@
 import { SyntaxKind } from "ts-morph";
-import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  resolveFunction,
+} from "../../engine/refactoring-builder.js";
+import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
-interface PreserveWholeObjectParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the function to inspect",
-      required: true,
-    },
+export const preserveWholeObject = defineRefactoring<FunctionContext>({
+  name: "Preserve Whole Object",
+  kebabName: "preserve-whole-object",
+  tier: 2,
+  description:
+    "Replaces multiple parameters derived from one object with the whole object passed as a single parameter.",
+  params: [
+    fileParam(),
+    identifierParam("target", "Name of the function to inspect"),
   ],
-  validate(raw: unknown): PreserveWholeObjectParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
+  resolve: (project, params) =>
+    resolveFunction(project, params as { file: string; target: string }),
+  preconditions(ctx: FunctionContext): PreconditionResult {
+    const errors: string[] = [];
+    const paramCount = ctx.fn.getParameters().length;
+    if (paramCount < 2) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' must have at least 2 parameters to apply preserve-whole-object`,
+      );
     }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-    };
+    return { ok: errors.length === 0, errors };
   },
-};
+  apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+    const { fn, body } = ctx;
 
-function preconditions(project: Project, p: PreserveWholeObjectParams): PreconditionResult {
-  const errors: string[] = [];
+    const existingParams = fn.getParameters();
+    if (existingParams.length < 2) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Function '${target}' needs at least 2 parameters`,
+      };
+    }
 
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
+    // Build a record type from existing parameters and replace them with a single object param
+    const paramNames = existingParams.map((ep) => ep.getName());
+    const paramTypes = existingParams.map((ep) => {
+      const typeNode = ep.getTypeNode();
+      return typeNode ? typeNode.getText() : "unknown";
+    });
 
-  const fn = sf
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === p.target);
-  if (!fn) {
-    errors.push(`Function '${p.target}' not found in file: ${p.file}`);
-    return { ok: false, errors };
-  }
+    const typeLiteralParts = paramNames.map((name, i) => `${name}: ${paramTypes[i]}`);
+    const objectType = `{ ${typeLiteralParts.join("; ")} }`;
 
-  const paramCount = fn.getParameters().length;
-  if (paramCount < 2) {
-    errors.push(
-      `Function '${p.target}' must have at least 2 parameters to apply preserve-whole-object`,
-    );
-  }
+    // Remove existing parameters in reverse order
+    const sorted = [...existingParams].sort((a, b) => b.getChildIndex() - a.getChildIndex());
+    for (const ep of sorted) {
+      ep.remove();
+    }
 
-  return { ok: errors.length === 0, errors };
-}
+    // Add single object parameter
+    fn.addParameter({ name: "obj", type: objectType });
 
-function apply(project: Project, p: PreserveWholeObjectParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const fn = sf
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === p.target);
-  if (!fn) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Function '${p.target}' not found`,
-    };
-  }
-
-  const existingParams = fn.getParameters();
-  if (existingParams.length < 2) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Function '${p.target}' needs at least 2 parameters`,
-    };
-  }
-
-  // Build a record type from existing parameters and replace them with a single object param
-  const paramNames = existingParams.map((ep) => ep.getName());
-  const paramTypes = existingParams.map((ep) => {
-    const typeNode = ep.getTypeNode();
-    return typeNode ? typeNode.getText() : "unknown";
-  });
-
-  const typeLiteralParts = paramNames.map((name, i) => `${name}: ${paramTypes[i]}`);
-  const objectType = `{ ${typeLiteralParts.join("; ")} }`;
-
-  // Remove existing parameters in reverse order
-  const sorted = [...existingParams].sort((a, b) => b.getChildIndex() - a.getChildIndex());
-  for (const ep of sorted) {
-    ep.remove();
-  }
-
-  // Add single object parameter
-  fn.addParameter({ name: "obj", type: objectType });
-
-  // Replace usages of individual param names with obj.paramName in function body
-  const body = fn.getBody();
-  if (body) {
+    // Replace usages of individual param names with obj.paramName in function body
     const identifiers = body.getDescendantsOfKind(SyntaxKind.Identifier);
     const sorted2 = [...identifiers].sort((a, b) => b.getStart() - a.getStart());
     for (const id of sorted2) {
@@ -119,24 +71,11 @@ function apply(project: Project, p: PreserveWholeObjectParams): RefactoringResul
         id.replaceWithText(`obj.${id.getText()}`);
       }
     }
-  }
 
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Replaced ${paramNames.length} parameters of '${p.target}' with a single object parameter`,
-  };
-}
-
-export const preserveWholeObject: RefactoringDefinition = {
-  name: "Preserve Whole Object",
-  kebabName: "preserve-whole-object",
-  description:
-    "Replaces multiple parameters derived from one object with the whole object passed as a single parameter.",
-  tier: 2,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as PreserveWholeObjectParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as PreserveWholeObjectParams),
-};
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Replaced ${paramNames.length} parameters of '${target}' with a single object parameter`,
+    };
+  },
+});

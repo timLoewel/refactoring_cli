@@ -1,115 +1,77 @@
 import { SyntaxKind } from "ts-morph";
-import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  resolveSourceFile,
+} from "../../engine/refactoring-builder.js";
+import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
-interface ChangeFunctionDeclarationParams {
-  file: string;
-  target: string;
-  name: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Current name of the function to rename",
-      required: true,
-    },
-    { name: "name", type: "string", description: "New name for the function", required: true },
-  ],
-  validate(raw: unknown): ChangeFunctionDeclarationParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    if (typeof r["name"] !== "string" || r["name"].trim() === "") {
-      throw new Error("param 'name' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-      name: r["name"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: ChangeFunctionDeclarationParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const fn = sf
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === p.target);
-  if (!fn) {
-    errors.push(`Function '${p.target}' not found in file: ${p.file}`);
-  }
-
-  const conflict = sf
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === p.name);
-  if (conflict) {
-    errors.push(`A function named '${p.name}' already exists in the file`);
-  }
-
-  return { ok: errors.length === 0, errors };
-}
-
-function apply(project: Project, p: ChangeFunctionDeclarationParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const fn = sf
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === p.target);
-  if (!fn) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Function '${p.target}' not found`,
-    };
-  }
-
-  // Rename all identifiers referencing the old name
-  const identifiers = sf
-    .getDescendantsOfKind(SyntaxKind.Identifier)
-    .filter((id) => id.getText() === p.target);
-  const sorted = [...identifiers].sort((a, b) => b.getStart() - a.getStart());
-  for (const id of sorted) {
-    id.replaceWithText(p.name);
-  }
-
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Renamed function '${p.target}' to '${p.name}' and updated ${sorted.length} reference(s)`,
-  };
-}
-
-export const changeFunctionDeclaration: RefactoringDefinition = {
+export const changeFunctionDeclaration = defineRefactoring<SourceFileContext>({
   name: "Change Function Declaration",
   kebabName: "change-function-declaration",
-  description: "Renames a function and updates all call sites within the file.",
   tier: 2,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ChangeFunctionDeclarationParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ChangeFunctionDeclarationParams),
-};
+  description: "Renames a function and updates all call sites within the file.",
+  params: [
+    fileParam(),
+    identifierParam("target", "Current name of the function to rename"),
+    identifierParam("name", "New name for the function"),
+  ],
+  resolve: (project, params) =>
+    resolveSourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const sf = ctx.sourceFile;
+    const target = params["target"] as string;
+    const name = params["name"] as string;
+
+    const fn = sf
+      .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+      .find((f) => f.getName() === target);
+    if (!fn) {
+      errors.push(`Function '${target}' not found in file`);
+    }
+
+    const conflict = sf
+      .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+      .find((f) => f.getName() === name);
+    if (conflict) {
+      errors.push(`A function named '${name}' already exists in the file`);
+    }
+
+    return { ok: errors.length === 0, errors };
+  },
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
+    const sf = ctx.sourceFile;
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+    const name = params["name"] as string;
+
+    const fn = sf
+      .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+      .find((f) => f.getName() === target);
+    if (!fn) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Function '${target}' not found`,
+      };
+    }
+
+    // Rename all identifiers referencing the old name
+    const identifiers = sf
+      .getDescendantsOfKind(SyntaxKind.Identifier)
+      .filter((id) => id.getText() === target);
+    const sorted = [...identifiers].sort((a, b) => b.getStart() - a.getStart());
+    for (const id of sorted) {
+      id.replaceWithText(name);
+    }
+
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Renamed function '${target}' to '${name}' and updated ${sorted.length} reference(s)`,
+    };
+  },
+});

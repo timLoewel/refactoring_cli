@@ -35,7 +35,7 @@
 
 ## 5. Migrate Tier 2 Refactorings (29 modules)
 
-- [ ] 5.1 Migrate all 29 Tier 2 refactorings to use defineRefactoring (batch)
+- [x] 5.1 Migrate all 29 Tier 2 refactorings to use defineRefactoring (batch)
 
 ## 6. Migrate Tier 3 Refactorings (14 modules)
 
