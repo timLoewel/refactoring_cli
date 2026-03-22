@@ -24,8 +24,8 @@
 - [x] 4.1 Migrate extract-variable to use defineRefactoring
 - [x] 4.2 Migrate inline-variable
 - [x] 4.3 Migrate rename-variable
-- [ ] 4.4 Migrate replace-temp-with-query
-- [ ] 4.5 Migrate split-variable
+- [x] 4.4 Migrate replace-temp-with-query
+- [x] 4.5 Migrate split-variable
 - [ ] 4.6 Migrate replace-magic-literal
 - [ ] 4.7 Migrate slide-statements
 - [ ] 4.8 Migrate remove-dead-code
