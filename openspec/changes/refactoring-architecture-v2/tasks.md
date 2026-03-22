@@ -47,7 +47,7 @@
 
 ## 8. Remove Barrel and Wire Self-Registration
 
-- [ ] 8.1 Create `src/refactorings/register-all.ts` that imports all 66 modules for side-effect registration
+- [x] 8.1 Create `src/refactorings/register-all.ts` that imports all 66 modules for side-effect registration
 - [ ] 8.2 Remove old barrel `src/refactorings/index.ts` (replace with register-all)
 - [ ] 8.3 Update `src/cli/index.ts` to import `register-all.ts` instead of calling `registerAll()`
 - [ ] 8.4 Verify all 66 refactorings are discoverable via `registry.listAll()`

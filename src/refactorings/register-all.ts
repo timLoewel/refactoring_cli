@@ -1,0 +1,76 @@
+// Side-effect imports: each module self-registers via defineRefactoring.
+// Import this file once at startup to populate the registry.
+
+// Tier 1 — Variable & Expression
+import "./extract-variable/index.js";
+import "./inline-variable/index.js";
+import "./rename-variable/index.js";
+import "./replace-temp-with-query/index.js";
+import "./split-variable/index.js";
+import "./replace-magic-literal/index.js";
+import "./slide-statements/index.js";
+import "./remove-dead-code/index.js";
+import "./introduce-assertion/index.js";
+import "./return-modified-value/index.js";
+import "./replace-control-flag-with-break/index.js";
+
+// Tier 2 — Function level
+import "./extract-function/index.js";
+import "./inline-function/index.js";
+import "./change-function-declaration/index.js";
+import "./parameterize-function/index.js";
+import "./remove-flag-argument/index.js";
+import "./move-statements-into-function/index.js";
+import "./move-statements-to-callers/index.js";
+import "./replace-inline-code-with-function-call/index.js";
+import "./combine-functions-into-transform/index.js";
+import "./split-phase/index.js";
+import "./split-loop/index.js";
+import "./replace-loop-with-pipeline/index.js";
+import "./consolidate-conditional-expression/index.js";
+import "./decompose-conditional/index.js";
+import "./replace-nested-conditional-with-guard-clauses/index.js";
+import "./replace-conditional-with-polymorphism/index.js";
+import "./introduce-special-case/index.js";
+import "./separate-query-from-modifier/index.js";
+import "./replace-parameter-with-query/index.js";
+import "./replace-query-with-parameter/index.js";
+import "./preserve-whole-object/index.js";
+import "./introduce-parameter-object/index.js";
+import "./remove-setting-method/index.js";
+import "./replace-function-with-command/index.js";
+import "./replace-command-with-function/index.js";
+import "./replace-error-code-with-exception/index.js";
+import "./replace-exception-with-precheck/index.js";
+import "./replace-derived-variable-with-query/index.js";
+import "./substitute-algorithm/index.js";
+
+// Tier 3 — Class & Object
+import "./extract-class/index.js";
+import "./inline-class/index.js";
+import "./move-function/index.js";
+import "./move-field/index.js";
+import "./encapsulate-record/index.js";
+import "./encapsulate-variable/index.js";
+import "./encapsulate-collection/index.js";
+import "./replace-primitive-with-object/index.js";
+import "./change-reference-to-value/index.js";
+import "./change-value-to-reference/index.js";
+import "./hide-delegate/index.js";
+import "./remove-middle-man/index.js";
+import "./combine-functions-into-class/index.js";
+import "./rename-field/index.js";
+
+// Tier 4 — Inheritance
+import "./extract-superclass/index.js";
+import "./collapse-hierarchy/index.js";
+import "./pull-up-method/index.js";
+import "./pull-up-field/index.js";
+import "./pull-up-constructor-body/index.js";
+import "./push-down-method/index.js";
+import "./push-down-field/index.js";
+import "./remove-subclass/index.js";
+import "./replace-subclass-with-delegate/index.js";
+import "./replace-superclass-with-delegate/index.js";
+import "./replace-constructor-with-factory-function/index.js";
+import "./replace-type-code-with-subclasses/index.js";
