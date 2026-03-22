@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 
-import { registerAll } from "../refactorings/index.js";
+import "../refactorings/register-all.js"; // side-effect: populates registry
 import { createProgram } from "./program.js";
-
-registerAll();
 
 const program = createProgram();
 program.parse(process.argv);

@@ -6,14 +6,11 @@ import {
   loadFixtureParams,
   runFixtureTest,
 } from "../../testing/fixture-runner.js";
-import { registerAll } from "../index.js";
+import "../register-all.js"; // side-effect: populates registry
 import { registry } from "../../engine/refactoring-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const refactoringsDir = join(__dirname, "..");
-
-// Register all refactorings so registry.lookup() works
-registerAll();
 
 const fixtureModules = discoverAllFixtureModules(refactoringsDir);
 
