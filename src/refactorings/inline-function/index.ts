@@ -1,12 +1,7 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const inlineFunction = defineRefactoring<FunctionContext>({
@@ -15,12 +10,9 @@ export const inlineFunction = defineRefactoring<FunctionContext>({
   tier: 2,
   description:
     "Replaces all call sites of a function with the function's body and removes the declaration.",
-  params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to inline"),
-  ],
+  params: [param.file(), param.identifier("target", "Name of the function to inline")],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(): PreconditionResult {
     return { ok: true, errors: [] };
   },

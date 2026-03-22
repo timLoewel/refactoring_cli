@@ -1,10 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function buildDelegatingMethod(delegate: string, method: string): string {
@@ -18,13 +13,12 @@ export const hideDelegate = defineRefactoring<ClassContext>({
   description:
     "Adds a forwarding method to a class that delegates to a field, hiding the delegate from callers.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class to add the delegating method to"),
-    identifierParam("delegate", "Name of the delegate field on the target class"),
-    identifierParam("method", "Name of the method on the delegate to expose"),
+    param.file(),
+    param.identifier("target", "Name of the class to add the delegating method to"),
+    param.identifier("delegate", "Name of the delegate field on the target class"),
+    param.identifier("method", "Name of the method on the delegate to expose"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const delegate = params["delegate"] as string;
@@ -33,7 +27,9 @@ export const hideDelegate = defineRefactoring<ClassContext>({
 
     const delegateProp = cls.getProperty(delegate);
     if (!delegateProp) {
-      errors.push(`Delegate field '${delegate}' not found on class '${params["target"] as string}'`);
+      errors.push(
+        `Delegate field '${delegate}' not found on class '${params["target"] as string}'`,
+      );
     }
 
     const existingMethod = cls.getMethod(method);

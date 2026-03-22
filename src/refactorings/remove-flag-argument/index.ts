@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const removeFlagArgument = defineRefactoring<FunctionContext>({
@@ -14,12 +9,12 @@ export const removeFlagArgument = defineRefactoring<FunctionContext>({
   tier: 2,
   description: "Splits a function that accepts a boolean flag into two specialized functions.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function with the flag argument"),
-    identifierParam("flag", "Name of the boolean flag parameter to remove"),
+    param.file(),
+    param.identifier("target", "Name of the function with the flag argument"),
+    param.identifier("flag", "Name of the boolean flag parameter to remove"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const flag = params["flag"] as string;

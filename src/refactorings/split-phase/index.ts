@@ -1,12 +1,7 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const splitPhase = defineRefactoring<FunctionContext>({
@@ -16,13 +11,13 @@ export const splitPhase = defineRefactoring<FunctionContext>({
   description:
     "Splits a function into two sequential phase functions and updates the original to delegate to them.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to split into two phases"),
-    identifierParam("firstPhaseName", "Name for the first phase function"),
-    identifierParam("secondPhaseName", "Name for the second phase function"),
+    param.file(),
+    param.identifier("target", "Name of the function to split into two phases"),
+    param.identifier("firstPhaseName", "Name for the first phase function"),
+    param.identifier("secondPhaseName", "Name for the second phase function"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;
@@ -32,7 +27,9 @@ export const splitPhase = defineRefactoring<FunctionContext>({
 
     const bodyStmtCount = Node.isBlock(body) ? body.getStatements().length : 0;
     if (bodyStmtCount < 2) {
-      errors.push(`Function '${ctx.fn.getName()}' must have at least 2 statements to split into two phases`);
+      errors.push(
+        `Function '${ctx.fn.getName()}' must have at least 2 statements to split into two phases`,
+      );
     }
 
     for (const phaseName of [firstPhaseName, secondPhaseName]) {

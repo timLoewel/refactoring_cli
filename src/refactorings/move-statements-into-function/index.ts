@@ -1,12 +1,6 @@
 import { Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  numberParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const moveStatementsIntoFunction = defineRefactoring<FunctionContext>({
@@ -15,13 +9,13 @@ export const moveStatementsIntoFunction = defineRefactoring<FunctionContext>({
   tier: 2,
   description: "Moves a range of top-level statements into an existing function body.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to move statements into"),
-    numberParam("startLine", "First line of statements to move (1-based)"),
-    numberParam("endLine", "Last line of statements to move (1-based)"),
+    param.file(),
+    param.identifier("target", "Name of the function to move statements into"),
+    param.number("startLine", "First line of statements to move (1-based)"),
+    param.number("endLine", "Last line of statements to move (1-based)"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const startLine = params["startLine"] as number;

@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const replaceDerivedVariableWithQuery = defineRefactoring<SourceFileContext>({
@@ -14,11 +9,13 @@ export const replaceDerivedVariableWithQuery = defineRefactoring<SourceFileConte
   tier: 2,
   description: "Replaces a class field that holds a derived value with a computed getter method.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the derived variable or class field to convert into a getter"),
+    param.file(),
+    param.identifier(
+      "target",
+      "Name of the derived variable or class field to convert into a getter",
+    ),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

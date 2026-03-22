@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const parameterizeFunction = defineRefactoring<FunctionContext>({
@@ -15,13 +9,13 @@ export const parameterizeFunction = defineRefactoring<FunctionContext>({
   tier: 2,
   description: "Adds a new parameter to a function and updates all call sites within the file.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to add a parameter to"),
-    identifierParam("paramName", "Name of the new parameter"),
-    stringParam("paramType", "TypeScript type of the new parameter"),
+    param.file(),
+    param.identifier("target", "Name of the function to add a parameter to"),
+    param.identifier("paramName", "Name of the new parameter"),
+    param.string("paramType", "TypeScript type of the new parameter"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const paramName = params["paramName"] as string;

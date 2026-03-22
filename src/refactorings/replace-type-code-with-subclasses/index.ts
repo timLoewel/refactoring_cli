@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -97,9 +97,9 @@ export const replaceTypeCodeWithSubclasses = defineRefactoring({
     "Replaces a type code field in a class with a proper subclass hierarchy, making the type distinction explicit in the class structure.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the class containing the type code field"),
-    stringParam("typeField", "Name of the type code field to replace with subclasses"),
+    param.file(),
+    param.string("target", "Name of the class containing the type code field"),
+    param.string("typeField", "Name of the type code field to replace with subclasses"),
   ],
   preconditions,
   apply,

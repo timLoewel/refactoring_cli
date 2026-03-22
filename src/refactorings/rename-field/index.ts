@@ -1,12 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function renamePropertyReferences(
@@ -36,13 +31,12 @@ export const renameField = defineRefactoring<ClassContext>({
   tier: 3,
   description: "Renames a field on a class and updates all references to it within the same file.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class containing the field"),
-    identifierParam("field", "Current name of the field to rename"),
-    identifierParam("name", "New name for the field"),
+    param.file(),
+    param.identifier("target", "Name of the class containing the field"),
+    param.identifier("field", "Current name of the field to rename"),
+    param.identifier("name", "New name for the field"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const field = params["field"] as string;

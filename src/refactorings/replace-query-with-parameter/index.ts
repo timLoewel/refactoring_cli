@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
@@ -16,13 +10,13 @@ export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
   description:
     "Replaces a global or module-level expression used inside a function with an explicit parameter, making the dependency visible.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to modify"),
-    stringParam("query", "The expression inside the function to replace with a parameter"),
-    identifierParam("paramName", "Name for the new parameter"),
+    param.file(),
+    param.identifier("target", "Name of the function to modify"),
+    param.string("query", "The expression inside the function to replace with a parameter"),
+    param.identifier("paramName", "Name for the new parameter"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const query = params["query"] as string;

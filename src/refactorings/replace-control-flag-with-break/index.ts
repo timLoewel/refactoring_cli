@@ -1,11 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 const LOOP_KINDS = new Set([
@@ -90,11 +85,10 @@ export const replaceControlFlagWithBreak = defineRefactoring<SourceFileContext>(
   description:
     "Replaces a boolean control flag used to exit a loop with an explicit break statement.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the boolean control flag variable to replace"),
+    param.file(),
+    param.identifier("target", "Name of the boolean control flag variable to replace"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const target = params["target"] as string;

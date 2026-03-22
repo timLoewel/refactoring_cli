@@ -1,12 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 /**
@@ -55,12 +49,11 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
   description:
     "Extracts a repeated expression into a named const variable and replaces all occurrences in the same scope.",
   params: [
-    fileParam(),
-    stringParam("target", "The expression text to extract into a variable"),
-    identifierParam("name", "The name for the new variable"),
+    param.file(),
+    param.string("target", "The expression text to extract into a variable"),
+    param.identifier("name", "The name for the new variable"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const text = ctx.sourceFile.getFullText();

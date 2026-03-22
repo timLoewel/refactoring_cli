@@ -1,10 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 export const removeSettingMethod = defineRefactoring<ClassContext>({
@@ -14,12 +9,11 @@ export const removeSettingMethod = defineRefactoring<ClassContext>({
   description:
     "Removes a setter method from a class and marks the field as readonly, enforcing initialization only via constructor.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class containing the setter"),
-    identifierParam("field", "Name of the field whose setter should be removed"),
+    param.file(),
+    param.identifier("target", "Name of the class containing the setter"),
+    param.identifier("field", "Name of the field whose setter should be removed"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const field = params["field"] as string;

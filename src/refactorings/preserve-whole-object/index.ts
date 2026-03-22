@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const preserveWholeObject = defineRefactoring<FunctionContext>({
@@ -14,12 +9,9 @@ export const preserveWholeObject = defineRefactoring<FunctionContext>({
   tier: 2,
   description:
     "Replaces multiple parameters derived from one object with the whole object passed as a single parameter.",
-  params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to inspect"),
-  ],
+  params: [param.file(), param.identifier("target", "Name of the function to inspect")],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const paramCount = ctx.fn.getParameters().length;

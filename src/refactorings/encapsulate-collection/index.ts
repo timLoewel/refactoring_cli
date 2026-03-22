@@ -1,10 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function deriveElementType(collectionType: string): string {
@@ -42,12 +37,11 @@ export const encapsulateCollection = defineRefactoring<ClassContext>({
   description:
     "Replaces direct access to a collection field with add, remove, and get methods that control mutation.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class containing the collection field"),
-    identifierParam("field", "Name of the collection field to encapsulate"),
+    param.file(),
+    param.identifier("target", "Name of the class containing the collection field"),
+    param.identifier("field", "Name of the collection field to encapsulate"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const field = params["field"] as string;

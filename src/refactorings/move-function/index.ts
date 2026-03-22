@@ -1,12 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 export const moveFunction = defineRefactoring({
   name: "Move Function",
@@ -14,9 +9,9 @@ export const moveFunction = defineRefactoring({
   tier: 3,
   description: "Moves a function declaration from one file to another file in the project.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to move"),
-    stringParam("destination", "Destination file path (must already exist in the project)"),
+    param.file(),
+    param.identifier("target", "Name of the function to move"),
+    param.string("destination", "Destination file path (must already exist in the project)"),
   ],
   preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];

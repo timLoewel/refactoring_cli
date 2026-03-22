@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const splitLoop = defineRefactoring<SourceFileContext>({
@@ -13,12 +8,8 @@ export const splitLoop = defineRefactoring<SourceFileContext>({
   kebabName: "split-loop",
   tier: 2,
   description: "Splits a loop that does two things into two separate loops, each doing one thing.",
-  params: [
-    fileParam(),
-    stringParam("target", "Line number of the for loop to split (1-based)"),
-  ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  params: [param.file(), param.string("target", "Line number of the for loop to split (1-based)")],
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

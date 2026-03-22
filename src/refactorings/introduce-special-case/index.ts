@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 export const introduceSpecialCase = defineRefactoring<ClassContext>({
@@ -16,13 +10,15 @@ export const introduceSpecialCase = defineRefactoring<ClassContext>({
   description:
     "Introduces a special-case subclass to replace repeated conditional checks for a particular value.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class to introduce a special case for"),
-    stringParam("specialValue", "The special value that triggers special-case behaviour (e.g. 'unknown')"),
-    identifierParam("specialClassName", "Name for the new special-case subclass"),
+    param.file(),
+    param.identifier("target", "Name of the class to introduce a special case for"),
+    param.string(
+      "specialValue",
+      "The special value that triggers special-case behaviour (e.g. 'unknown')",
+    ),
+    param.identifier("specialClassName", "Name for the new special-case subclass"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const introduceParameterObject = defineRefactoring<FunctionContext>({
@@ -16,13 +10,13 @@ export const introduceParameterObject = defineRefactoring<FunctionContext>({
   description:
     "Groups a set of parameters into a single parameter object to reduce argument lists.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to refactor"),
-    stringParam("params", "Comma-separated parameter names to group into the object"),
-    identifierParam("objectName", "Name of the new parameter object"),
+    param.file(),
+    param.identifier("target", "Name of the function to refactor"),
+    param.string("params", "Comma-separated parameter names to group into the object"),
+    param.identifier("objectName", "Name of the new parameter object"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const paramsStr = params["params"] as string;

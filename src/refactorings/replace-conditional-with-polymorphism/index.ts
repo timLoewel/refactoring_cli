@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const replaceConditionalWithPolymorphism = defineRefactoring<FunctionContext>({
@@ -15,11 +10,11 @@ export const replaceConditionalWithPolymorphism = defineRefactoring<FunctionCont
   description:
     "Replaces a switch statement in a function with an abstract base class and concrete subclasses for each case.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function containing a switch statement to replace"),
+    param.file(),
+    param.identifier("target", "Name of the function containing a switch statement to replace"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const { fn, body } = ctx;
@@ -40,7 +35,9 @@ export const replaceConditionalWithPolymorphism = defineRefactoring<FunctionCont
       .getClauses()
       .filter((c) => c.getKind() === SyntaxKind.CaseClause);
     if (cases.length < 2) {
-      errors.push(`Switch in '${fn.getName()}' needs at least 2 case clauses to apply polymorphism`);
+      errors.push(
+        `Switch in '${fn.getName()}' needs at least 2 case clauses to apply polymorphism`,
+      );
     }
 
     return { ok: errors.length === 0, errors };

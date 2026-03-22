@@ -1,11 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const returnModifiedValue = defineRefactoring<FunctionContext>({
@@ -15,11 +10,14 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
   description:
     "Changes a function that mutates a parameter to instead return the modified value, and updates call sites to capture the return.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function that mutates a parameter to be changed to return it"),
+    param.file(),
+    param.identifier(
+      "target",
+      "Name of the function that mutates a parameter to be changed to return it",
+    ),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, _params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const paramList = ctx.fn.getParameters();
@@ -56,10 +54,12 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
     }
 
     // Update call sites: wrap existing call expression with assignment
-    const callExprs = ctx.sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
-      const expr = call.getExpression();
-      return Node.isIdentifier(expr) && expr.getText() === target;
-    });
+    const callExprs = ctx.sourceFile
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .filter((call) => {
+        const expr = call.getExpression();
+        return Node.isIdentifier(expr) && expr.getText() === target;
+      });
 
     for (const call of callExprs) {
       const callParent = call.getParent();

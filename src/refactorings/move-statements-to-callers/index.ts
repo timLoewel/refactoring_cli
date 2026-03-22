@@ -1,11 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
@@ -14,11 +9,14 @@ export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
   tier: 2,
   description: "Moves the last statement of a function body to each of its call sites.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function whose last statement should be moved to call sites"),
+    param.file(),
+    param.identifier(
+      "target",
+      "Name of the function whose last statement should be moved to call sites",
+    ),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const stmts = Node.isBlock(ctx.body) ? ctx.body.getStatements() : [];

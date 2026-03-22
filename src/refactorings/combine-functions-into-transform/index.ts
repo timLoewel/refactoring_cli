@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const combineFunctionsIntoTransform = defineRefactoring<SourceFileContext>({
@@ -16,12 +10,11 @@ export const combineFunctionsIntoTransform = defineRefactoring<SourceFileContext
   description:
     "Creates a new transform function that calls a set of existing functions in sequence.",
   params: [
-    fileParam(),
-    stringParam("functions", "Comma-separated list of function names to combine"),
-    identifierParam("name", "Name of the new transform function"),
+    param.file(),
+    param.string("functions", "Comma-separated list of function names to combine"),
+    param.identifier("name", "Name of the new transform function"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

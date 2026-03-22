@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const replaceFunctionWithCommand = defineRefactoring<FunctionContext>({
@@ -15,12 +10,12 @@ export const replaceFunctionWithCommand = defineRefactoring<FunctionContext>({
   description:
     "Converts a standalone function into a command class with an execute method, enabling richer state management.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to convert into a command class"),
-    identifierParam("className", "Name for the new command class"),
+    param.file(),
+    param.identifier("target", "Name of the function to convert into a command class"),
+    param.identifier("className", "Name for the new command class"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const className = params["className"] as string;

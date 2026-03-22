@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function buildNewClassText(fieldDeclarations: string[], newClassName: string): string {
@@ -21,13 +15,12 @@ export const extractClass = defineRefactoring<ClassContext>({
   description:
     "Extracts a set of fields from a class into a new class and adds a delegate field to the original.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the source class"),
-    stringParam("fields", "Comma-separated field names to extract"),
-    identifierParam("newClassName", "Name for the new extracted class"),
+    param.file(),
+    param.identifier("target", "Name of the source class"),
+    param.string("fields", "Comma-separated field names to extract"),
+    param.identifier("newClassName", "Name for the new extracted class"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const fields = params["fields"] as string;

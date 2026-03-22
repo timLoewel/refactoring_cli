@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const decomposeConditional = defineRefactoring<SourceFileContext>({
@@ -15,11 +10,10 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
   description:
     "Extracts the condition and each branch of an if statement into separate named functions for clarity.",
   params: [
-    fileParam(),
-    stringParam("target", "Line number of the if statement to decompose (1-based)"),
+    param.file(),
+    param.string("target", "Line number of the if statement to decompose (1-based)"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

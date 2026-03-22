@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -105,9 +105,9 @@ export const replaceSubclassWithDelegate = defineRefactoring({
     "Replaces inheritance by creating a delegate class that holds the subclass behavior, turning the subclass into a standalone class.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the subclass to replace with delegation"),
-    stringParam("delegateClassName", "Name for the new delegate class"),
+    param.file(),
+    param.string("target", "Name of the subclass to replace with delegation"),
+    param.string("delegateClassName", "Name for the new delegate class"),
   ],
   preconditions,
   apply,

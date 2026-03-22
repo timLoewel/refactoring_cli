@@ -14,7 +14,7 @@ export interface ParamHelper {
   validate: (raw: Record<string, unknown>) => unknown;
 }
 
-export function fileParam(name = "file", description = "Path to the TypeScript file"): ParamHelper {
+function fileParam(name = "file", description = "Path to the TypeScript file"): ParamHelper {
   return {
     definition: { name, type: "string", description, required: true },
     validate(raw): unknown {
@@ -27,7 +27,7 @@ export function fileParam(name = "file", description = "Path to the TypeScript f
   };
 }
 
-export function stringParam(name: string, description: string, required = true): ParamHelper {
+function stringParam(name: string, description: string, required = true): ParamHelper {
   return {
     definition: { name, type: "string", description, required },
     validate(raw): unknown {
@@ -44,7 +44,7 @@ export function stringParam(name: string, description: string, required = true):
   };
 }
 
-export function identifierParam(name: string, description: string, required = true): ParamHelper {
+function identifierParam(name: string, description: string, required = true): ParamHelper {
   return {
     definition: { name, type: "string", description, required },
     validate(raw): unknown {
@@ -64,7 +64,7 @@ export function identifierParam(name: string, description: string, required = tr
   };
 }
 
-export function numberParam(name: string, description: string, required = true): ParamHelper {
+function numberParam(name: string, description: string, required = true): ParamHelper {
   return {
     definition: { name, type: "number", description, required },
     validate(raw): unknown {
@@ -120,7 +120,7 @@ function failureResult(description: string): RefactoringResult {
   return { success: false, filesChanged: [], description };
 }
 
-export function resolveSourceFile(
+function resolveSourceFile(
   project: Project,
   params: Record<string, unknown>,
 ): ResolveResult<SourceFileContext> {
@@ -132,7 +132,7 @@ export function resolveSourceFile(
   return { ok: true, value: { sourceFile } };
 }
 
-export function resolveFunction(
+function resolveFunction(
   project: Project,
   params: Record<string, unknown>,
 ): ResolveResult<FunctionContext> {
@@ -158,7 +158,7 @@ export function resolveFunction(
   return { ok: true, value: { sourceFile, fn, body: body as Block } };
 }
 
-export function resolveClass(
+function resolveClass(
   project: Project,
   params: Record<string, unknown>,
 ): ResolveResult<ClassContext> {
@@ -176,6 +176,23 @@ export function resolveClass(
 
   return { ok: true, value: { sourceFile, cls } };
 }
+
+// ---------------------------------------------------------------------------
+// Bundled param helpers and resolvers (reduces symbol fan-in)
+// ---------------------------------------------------------------------------
+
+export const param = {
+  file: fileParam,
+  string: stringParam,
+  identifier: identifierParam,
+  number: numberParam,
+} as const;
+
+export const resolve = {
+  sourceFile: resolveSourceFile,
+  function: resolveFunction,
+  class: resolveClass,
+} as const;
 
 // ---------------------------------------------------------------------------
 // defineRefactoring builder

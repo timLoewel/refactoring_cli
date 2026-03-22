@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -82,8 +82,8 @@ export const collapseHierarchy = defineRefactoring({
     "Merges a subclass that adds nothing meaningful back into its parent class and removes the subclass.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the subclass to collapse into its parent"),
+    param.file(),
+    param.string("target", "Name of the subclass to collapse into its parent"),
   ],
   preconditions,
   apply,

@@ -1,14 +1,5 @@
 import { Project } from "ts-morph";
-import {
-  fileParam,
-  stringParam,
-  identifierParam,
-  numberParam,
-  resolveSourceFile,
-  resolveFunction,
-  resolveClass,
-  defineRefactoring,
-} from "./refactoring-builder.js";
+import { param, resolve, defineRefactoring } from "./refactoring-builder.js";
 import { registry } from "./refactoring-registry.js";
 import type { RefactoringResult } from "./refactoring.types.js";
 
@@ -31,14 +22,14 @@ function makeProject(files: Record<string, string>): Project {
 // ---------------------------------------------------------------------------
 
 describe("param helpers", () => {
-  describe("fileParam", () => {
+  describe("param.file", () => {
     it("validates a non-empty string", () => {
-      const helper = fileParam();
+      const helper = param.file();
       expect(helper.validate({ file: "src/foo.ts" })).toBe("src/foo.ts");
     });
 
     it("uses default name and description", () => {
-      const helper = fileParam();
+      const helper = param.file();
       expect(helper.definition).toEqual({
         name: "file",
         type: "string",
@@ -48,101 +39,101 @@ describe("param helpers", () => {
     });
 
     it("accepts custom name and description", () => {
-      const helper = fileParam("target", "Target file");
+      const helper = param.file("target", "Target file");
       expect(helper.definition.name).toBe("target");
       expect(helper.definition.description).toBe("Target file");
     });
 
     it("throws on missing value", () => {
-      const helper = fileParam();
+      const helper = param.file();
       expect(() => helper.validate({})).toThrow("param 'file' must be a non-empty string");
     });
 
     it("throws on empty string", () => {
-      const helper = fileParam();
+      const helper = param.file();
       expect(() => helper.validate({ file: "  " })).toThrow(
         "param 'file' must be a non-empty string",
       );
     });
   });
 
-  describe("stringParam", () => {
+  describe("param.string", () => {
     it("validates a required string", () => {
-      const helper = stringParam("target", "expression");
+      const helper = param.string("target", "expression");
       expect(helper.validate({ target: "x + 1" })).toBe("x + 1");
     });
 
     it("throws on missing required string", () => {
-      const helper = stringParam("target", "expression");
+      const helper = param.string("target", "expression");
       expect(() => helper.validate({})).toThrow("param 'target' must be a non-empty string");
     });
 
     it("allows undefined for optional param", () => {
-      const helper = stringParam("note", "optional note", false);
+      const helper = param.string("note", "optional note", false);
       expect(helper.validate({})).toBeUndefined();
     });
 
     it("throws on wrong type for optional param", () => {
-      const helper = stringParam("note", "optional note", false);
+      const helper = param.string("note", "optional note", false);
       expect(() => helper.validate({ note: 42 })).toThrow("param 'note' must be a string");
     });
   });
 
-  describe("identifierParam", () => {
+  describe("param.identifier", () => {
     it("validates a valid identifier", () => {
-      const helper = identifierParam("name", "variable name");
+      const helper = param.identifier("name", "variable name");
       expect(helper.validate({ name: "myVar" })).toBe("myVar");
     });
 
     it("accepts identifiers starting with $ or _", () => {
-      const helper = identifierParam("name", "variable name");
+      const helper = param.identifier("name", "variable name");
       expect(helper.validate({ name: "$ref" })).toBe("$ref");
       expect(helper.validate({ name: "_private" })).toBe("_private");
     });
 
     it("throws on invalid identifier", () => {
-      const helper = identifierParam("name", "variable name");
+      const helper = param.identifier("name", "variable name");
       expect(() => helper.validate({ name: "123abc" })).toThrow(
         "param 'name' must be a valid identifier",
       );
     });
 
     it("throws on identifier with spaces", () => {
-      const helper = identifierParam("name", "variable name");
+      const helper = param.identifier("name", "variable name");
       expect(() => helper.validate({ name: "my var" })).toThrow(
         "param 'name' must be a valid identifier",
       );
     });
 
     it("throws on missing required identifier", () => {
-      const helper = identifierParam("name", "variable name");
+      const helper = param.identifier("name", "variable name");
       expect(() => helper.validate({})).toThrow("param 'name' must be a non-empty string");
     });
   });
 
-  describe("numberParam", () => {
+  describe("param.number", () => {
     it("validates a number", () => {
-      const helper = numberParam("line", "line number");
+      const helper = param.number("line", "line number");
       expect(helper.validate({ line: 42 })).toBe(42);
     });
 
     it("throws on missing required number", () => {
-      const helper = numberParam("line", "line number");
+      const helper = param.number("line", "line number");
       expect(() => helper.validate({})).toThrow("param 'line' must be a number");
     });
 
     it("throws on NaN", () => {
-      const helper = numberParam("line", "line number");
+      const helper = param.number("line", "line number");
       expect(() => helper.validate({ line: NaN })).toThrow("param 'line' must be a number");
     });
 
     it("allows undefined for optional param", () => {
-      const helper = numberParam("line", "line number", false);
+      const helper = param.number("line", "line number", false);
       expect(helper.validate({})).toBeUndefined();
     });
 
     it("throws on wrong type for optional param", () => {
-      const helper = numberParam("line", "line number", false);
+      const helper = param.number("line", "line number", false);
       expect(() => helper.validate({ line: "42" })).toThrow("param 'line' must be a number");
     });
   });
@@ -153,10 +144,10 @@ describe("param helpers", () => {
 // ---------------------------------------------------------------------------
 
 describe("shared resolvers", () => {
-  describe("resolveSourceFile", () => {
+  describe("resolve.sourceFile", () => {
     it("returns sourceFile on success", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
-      const result = resolveSourceFile(project, { file: "src/foo.ts" });
+      const result = resolve.sourceFile(project, { file: "src/foo.ts" });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.sourceFile.getFilePath()).toContain("src/foo.ts");
@@ -165,7 +156,7 @@ describe("shared resolvers", () => {
 
     it("returns failure when file not found", () => {
       const project = makeProject({});
-      const result = resolveSourceFile(project, { file: "missing.ts" });
+      const result = resolve.sourceFile(project, { file: "missing.ts" });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.result.success).toBe(false);
@@ -174,12 +165,12 @@ describe("shared resolvers", () => {
     });
   });
 
-  describe("resolveFunction", () => {
+  describe("resolve.function", () => {
     it("returns function and body on success", () => {
       const project = makeProject({
         "src/foo.ts": "export function greet() { return 'hi'; }",
       });
-      const result = resolveFunction(project, { file: "src/foo.ts", target: "greet" });
+      const result = resolve.function(project, { file: "src/foo.ts", target: "greet" });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.fn.getName()).toBe("greet");
@@ -189,7 +180,7 @@ describe("shared resolvers", () => {
 
     it("returns failure when function not found", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
-      const result = resolveFunction(project, { file: "src/foo.ts", target: "greet" });
+      const result = resolve.function(project, { file: "src/foo.ts", target: "greet" });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.result.description).toContain("greet");
@@ -198,17 +189,17 @@ describe("shared resolvers", () => {
 
     it("returns failure when file not found", () => {
       const project = makeProject({});
-      const result = resolveFunction(project, { file: "missing.ts", target: "greet" });
+      const result = resolve.function(project, { file: "missing.ts", target: "greet" });
       expect(result.ok).toBe(false);
     });
   });
 
-  describe("resolveClass", () => {
+  describe("resolve.class", () => {
     it("returns class on success", () => {
       const project = makeProject({
         "src/foo.ts": "export class MyClass { method() {} }",
       });
-      const result = resolveClass(project, { file: "src/foo.ts", target: "MyClass" });
+      const result = resolve.class(project, { file: "src/foo.ts", target: "MyClass" });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.cls.getName()).toBe("MyClass");
@@ -217,7 +208,7 @@ describe("shared resolvers", () => {
 
     it("returns failure when class not found", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
-      const result = resolveClass(project, { file: "src/foo.ts", target: "MyClass" });
+      const result = resolve.class(project, { file: "src/foo.ts", target: "MyClass" });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.result.description).toContain("MyClass");
@@ -238,7 +229,7 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "A test",
-      params: [fileParam()],
+      params: [param.file()],
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
@@ -253,7 +244,7 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 2,
       description: "Does things",
-      params: [fileParam(), stringParam("target", "expression")],
+      params: [param.file(), param.string("target", "expression")],
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
@@ -271,7 +262,7 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam(), identifierParam("name", "variable name")],
+      params: [param.file(), param.identifier("name", "variable name")],
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
@@ -290,7 +281,7 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam()],
+      params: [param.file()],
       apply: (_project: Project, _params: Record<string, unknown>): RefactoringResult => {
         callCount += 1;
         return { success: true, filesChanged: ["test.ts"], description: "applied" };
@@ -314,8 +305,8 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam()],
-      resolve: resolveSourceFile,
+      params: [param.file()],
+      resolve: resolve.sourceFile,
       apply: (context, params): RefactoringResult => {
         receivedContext = context;
         receivedParams = params;
@@ -340,8 +331,8 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam()],
-      resolve: resolveSourceFile,
+      params: [param.file()],
+      resolve: resolve.sourceFile,
       apply: (): RefactoringResult => {
         applyCalled = true;
         return { success: true, filesChanged: [], description: "should not reach" };
@@ -363,8 +354,8 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam()],
-      resolve: resolveSourceFile,
+      params: [param.file()],
+      resolve: resolve.sourceFile,
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
@@ -382,8 +373,8 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam()],
-      resolve: resolveSourceFile,
+      params: [param.file()],
+      resolve: resolve.sourceFile,
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
@@ -401,8 +392,8 @@ describe("defineRefactoring", () => {
       kebabName: kebab,
       tier: 1,
       description: "test",
-      params: [fileParam(), stringParam("target", "expression")],
-      resolve: resolveSourceFile,
+      params: [param.file(), param.string("target", "expression")],
+      resolve: resolve.sourceFile,
       preconditions: (_context, params) => {
         if (params["target"] === "forbidden") {
           return { ok: false, errors: ["target is forbidden"] };

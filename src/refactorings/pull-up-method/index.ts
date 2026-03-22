@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function resolveParentClass(
   project: Project,
@@ -109,9 +109,9 @@ export const pullUpMethod = defineRefactoring({
     "Moves a method from a subclass to its superclass, making it available to all siblings.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the subclass containing the method"),
-    stringParam("method", "Name of the method to move to the superclass"),
+    param.file(),
+    param.string("target", "Name of the subclass containing the method"),
+    param.string("method", "Name of the method to move to the superclass"),
   ],
   preconditions,
   apply,

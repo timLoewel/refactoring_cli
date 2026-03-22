@@ -1,11 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-  stringParam,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 function buildAssertionStatement(condition: string, message: string | undefined): string {
@@ -23,15 +17,15 @@ export const introduceAssertion = defineRefactoring<FunctionContext>({
   description:
     "Inserts an assertion guard at the beginning of a function to make its preconditions explicit.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to add the assertion to"),
-    stringParam("condition", "The boolean condition expression that must be true (e.g. 'n >= 0')"),
-    stringParam("message", "Optional error message thrown when the assertion fails", false),
+    param.file(),
+    param.identifier("target", "Name of the function to add the assertion to"),
+    param.string("condition", "The boolean condition expression that must be true (e.g. 'n >= 0')"),
+    param.string("message", "Optional error message thrown when the assertion fails", false),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(_ctx: FunctionContext, _params: Record<string, unknown>): PreconditionResult {
-    // resolveFunction already validates file exists, function exists, and has a block body
+    // resolve.function already validates file exists, function exists, and has a block body
     return { ok: true, errors: [] };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {

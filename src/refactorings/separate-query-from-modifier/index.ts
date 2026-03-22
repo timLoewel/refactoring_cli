@@ -1,12 +1,7 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
@@ -16,11 +11,11 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
   description:
     "Splits a function that both returns a value and has side effects into a pure query function and a void modifier function.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to split into query and modifier"),
+    param.file(),
+    param.identifier("target", "Name of the function to split into query and modifier"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const { fn, body } = ctx;

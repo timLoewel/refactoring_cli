@@ -1,11 +1,6 @@
 import type { MethodDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function isDelegatingMethod(method: MethodDeclaration, delegateName: string): boolean {
@@ -24,12 +19,11 @@ export const removeMiddleMan = defineRefactoring<ClassContext>({
   description:
     "Removes methods that merely forward calls to a delegate field, exposing the delegate directly.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class acting as middle man"),
-    identifierParam("delegate", "Name of the delegate field whose methods are being forwarded"),
+    param.file(),
+    param.identifier("target", "Name of the class acting as middle man"),
+    param.identifier("delegate", "Name of the delegate field whose methods are being forwarded"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const delegate = params["delegate"] as string;
@@ -37,7 +31,9 @@ export const removeMiddleMan = defineRefactoring<ClassContext>({
 
     const delegateProp = cls.getProperty(delegate);
     if (!delegateProp) {
-      errors.push(`Delegate field '${delegate}' not found on class '${params["target"] as string}'`);
+      errors.push(
+        `Delegate field '${delegate}' not found on class '${params["target"] as string}'`,
+      );
     }
 
     return { ok: errors.length === 0, errors };

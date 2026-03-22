@@ -1,11 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const inlineVariable = defineRefactoring<SourceFileContext>({
@@ -14,12 +9,8 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
   tier: 1,
   description:
     "Replaces all references to a variable with its initializer expression and removes the declaration.",
-  params: [
-    fileParam(),
-    identifierParam("target", "Name of the variable to inline"),
-  ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  params: [param.file(), param.identifier("target", "Name of the variable to inline")],
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

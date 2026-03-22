@@ -1,11 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const renameVariable = defineRefactoring<SourceFileContext>({
@@ -15,12 +10,11 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
   description:
     "Renames a variable and all its references using ts-morph's rename, ensuring scope-aware renaming.",
   params: [
-    fileParam(),
-    identifierParam("target", "Current name of the variable to rename"),
-    identifierParam("name", "New name for the variable"),
+    param.file(),
+    param.identifier("target", "Current name of the variable to rename"),
+    param.identifier("name", "New name for the variable"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

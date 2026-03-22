@@ -1,12 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-  stringParam,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const replaceMagicLiteral = defineRefactoring<SourceFileContext>({
@@ -16,12 +10,11 @@ export const replaceMagicLiteral = defineRefactoring<SourceFileContext>({
   description:
     "Replaces all occurrences of a magic literal value with a named constant declaration.",
   params: [
-    fileParam(),
-    stringParam("target", "The literal value to replace (as a string, e.g. '42' or '\"hello\"')"),
-    identifierParam("name", "Name for the new named constant"),
+    param.file(),
+    param.string("target", "The literal value to replace (as a string, e.g. '42' or '\"hello\"')"),
+    param.identifier("name", "Name for the new named constant"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

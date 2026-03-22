@@ -1,11 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const substituteAlgorithm = defineRefactoring<FunctionContext>({
@@ -14,12 +8,12 @@ export const substituteAlgorithm = defineRefactoring<FunctionContext>({
   tier: 2,
   description: "Replaces the entire body of a function with a new implementation.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function whose body should be replaced"),
-    stringParam("newBody", "New function body as a block string (e.g. '{ return x * 2; }')"),
+    param.file(),
+    param.identifier("target", "Name of the function whose body should be replaced"),
+    param.string("newBody", "New function body as a block string (e.g. '{ return x * 2; }')"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const newBody = params["newBody"] as string;

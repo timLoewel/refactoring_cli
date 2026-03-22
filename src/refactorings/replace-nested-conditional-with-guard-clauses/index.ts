@@ -1,11 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 function extractBlockText(node: Node): string {
@@ -70,16 +65,18 @@ export const replaceNestedConditionalWithGuardClauses = defineRefactoring<Functi
   description:
     "Flattens deeply nested if-else conditionals in a function into early-return guard clauses.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to flatten nested conditionals in"),
+    param.file(),
+    param.identifier("target", "Name of the function to flatten nested conditionals in"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const ifStatements = ctx.body.getDescendantsOfKind(SyntaxKind.IfStatement);
     if (ifStatements.length === 0) {
-      errors.push(`Function '${ctx.fn.getName()}' has no if statements to convert to guard clauses`);
+      errors.push(
+        `Function '${ctx.fn.getName()}' has no if statements to convert to guard clauses`,
+      );
     }
     return { ok: errors.length === 0, errors };
   },

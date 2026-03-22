@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -84,10 +84,10 @@ export const pushDownMethod = defineRefactoring({
     "Moves a method from a superclass down to a specific subclass that is the only relevant consumer.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the superclass containing the method"),
-    stringParam("method", "Name of the method to push down"),
-    stringParam("subclass", "Name of the subclass to receive the method"),
+    param.file(),
+    param.string("target", "Name of the superclass containing the method"),
+    param.string("method", "Name of the method to push down"),
+    param.string("subclass", "Name of the subclass to receive the method"),
   ],
   preconditions,
   apply,

@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function buildSuperclassText(superclassName: string, methodTexts: string[]): string {
   const body = methodTexts.map((m) => `  ${m}`).join("\n\n");
@@ -96,10 +96,10 @@ export const extractSuperclass = defineRefactoring({
     "Extracts shared methods from a class into a new superclass, making the original class extend it.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the class to extract from"),
-    stringParam("methods", "Comma-separated method names to move to superclass"),
-    stringParam("superclassName", "Name for the new superclass"),
+    param.file(),
+    param.string("target", "Name of the class to extract from"),
+    param.string("methods", "Comma-separated method names to move to superclass"),
+    param.string("superclassName", "Name for the new superclass"),
   ],
   preconditions,
   apply,

@@ -1,12 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { ClassDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function copyMembersIntoClass(memberTexts: string[], intoClass: ClassDeclaration): void {
@@ -21,12 +16,11 @@ export const inlineClass = defineRefactoring<SourceFileContext>({
   tier: 3,
   description: "Moves all members of one class into another class and removes the emptied class.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class to inline"),
-    identifierParam("into", "Name of the class to receive the inlined members"),
+    param.file(),
+    param.identifier("target", "Name of the class to inline"),
+    param.identifier("into", "Name of the class to receive the inlined members"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

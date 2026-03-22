@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function buildWrapperClass(className: string, primitiveType: string): string {
@@ -26,12 +21,11 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
   description:
     "Creates a wrapper class for a primitive-typed variable, replacing its usage with an instance of the class.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the variable or parameter to wrap"),
-    identifierParam("className", "Name of the wrapper class to create"),
+    param.file(),
+    param.identifier("target", "Name of the variable or parameter to wrap"),
+    param.identifier("className", "Name of the wrapper class to create"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

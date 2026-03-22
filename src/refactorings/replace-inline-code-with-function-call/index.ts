@@ -1,11 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileContext>({
@@ -14,12 +8,11 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
   tier: 2,
   description: "Replaces occurrences of an inline expression with a call to a named function.",
   params: [
-    fileParam(),
-    stringParam("target", "Inline code expression to replace"),
-    identifierParam("name", "Name of the function to call instead"),
+    param.file(),
+    param.string("target", "Inline code expression to replace"),
+    param.identifier("name", "Name of the function to call instead"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const target = params["target"] as string;

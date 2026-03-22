@@ -1,11 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const moveField = defineRefactoring<SourceFileContext>({
@@ -14,13 +9,12 @@ export const moveField = defineRefactoring<SourceFileContext>({
   tier: 3,
   description: "Moves a field declaration from one class to another class within the same file.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the source class"),
-    identifierParam("field", "Name of the field to move"),
-    identifierParam("destination", "Name of the destination class"),
+    param.file(),
+    param.identifier("target", "Name of the source class"),
+    param.identifier("field", "Name of the field to move"),
+    param.identifier("destination", "Name of the destination class"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

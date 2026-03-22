@@ -1,10 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
@@ -13,11 +8,10 @@ export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
   tier: 2,
   description: "Converts a command class with an execute method back into a plain function.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the command class to convert into a function"),
+    param.file(),
+    param.identifier("target", "Name of the command class to convert into a function"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(ctx: ClassContext): PreconditionResult {
     const errors: string[] = [];
     const { cls } = ctx;

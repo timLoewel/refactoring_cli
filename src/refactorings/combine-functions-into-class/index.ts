@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function convertFunctionToMethod(functionText: string, _functionName: string): string {
@@ -19,12 +13,11 @@ export const combineFunctionsIntoClass = defineRefactoring<SourceFileContext>({
   tier: 3,
   description: "Groups a set of related top-level functions into a new class as methods.",
   params: [
-    fileParam(),
-    stringParam("target", "Comma-separated names of the functions to group into a class"),
-    identifierParam("className", "Name for the new class"),
+    param.file(),
+    param.string("target", "Comma-separated names of the functions to group into a class"),
+    param.identifier("className", "Name for the new class"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

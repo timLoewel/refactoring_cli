@@ -1,10 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  resolveClass,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function buildRegistryMethod(className: string, keyParam: string): string {
@@ -26,11 +21,10 @@ export const changeValueToReference = defineRefactoring<ClassContext>({
   description:
     "Adds a static getInstance() factory method with an internal registry to a class, enabling shared reference semantics.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the class to convert to reference semantics"),
+    param.file(),
+    param.identifier("target", "Name of the class to convert to reference semantics"),
   ],
-  resolve: (project, params) =>
-    resolveClass(project, params as { file: string; target: string }),
+  resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
   preconditions(): PreconditionResult {
     return { ok: true, errors: [] };
   },

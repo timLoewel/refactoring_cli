@@ -1,7 +1,7 @@
 import type { Project } from "ts-morph";
 import { Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -122,8 +122,8 @@ export const pullUpConstructorBody = defineRefactoring({
     "Moves common constructor initialization logic from a subclass up to the superclass constructor.",
   tier: 4,
   params: [
-    fileParam(),
-    stringParam("target", "Name of the subclass whose constructor body to pull up"),
+    param.file(),
+    param.string("target", "Name of the subclass whose constructor body to pull up"),
   ],
   preconditions,
   apply,

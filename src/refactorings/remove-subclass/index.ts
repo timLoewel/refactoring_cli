@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param } from "../../engine/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -19,7 +19,10 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    return { ok: false, errors: [`Class '${target}' does not extend any class — it is not a subclass`] };
+    return {
+      ok: false,
+      errors: [`Class '${target}' does not extend any class — it is not a subclass`],
+    };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -93,10 +96,7 @@ export const removeSubclass = defineRefactoring({
   description:
     "Removes a subclass by merging it into its parent and replacing the subclass distinction with a type field.",
   tier: 4,
-  params: [
-    fileParam(),
-    stringParam("target", "Name of the subclass to remove"),
-  ],
+  params: [param.file(), param.string("target", "Name of the subclass to remove")],
   preconditions,
   apply,
 });

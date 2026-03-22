@@ -1,12 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  numberParam,
-  identifierParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const extractFunction = defineRefactoring<SourceFileContext>({
@@ -16,13 +10,12 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
   description:
     "Extracts a range of lines into a new named function and replaces them with a call to it.",
   params: [
-    fileParam(),
-    numberParam("startLine", "First line of code to extract (1-based)"),
-    numberParam("endLine", "Last line of code to extract (1-based)"),
-    identifierParam("name", "Name for the extracted function"),
+    param.file(),
+    param.number("startLine", "First line of code to extract (1-based)"),
+    param.number("endLine", "Last line of code to extract (1-based)"),
+    param.identifier("name", "Name for the extracted function"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;

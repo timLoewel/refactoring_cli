@@ -1,12 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  identifierParam,
-  stringParam,
-  resolveFunction,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { FunctionContext } from "../../engine/refactoring-builder.js";
 
 export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
@@ -16,12 +10,12 @@ export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
   description:
     "Adds a precondition guard at the start of a function so that callers avoid the exceptional path.",
   params: [
-    fileParam(),
-    identifierParam("target", "Name of the function to add a precheck to"),
-    stringParam("condition", "Boolean expression to check before execution (e.g. 'value > 0')"),
+    param.file(),
+    param.identifier("target", "Name of the function to add a precheck to"),
+    param.string("condition", "Boolean expression to check before execution (e.g. 'value > 0')"),
   ],
   resolve: (project, params) =>
-    resolveFunction(project, params as { file: string; target: string }),
+    resolve.function(project, params as { file: string; target: string }),
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const throwStatements = ctx.body.getDescendantsOfKind(SyntaxKind.ThrowStatement);

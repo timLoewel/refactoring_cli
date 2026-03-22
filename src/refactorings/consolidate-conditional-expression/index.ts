@@ -1,11 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
-import {
-  defineRefactoring,
-  fileParam,
-  stringParam,
-  resolveSourceFile,
-} from "../../engine/refactoring-builder.js";
+import { defineRefactoring, param, resolve } from "../../engine/refactoring-builder.js";
 import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 export const consolidateConditionalExpression = defineRefactoring<SourceFileContext>({
@@ -15,11 +10,10 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
   description:
     "Combines sequential if statements with the same result into a single if with a combined condition.",
   params: [
-    fileParam(),
-    stringParam("target", "Line number of the first if-return statement to consolidate (1-based)"),
+    param.file(),
+    param.string("target", "Line number of the first if-return statement to consolidate (1-based)"),
   ],
-  resolve: (project, params) =>
-    resolveSourceFile(project, params as { file: string }),
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
   preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
     const errors: string[] = [];
     const sf = ctx.sourceFile;
