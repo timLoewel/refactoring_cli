@@ -1,96 +1,12 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
-
-export interface ReplaceControlFlagWithBreakParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    {
-      name: "file",
-      type: "string",
-      description: "Path to the TypeScript file",
-      required: true,
-    },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the boolean control flag variable to replace",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ReplaceControlFlagWithBreakParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: ReplaceControlFlagWithBreakParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const varDecl = sf
-    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-    .find((d) => d.getName() === p.target);
-
-  if (!varDecl) {
-    errors.push(`Variable '${p.target}' not found in file: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const initializer = varDecl.getInitializer();
-  if (!initializer) {
-    errors.push(`Variable '${p.target}' has no initializer`);
-    return { ok: false, errors };
-  }
-
-  const initKind = initializer.getKind();
-  if (initKind !== SyntaxKind.TrueKeyword && initKind !== SyntaxKind.FalseKeyword) {
-    errors.push(`Variable '${p.target}' must be initialized with a boolean literal`);
-  }
-
-  // Check that there is a loop in the same scope that uses this flag
-  const loopKinds = [
-    SyntaxKind.WhileStatement,
-    SyntaxKind.ForStatement,
-    SyntaxKind.ForInStatement,
-    SyntaxKind.ForOfStatement,
-    SyntaxKind.DoStatement,
-  ];
-
-  const loops = sf.getDescendants().filter((n) => loopKinds.includes(n.getKind()));
-  const usedInLoop = loops.some((loop) => {
-    return loop.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => id.getText() === p.target);
-  });
-
-  if (!usedInLoop) {
-    errors.push(`Variable '${p.target}' is not used inside any loop`);
-  }
-
-  return { ok: errors.length === 0, errors };
-}
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  resolveSourceFile,
+} from "../../engine/refactoring-builder.js";
+import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 const LOOP_KINDS = new Set([
   SyntaxKind.WhileStatement,
@@ -167,53 +83,86 @@ function inlineRemainingFlagChecks(loop: Node, flagName: string): void {
   }
 }
 
-function apply(project: Project, p: ReplaceControlFlagWithBreakParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const varDecl = sf
-    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-    .find((d) => d.getName() === p.target);
-  if (!varDecl) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Variable '${p.target}' not found`,
-    };
-  }
-
-  const targetLoop = findLoopUsingFlag(sf, p.target);
-  if (!targetLoop) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `No loop found that uses '${p.target}'`,
-    };
-  }
-
-  replaceFlagAssignmentsWithBreak(targetLoop, p.target);
-  updateLoopCondition(targetLoop, p.target);
-  removeFlagDeclaration(varDecl);
-  inlineRemainingFlagChecks(targetLoop, p.target);
-
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Replaced control flag '${p.target}' with break statement`,
-  };
-}
-
-export const replaceControlFlagWithBreak: RefactoringDefinition = {
+export const replaceControlFlagWithBreak = defineRefactoring<SourceFileContext>({
   name: "Replace Control Flag with Break",
   kebabName: "replace-control-flag-with-break",
+  tier: 1,
   description:
     "Replaces a boolean control flag used to exit a loop with an explicit break statement.",
-  tier: 1,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ReplaceControlFlagWithBreakParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ReplaceControlFlagWithBreakParams),
-};
+  params: [
+    fileParam(),
+    identifierParam("target", "Name of the boolean control flag variable to replace"),
+  ],
+  resolve: (project, params) =>
+    resolveSourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const target = params["target"] as string;
+
+    const varDecl = ctx.sourceFile
+      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+      .find((d) => d.getName() === target);
+
+    if (!varDecl) {
+      errors.push(`Variable '${target}' not found in file`);
+      return { ok: false, errors };
+    }
+
+    const initializer = varDecl.getInitializer();
+    if (!initializer) {
+      errors.push(`Variable '${target}' has no initializer`);
+      return { ok: false, errors };
+    }
+
+    const initKind = initializer.getKind();
+    if (initKind !== SyntaxKind.TrueKeyword && initKind !== SyntaxKind.FalseKeyword) {
+      errors.push(`Variable '${target}' must be initialized with a boolean literal`);
+    }
+
+    const loops = ctx.sourceFile.getDescendants().filter((n) => LOOP_KINDS.has(n.getKind()));
+    const usedInLoop = loops.some((loop) => {
+      return loop.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => id.getText() === target);
+    });
+
+    if (!usedInLoop) {
+      errors.push(`Variable '${target}' is not used inside any loop`);
+    }
+
+    return { ok: errors.length === 0, errors };
+  },
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+
+    const varDecl = ctx.sourceFile
+      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+      .find((d) => d.getName() === target);
+    if (!varDecl) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Variable '${target}' not found`,
+      };
+    }
+
+    const targetLoop = findLoopUsingFlag(ctx.sourceFile, target);
+    if (!targetLoop) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `No loop found that uses '${target}'`,
+      };
+    }
+
+    replaceFlagAssignmentsWithBreak(targetLoop, target);
+    updateLoopCondition(targetLoop, target);
+    removeFlagDeclaration(varDecl);
+    inlineRemainingFlagChecks(targetLoop, target);
+
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Replaced control flag '${target}' with break statement`,
+    };
+  },
+});

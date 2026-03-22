@@ -12,7 +12,7 @@ import "./slide-statements/index.js"; // self-registers via defineRefactoring
 import "./remove-dead-code/index.js"; // self-registers via defineRefactoring
 import "./introduce-assertion/index.js"; // self-registers via defineRefactoring
 import "./return-modified-value/index.js"; // self-registers via defineRefactoring
-import { replaceControlFlagWithBreak } from "./replace-control-flag-with-break/index.js";
+import "./replace-control-flag-with-break/index.js"; // self-registers via defineRefactoring
 
 // Tier 2 — Function level
 import { extractFunction } from "./extract-function/index.js";
@@ -76,8 +76,6 @@ import { replaceConstructorWithFactoryFunction } from "./replace-constructor-wit
 import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclasses/index.js";
 
 const allRefactorings: RefactoringDefinition[] = [
-  // Tier 1
-  replaceControlFlagWithBreak,
   // Tier 2
   extractFunction,
   inlineFunction,
