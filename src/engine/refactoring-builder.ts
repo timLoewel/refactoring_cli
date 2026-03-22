@@ -7,7 +7,14 @@ import type {
   SourceFile,
   VariableDeclaration,
 } from "ts-morph";
-import type { ParamDefinition, RefactoringResult } from "./refactoring.types.js";
+import type {
+  ParamDefinition,
+  ParamSchema,
+  PreconditionResult,
+  RefactoringDefinition,
+  RefactoringResult,
+} from "./refactoring.types.js";
+import { registry } from "./refactoring-registry.js";
 
 export interface ParamHelper {
   definition: ParamDefinition;
@@ -197,4 +204,83 @@ export function resolveVariable(
   }
 
   return { ok: true, value: { sourceFile, declaration } };
+}
+
+// ---------------------------------------------------------------------------
+// defineRefactoring builder
+// ---------------------------------------------------------------------------
+
+export interface DefineRefactoringConfig<TContext = Project> {
+  name: string;
+  kebabName: string;
+  tier: 1 | 2 | 3 | 4;
+  description: string;
+  params: ParamHelper[];
+  resolve?: (project: Project, params: Record<string, unknown>) => ResolveResult<TContext>;
+  preconditions?: (context: TContext, params: Record<string, unknown>) => PreconditionResult;
+  apply: (context: TContext, params: Record<string, unknown>) => RefactoringResult;
+}
+
+function buildParamSchema(helpers: ParamHelper[]): ParamSchema {
+  return {
+    definitions: helpers.map((h): ParamDefinition => h.definition),
+    validate(raw: unknown): unknown {
+      const record = raw as Record<string, unknown>;
+      for (const helper of helpers) {
+        helper.validate(record);
+      }
+      return record;
+    },
+  };
+}
+
+export function defineRefactoring<TContext = Project>(
+  config: DefineRefactoringConfig<TContext>,
+): RefactoringDefinition {
+  const paramSchema = buildParamSchema(config.params);
+
+  const definition: RefactoringDefinition = {
+    name: config.name,
+    kebabName: config.kebabName,
+    description: config.description,
+    tier: config.tier,
+    params: paramSchema,
+
+    preconditions(project: Project, raw: unknown): PreconditionResult {
+      const validated = paramSchema.validate(raw) as Record<string, unknown>;
+
+      if (config.resolve) {
+        const resolved = config.resolve(project, validated);
+        if (!resolved.ok) {
+          return { ok: false, errors: [resolved.result.description] };
+        }
+        if (config.preconditions) {
+          return config.preconditions(resolved.value, validated);
+        }
+        return { ok: true, errors: [] };
+      }
+
+      if (config.preconditions) {
+        return config.preconditions(project as unknown as TContext, validated);
+      }
+      return { ok: true, errors: [] };
+    },
+
+    apply(project: Project, raw: unknown): RefactoringResult {
+      const validated = paramSchema.validate(raw) as Record<string, unknown>;
+
+      if (config.resolve) {
+        const resolved = config.resolve(project, validated);
+        if (!resolved.ok) {
+          return resolved.result;
+        }
+        return config.apply(resolved.value, validated);
+      }
+
+      return config.apply(project as unknown as TContext, validated);
+    },
+  };
+
+  registry.register(definition);
+  return definition;
 }
