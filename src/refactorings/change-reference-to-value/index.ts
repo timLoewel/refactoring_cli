@@ -1,57 +1,12 @@
-import { SyntaxKind } from "ts-morph";
-import type { Project, ClassDeclaration } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
-
-interface ChangeReferenceToValueParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the class to convert to a value object",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ChangeReferenceToValueParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return { file: r["file"] as string, target: r["target"] as string };
-  },
-};
-
-function preconditions(project: Project, p: ChangeReferenceToValueParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const targetClass = sf
-    .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
-    .find((c) => c.getName() === p.target);
-  if (!targetClass) {
-    errors.push(`Class '${p.target}' not found in file: ${p.file}`);
-  }
-
-  return { ok: errors.length === 0, errors };
-}
+import type { ClassDeclaration } from "ts-morph";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  resolveClass,
+} from "../../engine/refactoring-builder.js";
+import type { ClassContext } from "../../engine/refactoring-builder.js";
 
 function makeFieldsReadonly(targetClass: ClassDeclaration): string[] {
   const fieldNames: string[] = [];
@@ -71,43 +26,34 @@ function buildEqualsMethod(fieldNames: string[], className: string): string {
   return `  equals(other: unknown): boolean {\n    ${body}\n  }`;
 }
 
-function apply(project: Project, p: ChangeReferenceToValueParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const targetClass = sf
-    .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
-    .find((c) => c.getName() === p.target);
-  if (!targetClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
-  }
-
-  const fieldNames = makeFieldsReadonly(targetClass);
-  const equalsMethod = buildEqualsMethod(fieldNames, p.target);
-  targetClass.addMember(equalsMethod);
-
-  return {
-    success: true,
-    filesChanged: [p.file],
-    description: `Converted class '${p.target}' to value object: made ${fieldNames.length} field(s) readonly and added equals()`,
-  };
-}
-
-export const changeReferenceToValue: RefactoringDefinition = {
+export const changeReferenceToValue = defineRefactoring<ClassContext>({
   name: "Change Reference To Value",
   kebabName: "change-reference-to-value",
+  tier: 3,
   description:
     "Converts a reference object into a value object by making fields readonly and adding an equals method.",
-  tier: 3,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ChangeReferenceToValueParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ChangeReferenceToValueParams),
-};
+  params: [
+    fileParam(),
+    identifierParam("target", "Name of the class to convert to a value object"),
+  ],
+  resolve: (project, params) =>
+    resolveClass(project, params as { file: string; target: string }),
+  preconditions(): PreconditionResult {
+    return { ok: true, errors: [] };
+  },
+  apply(ctx: ClassContext, params: Record<string, unknown>): RefactoringResult {
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+    const { cls: targetClass } = ctx;
+
+    const fieldNames = makeFieldsReadonly(targetClass);
+    const equalsMethod = buildEqualsMethod(fieldNames, target);
+    targetClass.addMember(equalsMethod);
+
+    return {
+      success: true,
+      filesChanged: [file],
+      description: `Converted class '${target}' to value object: made ${fieldNames.length} field(s) readonly and added equals()`,
+    };
+  },
+});

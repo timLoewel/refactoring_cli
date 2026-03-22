@@ -1,60 +1,13 @@
 import { SyntaxKind } from "ts-morph";
-import type { Project, ClassDeclaration } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
-
-interface EncapsulateRecordParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the plain-object variable or class to encapsulate",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): EncapsulateRecordParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return { file: r["file"] as string, target: r["target"] as string };
-  },
-};
-
-function preconditions(project: Project, p: EncapsulateRecordParams): PreconditionResult {
-  const errors: string[] = [];
-
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
-  }
-
-  const targetClass = sf
-    .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
-    .find((c) => c.getName() === p.target);
-
-  const targetVar = sf.getVariableDeclaration(p.target);
-
-  if (!targetClass && !targetVar) {
-    errors.push(`No class or variable named '${p.target}' found in file: ${p.file}`);
-  }
-
-  return { ok: errors.length === 0, errors };
-}
+import type { ClassDeclaration } from "ts-morph";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  resolveSourceFile,
+} from "../../engine/refactoring-builder.js";
+import type { SourceFileContext } from "../../engine/refactoring-builder.js";
 
 function buildGetterSetter(propName: string, propType: string): string {
   const capitalized = propName.charAt(0).toUpperCase() + propName.slice(1);
@@ -78,12 +31,11 @@ function encapsulateClassProperties(targetClass: ClassDeclaration): number {
 
     prop.remove();
 
-    const initText = initializer !== undefined ? ` = ${initializer}` : "";
     targetClass.addProperty({
       name: `_${propName}`,
       type: propType,
       scope: undefined,
-      initializer: initText !== "" ? initializer : undefined,
+      initializer: initializer !== undefined ? initializer : undefined,
     });
 
     const getterSetter = buildGetterSetter(propName, propType);
@@ -93,41 +45,58 @@ function encapsulateClassProperties(targetClass: ClassDeclaration): number {
   return count;
 }
 
-function apply(project: Project, p: EncapsulateRecordParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
-  if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
-  }
-
-  const targetClass = sf
-    .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
-    .find((c) => c.getName() === p.target);
-
-  if (targetClass) {
-    const count = encapsulateClassProperties(targetClass);
-    return {
-      success: true,
-      filesChanged: [p.file],
-      description: `Encapsulated ${count} public field(s) in class '${p.target}' with getter/setter methods`,
-    };
-  }
-
-  return {
-    success: false,
-    filesChanged: [],
-    description: `Target '${p.target}' is not a class; only class encapsulation is supported`,
-  };
-}
-
-export const encapsulateRecord: RefactoringDefinition = {
+export const encapsulateRecord = defineRefactoring<SourceFileContext>({
   name: "Encapsulate Record",
   kebabName: "encapsulate-record",
+  tier: 3,
   description:
     "Wraps the public fields of a class with getter and setter methods, renaming fields with a leading underscore.",
-  tier: 3,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as EncapsulateRecordParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as EncapsulateRecordParams),
-};
+  params: [
+    fileParam(),
+    identifierParam("target", "Name of the plain-object variable or class to encapsulate"),
+  ],
+  resolve: (project, params) =>
+    resolveSourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const sf = ctx.sourceFile;
+    const target = params["target"] as string;
+    const file = params["file"] as string;
+
+    const targetClass = sf
+      .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
+      .find((c) => c.getName() === target);
+
+    const targetVar = sf.getVariableDeclaration(target);
+
+    if (!targetClass && !targetVar) {
+      errors.push(`No class or variable named '${target}' found in file: ${file}`);
+    }
+
+    return { ok: errors.length === 0, errors };
+  },
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
+    const sf = ctx.sourceFile;
+    const file = params["file"] as string;
+    const target = params["target"] as string;
+
+    const targetClass = sf
+      .getDescendantsOfKind(SyntaxKind.ClassDeclaration)
+      .find((c) => c.getName() === target);
+
+    if (targetClass) {
+      const count = encapsulateClassProperties(targetClass);
+      return {
+        success: true,
+        filesChanged: [file],
+        description: `Encapsulated ${count} public field(s) in class '${target}' with getter/setter methods`,
+      };
+    }
+
+    return {
+      success: false,
+      filesChanged: [],
+      description: `Target '${target}' is not a class; only class encapsulation is supported`,
+    };
+  },
+});

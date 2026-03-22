@@ -46,20 +46,20 @@ import "./replace-derived-variable-with-query/index.js"; // self-registers via d
 import "./substitute-algorithm/index.js"; // self-registers via defineRefactoring
 
 // Tier 3 — Class & Object
-import { extractClass } from "./extract-class/index.js";
-import { inlineClass } from "./inline-class/index.js";
-import { moveFunction } from "./move-function/index.js";
-import { moveField } from "./move-field/index.js";
-import { encapsulateRecord } from "./encapsulate-record/index.js";
-import { encapsulateVariable } from "./encapsulate-variable/index.js";
-import { encapsulateCollection } from "./encapsulate-collection/index.js";
-import { replacePrimitiveWithObject } from "./replace-primitive-with-object/index.js";
-import { changeReferenceToValue } from "./change-reference-to-value/index.js";
-import { changeValueToReference } from "./change-value-to-reference/index.js";
-import { hideDelegate } from "./hide-delegate/index.js";
-import { removeMiddleMan } from "./remove-middle-man/index.js";
-import { combineFunctionsIntoClass } from "./combine-functions-into-class/index.js";
-import { renameField } from "./rename-field/index.js";
+import "./extract-class/index.js"; // self-registers via defineRefactoring
+import "./inline-class/index.js"; // self-registers via defineRefactoring
+import "./move-function/index.js"; // self-registers via defineRefactoring
+import "./move-field/index.js"; // self-registers via defineRefactoring
+import "./encapsulate-record/index.js"; // self-registers via defineRefactoring
+import "./encapsulate-variable/index.js"; // self-registers via defineRefactoring
+import "./encapsulate-collection/index.js"; // self-registers via defineRefactoring
+import "./replace-primitive-with-object/index.js"; // self-registers via defineRefactoring
+import "./change-reference-to-value/index.js"; // self-registers via defineRefactoring
+import "./change-value-to-reference/index.js"; // self-registers via defineRefactoring
+import "./hide-delegate/index.js"; // self-registers via defineRefactoring
+import "./remove-middle-man/index.js"; // self-registers via defineRefactoring
+import "./combine-functions-into-class/index.js"; // self-registers via defineRefactoring
+import "./rename-field/index.js"; // self-registers via defineRefactoring
 
 // Tier 4 — Inheritance
 import { extractSuperclass } from "./extract-superclass/index.js";
@@ -76,21 +76,6 @@ import { replaceConstructorWithFactoryFunction } from "./replace-constructor-wit
 import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclasses/index.js";
 
 const allRefactorings: RefactoringDefinition[] = [
-  // Tier 3
-  extractClass,
-  inlineClass,
-  moveFunction,
-  moveField,
-  encapsulateRecord,
-  encapsulateVariable,
-  encapsulateCollection,
-  replacePrimitiveWithObject,
-  changeReferenceToValue,
-  changeValueToReference,
-  hideDelegate,
-  removeMiddleMan,
-  combineFunctionsIntoClass,
-  renameField,
   // Tier 4
   extractSuperclass,
   collapseHierarchy,
