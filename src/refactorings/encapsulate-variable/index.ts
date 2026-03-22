@@ -63,7 +63,7 @@ function buildAccessorFunctions(varName: string, typeText: string, initializer: 
 function apply(project: Project, p: EncapsulateVariableParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const varDecl = sf.getVariableDeclaration(p.target);
@@ -72,7 +72,6 @@ function apply(project: Project, p: EncapsulateVariableParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -89,7 +88,6 @@ function apply(project: Project, p: EncapsulateVariableParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Could not locate the variable statement for '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -97,7 +95,6 @@ function apply(project: Project, p: EncapsulateVariableParams): RefactoringResul
     success: true,
     filesChanged: [p.file],
     description: `Encapsulated variable '${p.target}' with get/set accessor functions`,
-    diff: [],
   };
 }
 

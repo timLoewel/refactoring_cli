@@ -91,7 +91,7 @@ function preconditions(project: Project, p: IntroduceSpecialCaseParams): Precond
 function apply(project: Project, p: IntroduceSpecialCaseParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const cls = sf
@@ -103,7 +103,6 @@ function apply(project: Project, p: IntroduceSpecialCaseParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -169,7 +168,6 @@ function apply(project: Project, p: IntroduceSpecialCaseParams): RefactoringResu
     success: true,
     filesChanged: [p.file],
     description: `Introduced special case class '${p.specialClassName}' for '${p.target}' with value '${p.specialValue}'`,
-    diff: [],
   };
 }
 

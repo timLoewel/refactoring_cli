@@ -130,7 +130,7 @@ function apply(
 ): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -141,7 +141,6 @@ function apply(
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -151,7 +150,6 @@ function apply(
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no block body`,
-      diff: [],
     };
   }
 
@@ -167,7 +165,6 @@ function apply(
     success: true,
     filesChanged: [p.file],
     description: `Replaced nested conditionals in '${p.target}' with guard clauses`,
-    diff: [],
   };
 }
 

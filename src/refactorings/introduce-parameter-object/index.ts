@@ -97,7 +97,7 @@ function preconditions(project: Project, p: IntroduceParameterObjectParams): Pre
 function apply(project: Project, p: IntroduceParameterObjectParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -108,7 +108,6 @@ function apply(project: Project, p: IntroduceParameterObjectParams): Refactoring
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -157,7 +156,6 @@ function apply(project: Project, p: IntroduceParameterObjectParams): Refactoring
     success: true,
     filesChanged: [p.file],
     description: `Grouped parameters [${paramNames.join(", ")}] of '${p.target}' into object '${p.objectName}'`,
-    diff: [],
   };
 }
 

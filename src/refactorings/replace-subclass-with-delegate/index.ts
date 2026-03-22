@@ -86,7 +86,7 @@ function buildForwardingMethod(methodName: string, delegateField: string): strin
 function apply(project: Project, p: ReplaceSubclassWithDelegateParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const subclass = sf.getClass(p.target);
@@ -95,7 +95,6 @@ function apply(project: Project, p: ReplaceSubclassWithDelegateParams): Refactor
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -104,7 +103,6 @@ function apply(project: Project, p: ReplaceSubclassWithDelegateParams): Refactor
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no superclass`,
-      diff: [],
     };
   }
 
@@ -145,7 +143,6 @@ function apply(project: Project, p: ReplaceSubclassWithDelegateParams): Refactor
     success: true,
     filesChanged: [p.file],
     description: `Replaced subclass '${p.target}' inheritance with delegation to new '${p.delegateClassName}'`,
-    diff: [],
   };
 }
 

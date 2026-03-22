@@ -74,7 +74,7 @@ function buildEqualsMethod(fieldNames: string[], className: string): string {
 function apply(project: Project, p: ChangeReferenceToValueParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -85,7 +85,6 @@ function apply(project: Project, p: ChangeReferenceToValueParams): RefactoringRe
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -97,7 +96,6 @@ function apply(project: Project, p: ChangeReferenceToValueParams): RefactoringRe
     success: true,
     filesChanged: [p.file],
     description: `Converted class '${p.target}' to value object: made ${fieldNames.length} field(s) readonly and added equals()`,
-    diff: [],
   };
 }
 

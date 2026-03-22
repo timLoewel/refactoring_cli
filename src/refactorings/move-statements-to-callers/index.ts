@@ -68,7 +68,7 @@ function preconditions(project: Project, p: MoveStatementsToCallersParams): Prec
 function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -79,7 +79,6 @@ function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringR
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -89,7 +88,6 @@ function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringR
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -99,7 +97,6 @@ function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringR
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' body is empty`,
-      diff: [],
     };
   }
 
@@ -109,7 +106,6 @@ function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringR
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' body is empty`,
-      diff: [],
     };
   }
   const lastStmtText = lastStmt.getText();
@@ -142,7 +138,6 @@ function apply(project: Project, p: MoveStatementsToCallersParams): RefactoringR
     success: true,
     filesChanged: [p.file],
     description: `Moved last statement of '${p.target}' to ${sorted.length} call site(s)`,
-    diff: [],
   };
 }
 

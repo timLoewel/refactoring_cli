@@ -81,7 +81,7 @@ function preconditions(project: Project, p: SubstituteAlgorithmParams): Precondi
 function apply(project: Project, p: SubstituteAlgorithmParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -92,7 +92,6 @@ function apply(project: Project, p: SubstituteAlgorithmParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -102,7 +101,6 @@ function apply(project: Project, p: SubstituteAlgorithmParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -112,7 +110,6 @@ function apply(project: Project, p: SubstituteAlgorithmParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: "newBody must be a block statement wrapped in curly braces",
-      diff: [],
     };
   }
 
@@ -123,7 +120,6 @@ function apply(project: Project, p: SubstituteAlgorithmParams): RefactoringResul
     success: true,
     filesChanged: [p.file],
     description: `Replaced body of function '${p.target}' with the new algorithm`,
-    diff: [],
   };
 }
 

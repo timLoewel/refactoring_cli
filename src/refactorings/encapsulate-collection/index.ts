@@ -104,7 +104,7 @@ function buildCollectionMethods(
 function apply(project: Project, p: EncapsulateCollectionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -115,7 +115,6 @@ function apply(project: Project, p: EncapsulateCollectionParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -125,7 +124,6 @@ function apply(project: Project, p: EncapsulateCollectionParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `Field '${p.field}' not found on class '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -148,7 +146,6 @@ function apply(project: Project, p: EncapsulateCollectionParams): RefactoringRes
     success: true,
     filesChanged: [p.file],
     description: `Encapsulated collection field '${p.field}' on '${p.target}' with add/remove/get methods`,
-    diff: [],
   };
 }
 

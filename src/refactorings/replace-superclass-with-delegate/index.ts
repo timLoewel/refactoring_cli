@@ -88,7 +88,7 @@ function buildForwardingMethods(superclassMethods: string[], delegateFieldName: 
 function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf.getClass(p.target);
@@ -97,7 +97,6 @@ function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): Refact
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -107,7 +106,6 @@ function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): Refact
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no superclass`,
-      diff: [],
     };
   }
 
@@ -127,7 +125,6 @@ function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): Refact
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' disappeared after transformation`,
-      diff: [],
     };
   }
 
@@ -143,7 +140,6 @@ function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): Refact
     success: true,
     filesChanged: [p.file],
     description: `Replaced superclass '${parentName}' in '${p.target}' with delegate field '${p.delegateFieldName}'`,
-    diff: [],
   };
 }
 

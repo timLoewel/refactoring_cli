@@ -76,7 +76,7 @@ function preconditions(project: Project, p: RemoveSettingMethodParams): Precondi
 function apply(project: Project, p: RemoveSettingMethodParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const cls = sf
@@ -87,7 +87,6 @@ function apply(project: Project, p: RemoveSettingMethodParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -97,7 +96,6 @@ function apply(project: Project, p: RemoveSettingMethodParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `No setter for field '${p.field}' found in class '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -114,7 +112,6 @@ function apply(project: Project, p: RemoveSettingMethodParams): RefactoringResul
     success: true,
     filesChanged: [p.file],
     description: `Removed setter for '${p.field}' in class '${p.target}' and marked field as readonly`,
-    diff: [],
   };
 }
 

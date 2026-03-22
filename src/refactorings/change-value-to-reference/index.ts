@@ -68,7 +68,7 @@ function buildRegistryMethod(className: string, keyParam: string): string {
 function apply(project: Project, p: ChangeValueToReferenceParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -79,7 +79,6 @@ function apply(project: Project, p: ChangeValueToReferenceParams): RefactoringRe
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -94,7 +93,6 @@ function apply(project: Project, p: ChangeValueToReferenceParams): RefactoringRe
     success: true,
     filesChanged: [p.file],
     description: `Added getInstance() factory with registry to class '${p.target}' for reference semantics`,
-    diff: [],
   };
 }
 

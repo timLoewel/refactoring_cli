@@ -70,7 +70,7 @@ function preconditions(project: Project, p: ReplaceCommandWithFunctionParams): P
 function apply(project: Project, p: ReplaceCommandWithFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const cls = sf
@@ -81,7 +81,6 @@ function apply(project: Project, p: ReplaceCommandWithFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -91,7 +90,6 @@ function apply(project: Project, p: ReplaceCommandWithFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no 'execute' method`,
-      diff: [],
     };
   }
 
@@ -101,7 +99,6 @@ function apply(project: Project, p: ReplaceCommandWithFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no constructor`,
-      diff: [],
     };
   }
 
@@ -111,7 +108,6 @@ function apply(project: Project, p: ReplaceCommandWithFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no constructor`,
-      diff: [],
     };
   }
   const ctorParams = ctor.getParameters();
@@ -149,7 +145,6 @@ function apply(project: Project, p: ReplaceCommandWithFunctionParams): Refactori
     success: true,
     filesChanged: [p.file],
     description: `Converted command class '${p.target}' into function '${functionName}'`,
-    diff: [],
   };
 }
 

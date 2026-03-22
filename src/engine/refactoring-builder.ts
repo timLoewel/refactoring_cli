@@ -129,7 +129,7 @@ export interface VariableContext {
 // ---------------------------------------------------------------------------
 
 function failureResult(description: string): RefactoringResult {
-  return { success: false, filesChanged: [], description, diff: [] };
+  return { success: false, filesChanged: [], description };
 }
 
 export function resolveSourceFile(

@@ -95,7 +95,7 @@ function preconditions(project: Project, p: MoveStatementsIntoFunctionParams): P
 function apply(project: Project, p: MoveStatementsIntoFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -106,7 +106,6 @@ function apply(project: Project, p: MoveStatementsIntoFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -125,7 +124,6 @@ function apply(project: Project, p: MoveStatementsIntoFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `No complete statements found between lines ${p.startLine} and ${p.endLine}`,
-      diff: [],
     };
   }
 
@@ -137,7 +135,6 @@ function apply(project: Project, p: MoveStatementsIntoFunctionParams): Refactori
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' body is not a block`,
-      diff: [],
     };
   }
   body.addStatements(movedText);
@@ -152,7 +149,6 @@ function apply(project: Project, p: MoveStatementsIntoFunctionParams): Refactori
     success: true,
     filesChanged: [p.file],
     description: `Moved ${toMove.length} statement(s) from lines ${p.startLine}-${p.endLine} into function '${p.target}'`,
-    diff: [],
   };
 }
 

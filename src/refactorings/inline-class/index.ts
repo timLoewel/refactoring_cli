@@ -79,7 +79,7 @@ function copyMembersIntoClass(memberTexts: string[], intoClass: ClassDeclaration
 function apply(project: Project, p: InlineClassParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const classes = sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration);
@@ -91,7 +91,6 @@ function apply(project: Project, p: InlineClassParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `One or both classes not found`,
-      diff: [],
     };
   }
 
@@ -106,7 +105,6 @@ function apply(project: Project, p: InlineClassParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Inlined class '${p.target}' into '${p.into}' (${memberTexts.length} member(s) moved)`,
-    diff: [],
   };
 }
 

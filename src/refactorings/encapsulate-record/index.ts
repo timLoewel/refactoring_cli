@@ -96,7 +96,7 @@ function encapsulateClassProperties(targetClass: ClassDeclaration): number {
 function apply(project: Project, p: EncapsulateRecordParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -109,7 +109,6 @@ function apply(project: Project, p: EncapsulateRecordParams): RefactoringResult 
       success: true,
       filesChanged: [p.file],
       description: `Encapsulated ${count} public field(s) in class '${p.target}' with getter/setter methods`,
-      diff: [],
     };
   }
 
@@ -117,7 +116,6 @@ function apply(project: Project, p: EncapsulateRecordParams): RefactoringResult 
     success: false,
     filesChanged: [],
     description: `Target '${p.target}' is not a class; only class encapsulation is supported`,
-    diff: [],
   };
 }
 

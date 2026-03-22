@@ -88,7 +88,7 @@ function buildSubclassText(
 function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf.getClass(p.target);
@@ -97,7 +97,6 @@ function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): Refact
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -107,7 +106,6 @@ function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): Refact
       success: false,
       filesChanged: [],
       description: `Field '${p.typeField}' not found in '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -136,7 +134,6 @@ function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): Refact
     success: true,
     filesChanged: [p.file],
     description: `Replaced type code field '${p.typeField}' in '${p.target}' with subclass hierarchy; created '${subclassName}'`,
-    diff: [],
   };
 }
 

@@ -88,7 +88,7 @@ function convertFunctionToMethod(functionText: string, _functionName: string): s
 function apply(project: Project, p: CombineFunctionsIntoClassParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const functionNames = p.target
@@ -106,7 +106,6 @@ function apply(project: Project, p: CombineFunctionsIntoClassParams): Refactorin
       success: false,
       filesChanged: [],
       description: "No matching functions found",
-      diff: [],
     };
   }
 
@@ -127,7 +126,6 @@ function apply(project: Project, p: CombineFunctionsIntoClassParams): Refactorin
     success: true,
     filesChanged: [p.file],
     description: `Combined functions [${functionNames.join(", ")}] into new class '${p.className}'`,
-    diff: [],
   };
 }
 

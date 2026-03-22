@@ -94,7 +94,7 @@ function preconditions(project: Project, p: ExtractFunctionParams): Precondition
 function apply(project: Project, p: ExtractFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   // Collect statements whose lines fall within [startLine, endLine]
@@ -110,7 +110,6 @@ function apply(project: Project, p: ExtractFunctionParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `No complete statements found between lines ${p.startLine} and ${p.endLine}`,
-      diff: [],
     };
   }
 
@@ -136,7 +135,6 @@ function apply(project: Project, p: ExtractFunctionParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Extracted lines ${p.startLine}-${p.endLine} into function '${p.name}'`,
-    diff: [],
   };
 }
 

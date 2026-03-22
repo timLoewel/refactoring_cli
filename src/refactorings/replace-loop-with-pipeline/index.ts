@@ -113,7 +113,7 @@ function buildPipelineReplacement(expression: string, varName: string, statement
 function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const lineNum = Number(p.target);
@@ -125,13 +125,12 @@ function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringR
       success: false,
       filesChanged: [],
       description: `No for-of loop found at line ${lineNum}`,
-      diff: [],
     };
   }
 
   const body = loop.getChildrenOfKind(SyntaxKind.Block)[0];
   if (!body) {
-    return { success: false, filesChanged: [], description: `Loop has no block body`, diff: [] };
+    return { success: false, filesChanged: [], description: `Loop has no block body` };
   }
 
   const expression = loop.getExpression().getText();
@@ -147,7 +146,6 @@ function apply(project: Project, p: ReplaceLoopWithPipelineParams): RefactoringR
     success: true,
     filesChanged: [p.file],
     description: `Replaced for-of loop at line ${lineNum} with array pipeline`,
-    diff: [],
   };
 }
 

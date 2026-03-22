@@ -103,7 +103,6 @@ function apply(project: Project, p: RemoveDeadCodeParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -118,7 +117,6 @@ function apply(project: Project, p: RemoveDeadCodeParams): RefactoringResult {
       success: true,
       filesChanged: [p.file],
       description: `Removed unused function declaration '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -132,7 +130,6 @@ function apply(project: Project, p: RemoveDeadCodeParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `No function or variable named '${p.target}' found`,
-      diff: [],
     };
   }
 
@@ -153,7 +150,6 @@ function apply(project: Project, p: RemoveDeadCodeParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Removed unused variable declaration '${p.target}'`,
-    diff: [],
   };
 }
 

@@ -112,7 +112,7 @@ function renamePropertyReferences(
 function apply(project: Project, p: RenameFieldParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -123,7 +123,6 @@ function apply(project: Project, p: RenameFieldParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -133,7 +132,6 @@ function apply(project: Project, p: RenameFieldParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Field '${p.field}' not found on class '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -144,7 +142,6 @@ function apply(project: Project, p: RenameFieldParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Renamed field '${p.field}' to '${p.name}' on class '${p.target}' (${referenceCount} external reference(s) updated)`,
-    diff: [],
   };
 }
 

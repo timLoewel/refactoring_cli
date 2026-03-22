@@ -70,7 +70,7 @@ function preconditions(
 function apply(project: Project, p: ReplaceInlineCodeWithFunctionCallParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   // Find all expression nodes whose text matches the target
@@ -98,7 +98,6 @@ function apply(project: Project, p: ReplaceInlineCodeWithFunctionCallParams): Re
     success: true,
     filesChanged: [p.file],
     description: `Replaced ${replacements} occurrence(s) of inline code with call to '${p.name}()'`,
-    diff: [],
   };
 }
 

@@ -115,7 +115,6 @@ function apply(project: Project, p: ReplaceMagicLiteralParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -132,7 +131,6 @@ function apply(project: Project, p: ReplaceMagicLiteralParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Literal '${p.target}' not found in file`,
-      diff: [],
     };
   }
 
@@ -157,7 +155,6 @@ function apply(project: Project, p: ReplaceMagicLiteralParams): RefactoringResul
     success: true,
     filesChanged: [p.file],
     description: `Replaced magic literal '${p.target}' with named constant '${p.name}'`,
-    diff: [],
   };
 }
 

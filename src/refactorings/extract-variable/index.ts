@@ -120,7 +120,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -137,7 +136,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Expression '${targetText}' not found in file`,
-      diff: [],
     };
   }
 
@@ -148,7 +146,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Expression '${targetText}' not found in file`,
-      diff: [],
     };
   }
   const firstStatement = getContainingStatement(firstMatchNode);
@@ -157,7 +154,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Could not determine statement context for expression '${targetText}'`,
-      diff: [],
     };
   }
 
@@ -167,7 +163,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: "Could not find parent scope for insertion",
-      diff: [],
     };
   }
 
@@ -204,7 +199,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: "Expression is not inside a block or source file",
-      diff: [],
     };
   }
 
@@ -212,7 +206,6 @@ function apply(project: Project, p: ExtractVariableParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Extracted '${targetText}' into variable '${varName}'`,
-    diff: [],
   };
 }
 

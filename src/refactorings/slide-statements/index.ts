@@ -135,7 +135,7 @@ function moveStatementInBlock(
 function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const allStatements = sf.getStatements();
@@ -145,7 +145,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `No statement found at line ${p.target}`,
-      diff: [],
     };
   }
 
@@ -155,7 +154,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `No statement found at line ${p.destination}`,
-      diff: [],
     };
   }
 
@@ -166,7 +164,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: "Both statements must be in the same block",
-      diff: [],
     };
   }
 
@@ -175,7 +172,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: "Statements are not inside a block or source file",
-      diff: [],
     };
   }
 
@@ -185,7 +181,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: result.reason ?? "Move failed",
-      diff: [],
     };
   }
 
@@ -193,7 +188,6 @@ function apply(project: Project, p: SlideStatementsParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Moved statement from line ${p.target} to line ${p.destination}`,
-    diff: [],
   };
 }
 

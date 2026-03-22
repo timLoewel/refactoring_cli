@@ -68,7 +68,7 @@ function preconditions(project: Project, p: DecomposeConditionalParams): Precond
 function apply(project: Project, p: DecomposeConditionalParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const lineNum = Number(p.target);
@@ -81,7 +81,6 @@ function apply(project: Project, p: DecomposeConditionalParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `No if statement found at line ${lineNum}`,
-      diff: [],
     };
   }
 
@@ -133,7 +132,6 @@ function apply(project: Project, p: DecomposeConditionalParams): RefactoringResu
     success: true,
     filesChanged: [p.file],
     description: `Decomposed conditional at line ${lineNum} into named functions`,
-    diff: [],
   };
 }
 

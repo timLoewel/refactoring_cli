@@ -72,7 +72,7 @@ function preconditions(project: Project, p: ChangeFunctionDeclarationParams): Pr
 function apply(project: Project, p: ChangeFunctionDeclarationParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -83,7 +83,6 @@ function apply(project: Project, p: ChangeFunctionDeclarationParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -100,7 +99,6 @@ function apply(project: Project, p: ChangeFunctionDeclarationParams): Refactorin
     success: true,
     filesChanged: [p.file],
     description: `Renamed function '${p.target}' to '${p.name}' and updated ${sorted.length} reference(s)`,
-    diff: [],
   };
 }
 

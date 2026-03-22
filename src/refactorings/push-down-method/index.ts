@@ -96,7 +96,7 @@ function preconditions(project: Project, p: PushDownMethodParams): PreconditionR
 function apply(project: Project, p: PushDownMethodParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const superClass = sf.getClass(p.target);
@@ -105,7 +105,6 @@ function apply(project: Project, p: PushDownMethodParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -115,7 +114,6 @@ function apply(project: Project, p: PushDownMethodParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Method '${p.method}' not found`,
-      diff: [],
     };
   }
 
@@ -127,7 +125,6 @@ function apply(project: Project, p: PushDownMethodParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Subclass '${p.subclass}' not found`,
-      diff: [],
     };
   }
 
@@ -138,7 +135,6 @@ function apply(project: Project, p: PushDownMethodParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Pushed method '${p.method}' down from '${p.target}' to '${p.subclass}'`,
-    diff: [],
   };
 }
 

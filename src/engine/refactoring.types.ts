@@ -22,6 +22,9 @@ export interface RefactoringResult {
   success: boolean;
   filesChanged: string[];
   description: string;
+}
+
+export interface ApplyResult extends RefactoringResult {
   diff: FileDiff[];
 }
 

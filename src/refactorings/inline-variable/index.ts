@@ -75,7 +75,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -88,7 +87,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -98,7 +96,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' has no initializer`,
-      diff: [],
     };
   }
 
@@ -127,7 +124,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Could not locate declaration statement for '${p.target}'`,
-      diff: [],
     };
   }
   const declStatementParent = declStatement.getParent();
@@ -136,7 +132,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Could not locate parent of declaration statement for '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -154,7 +149,6 @@ function apply(project: Project, p: InlineVariableParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Inlined variable '${p.target}' with its initializer '${initText}'`,
-    diff: [],
   };
 }
 

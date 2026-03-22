@@ -7,10 +7,10 @@
 
 ## 2. Type Cleanup
 
-- [ ] 2.1 Remove `diff` field from `RefactoringResult` interface
-- [ ] 2.2 Update `applyRefactoring()` in apply.ts to not read `diff` from result (already computes from snapshots)
-- [ ] 2.3 Update CLI `apply` command to source diffs from engine, not from result
-- [ ] 2.4 Update existing tests that reference `diff` field
+- [x] 2.1 Remove `diff` field from `RefactoringResult` interface
+- [x] 2.2 Update `applyRefactoring()` in apply.ts to not read `diff` from result (already computes from snapshots)
+- [x] 2.3 Update CLI `apply` command to source diffs from engine, not from result
+- [x] 2.4 Update existing tests that reference `diff` field
 
 ## 3. Auto-Discovered Fixture Tests
 

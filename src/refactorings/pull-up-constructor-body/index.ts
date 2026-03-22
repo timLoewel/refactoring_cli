@@ -76,7 +76,7 @@ function preconditions(project: Project, p: PullUpConstructorBodyParams): Precon
 function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const subclass = sf.getClass(p.target);
@@ -85,7 +85,6 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -95,7 +94,6 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `No constructor in '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -105,7 +103,6 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' has no superclass`,
-      diff: [],
     };
   }
 
@@ -116,7 +113,6 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
       success: false,
       filesChanged: [],
       description: `Parent class '${parentName}' not found`,
-      diff: [],
     };
   }
 
@@ -157,7 +153,6 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
     success: true,
     filesChanged: [p.file],
     description: `Pulled constructor body of '${p.target}' up to '${parentName}'`,
-    diff: [],
   };
 }
 

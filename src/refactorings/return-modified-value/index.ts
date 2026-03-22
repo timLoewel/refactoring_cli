@@ -80,7 +80,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -93,7 +92,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -103,7 +101,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no parameters`,
-      diff: [],
     };
   }
 
@@ -114,7 +111,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Could not access first parameter of '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -126,7 +122,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no block body`,
-      diff: [],
     };
   }
 
@@ -177,7 +172,6 @@ function apply(project: Project, p: ReturnModifiedValueParams): RefactoringResul
     success: true,
     filesChanged: [p.file],
     description: `Changed '${p.target}' to return its mutated parameter '${paramName}' and updated call sites`,
-    diff: [],
   };
 }
 

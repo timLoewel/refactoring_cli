@@ -262,7 +262,7 @@ describe("defineRefactoring", () => {
       tier: 1,
       description: "A test",
       params: [fileParam()],
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     expect(registry.lookup(kebab)).toBeDefined();
@@ -277,7 +277,7 @@ describe("defineRefactoring", () => {
       tier: 2,
       description: "Does things",
       params: [fileParam(), stringParam("target", "expression")],
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     expect(def.name).toBe(`My Refactoring ${kebab}`);
@@ -295,7 +295,7 @@ describe("defineRefactoring", () => {
       tier: 1,
       description: "test",
       params: [fileParam(), identifierParam("name", "variable name")],
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     expect(() => def.params.validate({ file: "foo.ts", name: "myVar" })).not.toThrow();
@@ -316,7 +316,7 @@ describe("defineRefactoring", () => {
       params: [fileParam()],
       apply: (_project: Project, _params: Record<string, unknown>): RefactoringResult => {
         callCount += 1;
-        return { success: true, filesChanged: ["test.ts"], description: "applied", diff: [] };
+        return { success: true, filesChanged: ["test.ts"], description: "applied" };
       },
     });
 
@@ -342,7 +342,7 @@ describe("defineRefactoring", () => {
       apply: (context, params): RefactoringResult => {
         receivedContext = context;
         receivedParams = params;
-        return { success: true, filesChanged: [], description: "applied with context", diff: [] };
+        return { success: true, filesChanged: [], description: "applied with context" };
       },
     });
 
@@ -367,7 +367,7 @@ describe("defineRefactoring", () => {
       resolve: resolveSourceFile,
       apply: (): RefactoringResult => {
         applyCalled = true;
-        return { success: true, filesChanged: [], description: "should not reach", diff: [] };
+        return { success: true, filesChanged: [], description: "should not reach" };
       },
     });
 
@@ -388,7 +388,7 @@ describe("defineRefactoring", () => {
       description: "test",
       params: [fileParam()],
       resolve: resolveSourceFile,
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     const project = makeProject({ "src/foo.ts": "const x = 1;" });
@@ -407,7 +407,7 @@ describe("defineRefactoring", () => {
       description: "test",
       params: [fileParam()],
       resolve: resolveSourceFile,
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     const project = makeProject({});
@@ -432,7 +432,7 @@ describe("defineRefactoring", () => {
         }
         return { ok: true, errors: [] };
       },
-      apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+      apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
     const project = makeProject({ "src/foo.ts": "const x = 1;" });

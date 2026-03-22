@@ -62,7 +62,7 @@ function preconditions(project: Project, p: InlineFunctionParams): PreconditionR
 function apply(project: Project, p: InlineFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -73,7 +73,6 @@ function apply(project: Project, p: InlineFunctionParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -83,7 +82,6 @@ function apply(project: Project, p: InlineFunctionParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -120,7 +118,6 @@ function apply(project: Project, p: InlineFunctionParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Inlined function '${p.target}' at ${sorted.length} call site(s)`,
-    diff: [],
   };
 }
 

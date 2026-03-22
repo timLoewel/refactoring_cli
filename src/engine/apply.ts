@@ -1,5 +1,10 @@
 import type { Project } from "ts-morph";
-import type { RefactoringDefinition, RefactoringResult, FileDiff } from "./refactoring.types.js";
+import type {
+  RefactoringDefinition,
+  ApplyResult,
+  RefactoringResult,
+  FileDiff,
+} from "./refactoring.types.js";
 
 export interface ApplyOptions {
   dryRun?: boolean;
@@ -10,7 +15,7 @@ export function applyRefactoring(
   project: Project,
   params: Record<string, unknown>,
   options: ApplyOptions = {},
-): RefactoringResult {
+): ApplyResult {
   // Validate params
   const validatedParams = definition.params.validate(params);
 
@@ -45,7 +50,7 @@ export function applyRefactoring(
 
   if (!result.success) {
     rollbackSnapshots(project, beforeSnapshots);
-    return result;
+    return { ...result, diff: [] };
   }
 
   // Compute diffs

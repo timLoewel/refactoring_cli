@@ -76,7 +76,7 @@ function preconditions(project: Project, p: RemoveFlagArgumentParams): Precondit
 function apply(project: Project, p: RemoveFlagArgumentParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -87,7 +87,6 @@ function apply(project: Project, p: RemoveFlagArgumentParams): RefactoringResult
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -98,7 +97,6 @@ function apply(project: Project, p: RemoveFlagArgumentParams): RefactoringResult
       success: false,
       filesChanged: [],
       description: `Parameter '${p.flag}' not found in function '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -144,7 +142,6 @@ function apply(project: Project, p: RemoveFlagArgumentParams): RefactoringResult
     success: true,
     filesChanged: [p.file],
     description: `Split function '${p.target}' on flag '${p.flag}' into '${trueName}' and '${falseName}'`,
-    diff: [],
   };
 }
 

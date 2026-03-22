@@ -99,7 +99,7 @@ function preconditions(project: Project, p: ReplaceQueryWithParameterParams): Pr
 function apply(project: Project, p: ReplaceQueryWithParameterParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -111,7 +111,6 @@ function apply(project: Project, p: ReplaceQueryWithParameterParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -121,7 +120,6 @@ function apply(project: Project, p: ReplaceQueryWithParameterParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -146,7 +144,6 @@ function apply(project: Project, p: ReplaceQueryWithParameterParams): Refactorin
     success: true,
     filesChanged: [p.file],
     description: `Replaced query '${p.query}' in '${p.target}' with new parameter '${p.paramName}'`,
-    diff: [],
   };
 }
 

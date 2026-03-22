@@ -90,7 +90,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -103,7 +102,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -113,7 +111,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' has no initializer`,
-      diff: [],
     };
   }
 
@@ -127,7 +124,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Could not locate declaration statement for '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -137,7 +133,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Could not locate scope parent for '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -172,7 +167,6 @@ function apply(project: Project, p: ReplaceTempWithQueryParams): RefactoringResu
     success: true,
     filesChanged: [p.file],
     description: `Replaced temp variable '${p.target}' with query function '${funcName}()'`,
-    diff: [],
   };
 }
 

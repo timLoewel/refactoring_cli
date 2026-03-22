@@ -96,7 +96,7 @@ function buildDelegatingMethod(delegate: string, method: string): string {
 function apply(project: Project, p: HideDelegateParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf
@@ -107,7 +107,6 @@ function apply(project: Project, p: HideDelegateParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -118,7 +117,6 @@ function apply(project: Project, p: HideDelegateParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Added delegating method '${p.method}()' to class '${p.target}' hiding delegate field '${p.delegate}'`,
-    diff: [],
   };
 }
 

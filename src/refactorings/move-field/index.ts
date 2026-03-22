@@ -92,7 +92,7 @@ function preconditions(project: Project, p: MoveFieldParams): PreconditionResult
 function apply(project: Project, p: MoveFieldParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const classes = sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration);
@@ -104,7 +104,6 @@ function apply(project: Project, p: MoveFieldParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: "Source or destination class not found",
-      diff: [],
     };
   }
 
@@ -114,7 +113,6 @@ function apply(project: Project, p: MoveFieldParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Field '${p.field}' not found on class '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -126,7 +124,6 @@ function apply(project: Project, p: MoveFieldParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Moved field '${p.field}' from class '${p.target}' to class '${p.destination}'`,
-    diff: [],
   };
 }
 

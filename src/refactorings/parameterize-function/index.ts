@@ -82,7 +82,7 @@ function preconditions(project: Project, p: ParameterizeFunctionParams): Precond
 function apply(project: Project, p: ParameterizeFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -93,7 +93,6 @@ function apply(project: Project, p: ParameterizeFunctionParams): RefactoringResu
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -114,7 +113,6 @@ function apply(project: Project, p: ParameterizeFunctionParams): RefactoringResu
     success: true,
     filesChanged: [p.file],
     description: `Added parameter '${p.paramName}: ${p.paramType}' to function '${p.target}' and updated ${sorted.length} call site(s)`,
-    diff: [],
   };
 }
 

@@ -86,7 +86,7 @@ function preconditions(project: Project, p: MoveFunctionParams): PreconditionRes
 function apply(project: Project, p: MoveFunctionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -97,7 +97,6 @@ function apply(project: Project, p: MoveFunctionParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -107,7 +106,6 @@ function apply(project: Project, p: MoveFunctionParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Destination file not found: ${p.destination}`,
-      diff: [],
     };
   }
 
@@ -119,7 +117,6 @@ function apply(project: Project, p: MoveFunctionParams): RefactoringResult {
     success: true,
     filesChanged: [p.file, p.destination],
     description: `Moved function '${p.target}' from '${p.file}' to '${p.destination}'`,
-    diff: [],
   };
 }
 

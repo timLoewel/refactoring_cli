@@ -84,7 +84,6 @@ function apply(project: Project, p: RenameVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -97,7 +96,6 @@ function apply(project: Project, p: RenameVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -110,7 +108,6 @@ function apply(project: Project, p: RenameVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' uses destructuring and cannot be renamed with this refactoring`,
-      diff: [],
     };
   }
   nameNode.rename(p.name);
@@ -119,7 +116,6 @@ function apply(project: Project, p: RenameVariableParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Renamed variable '${p.target}' to '${p.name}' across all references`,
-    diff: [],
   };
 }
 

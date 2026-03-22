@@ -26,7 +26,7 @@ function makeDefinition(overrides: Partial<RefactoringDefinition> = {}): Refacto
       if (sf) {
         sf.replaceWithText("export const x = 2;\n");
       }
-      return { success: true, filesChanged: ["test.ts"], description: "changed x", diff: [] };
+      return { success: true, filesChanged: ["test.ts"], description: "changed x" };
     },
     ...overrides,
   };
@@ -89,7 +89,7 @@ describe("applyRefactoring", () => {
       apply: (p: Project) => {
         const sf = p.getSourceFiles()[0];
         if (sf) sf.replaceWithText("export const x = 999;\n");
-        return { success: false, filesChanged: [], description: "nope", diff: [] };
+        return { success: false, filesChanged: [], description: "nope" };
       },
     });
     const result = applyRefactoring(def, project, {});

@@ -66,7 +66,7 @@ function preconditions(
 function apply(project: Project, p: ReplaceDerivedVariableWithQueryParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const classes = sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration);
@@ -102,7 +102,6 @@ function apply(project: Project, p: ReplaceDerivedVariableWithQueryParams): Refa
       success: false,
       filesChanged: [],
       description: `Could not find property '${p.target}' with an initializer to convert`,
-      diff: [],
     };
   }
 
@@ -110,7 +109,6 @@ function apply(project: Project, p: ReplaceDerivedVariableWithQueryParams): Refa
     success: true,
     filesChanged: [p.file],
     description: `Converted derived field '${p.target}' into a computed getter`,
-    diff: [],
   };
 }
 

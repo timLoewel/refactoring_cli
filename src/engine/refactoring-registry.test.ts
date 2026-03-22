@@ -9,7 +9,7 @@ function makeDef(overrides: Partial<RefactoringDefinition> = {}): RefactoringDef
     tier: 1,
     params: { definitions: [], validate: (raw) => raw as Record<string, unknown> },
     preconditions: () => ({ ok: true, errors: [] }),
-    apply: () => ({ success: true, filesChanged: [], description: "done", diff: [] }),
+    apply: () => ({ success: true, filesChanged: [], description: "done" }),
     ...overrides,
   };
 }

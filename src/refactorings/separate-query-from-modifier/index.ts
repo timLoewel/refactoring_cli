@@ -76,7 +76,7 @@ function preconditions(project: Project, p: SeparateQueryFromModifierParams): Pr
 function apply(project: Project, p: SeparateQueryFromModifierParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -88,7 +88,6 @@ function apply(project: Project, p: SeparateQueryFromModifierParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -98,7 +97,6 @@ function apply(project: Project, p: SeparateQueryFromModifierParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -107,7 +105,6 @@ function apply(project: Project, p: SeparateQueryFromModifierParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' body is not a block`,
-      diff: [],
     };
   }
   const statements = body.getStatements();
@@ -141,7 +138,6 @@ function apply(project: Project, p: SeparateQueryFromModifierParams): Refactorin
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no return statement`,
-      diff: [],
     };
   }
   const returnExpr =
@@ -166,7 +162,6 @@ function apply(project: Project, p: SeparateQueryFromModifierParams): Refactorin
     success: true,
     filesChanged: [p.file],
     description: `Split '${p.target}' into query '${queryName}' and modifier '${modifierName}'`,
-    diff: [],
   };
 }
 

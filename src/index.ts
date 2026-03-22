@@ -3,4 +3,5 @@ export type {
   RefactoringDefinition,
   ParamSchema,
   RefactoringResult,
+  ApplyResult,
 } from "./engine/refactoring.types.js";

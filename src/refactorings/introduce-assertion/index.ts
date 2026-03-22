@@ -104,7 +104,6 @@ function apply(project: Project, p: IntroduceAssertionParams): RefactoringResult
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -117,7 +116,6 @@ function apply(project: Project, p: IntroduceAssertionParams): RefactoringResult
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -127,7 +125,6 @@ function apply(project: Project, p: IntroduceAssertionParams): RefactoringResult
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no block body`,
-      diff: [],
     };
   }
 
@@ -138,7 +135,6 @@ function apply(project: Project, p: IntroduceAssertionParams): RefactoringResult
     success: true,
     filesChanged: [p.file],
     description: `Inserted assertion '${p.condition}' at the start of function '${p.target}'`,
-    diff: [],
   };
 }
 

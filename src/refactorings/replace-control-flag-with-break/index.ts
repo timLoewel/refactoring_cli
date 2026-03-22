@@ -170,7 +170,7 @@ function inlineRemainingFlagChecks(loop: Node, flagName: string): void {
 function apply(project: Project, p: ReplaceControlFlagWithBreakParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const varDecl = sf
@@ -181,7 +181,6 @@ function apply(project: Project, p: ReplaceControlFlagWithBreakParams): Refactor
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -191,7 +190,6 @@ function apply(project: Project, p: ReplaceControlFlagWithBreakParams): Refactor
       success: false,
       filesChanged: [],
       description: `No loop found that uses '${p.target}'`,
-      diff: [],
     };
   }
 
@@ -204,7 +202,6 @@ function apply(project: Project, p: ReplaceControlFlagWithBreakParams): Refactor
     success: true,
     filesChanged: [p.file],
     description: `Replaced control flag '${p.target}' with break statement`,
-    diff: [],
   };
 }
 

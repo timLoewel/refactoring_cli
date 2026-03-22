@@ -97,7 +97,6 @@ function apply(project: Project, p: SplitVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `File not found: ${p.file}`,
-      diff: [],
     };
   }
 
@@ -110,7 +109,6 @@ function apply(project: Project, p: SplitVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -129,7 +127,6 @@ function apply(project: Project, p: SplitVariableParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' has no reassignments`,
-      diff: [],
     };
   }
 
@@ -187,7 +184,6 @@ function apply(project: Project, p: SplitVariableParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Split variable '${p.target}' into separate const variables for each assignment`,
-    diff: [],
   };
 }
 

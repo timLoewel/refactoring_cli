@@ -98,7 +98,7 @@ function buildSuperclassText(superclassName: string, methodTexts: string[]): str
 function apply(project: Project, p: ExtractSuperclassParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const targetClass = sf.getClass(p.target);
@@ -107,7 +107,6 @@ function apply(project: Project, p: ExtractSuperclassParams): RefactoringResult 
       success: false,
       filesChanged: [],
       description: `Class '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -140,7 +139,6 @@ function apply(project: Project, p: ExtractSuperclassParams): RefactoringResult 
     success: true,
     filesChanged: [p.file],
     description: `Extracted methods [${methodNames.join(", ")}] from '${p.target}' into new superclass '${p.superclassName}'`,
-    diff: [],
   };
 }
 

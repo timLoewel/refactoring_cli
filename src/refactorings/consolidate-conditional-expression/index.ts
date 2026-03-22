@@ -79,7 +79,7 @@ function preconditions(
 function apply(project: Project, p: ConsolidateConditionalExpressionParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const lineNum = Number(p.target);
@@ -91,7 +91,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `No if statement found at line ${lineNum}`,
-      diff: [],
     };
   }
 
@@ -101,7 +100,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `If statement is not inside a block`,
-      diff: [],
     };
   }
 
@@ -113,7 +111,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `Could not locate if statement in parent block`,
-      diff: [],
     };
   }
 
@@ -133,7 +130,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `Need at least 2 consecutive if statements`,
-      diff: [],
     };
   }
 
@@ -144,7 +140,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `Could not access first if statement`,
-      diff: [],
     };
   }
   const firstIfNode = firstIfNodeRaw.asKind(SyntaxKind.IfStatement);
@@ -153,7 +148,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `Could not cast first if statement`,
-      diff: [],
     };
   }
   const thenBlock = firstIfNode.getThenStatement();
@@ -182,7 +176,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
       success: false,
       filesChanged: [],
       description: `Could not access first node to replace`,
-      diff: [],
     };
   }
   firstNode.replaceWithText(consolidated);
@@ -191,7 +184,6 @@ function apply(project: Project, p: ConsolidateConditionalExpressionParams): Ref
     success: true,
     filesChanged: [p.file],
     description: `Consolidated ${consecutiveIfs.length} if-return statements at line ${lineNum} into one`,
-    diff: [],
   };
 }
 

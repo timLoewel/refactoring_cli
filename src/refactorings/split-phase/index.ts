@@ -97,7 +97,7 @@ function preconditions(project: Project, p: SplitPhaseParams): PreconditionResul
 function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const fn = sf
@@ -108,7 +108,6 @@ function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -118,7 +117,6 @@ function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' has no body`,
-      diff: [],
     };
   }
 
@@ -127,7 +125,6 @@ function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' body is not a block`,
-      diff: [],
     };
   }
   const stmts = body.getStatements();
@@ -136,7 +133,6 @@ function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
       success: false,
       filesChanged: [],
       description: `Function '${p.target}' needs at least 2 statements`,
-      diff: [],
     };
   }
 
@@ -174,7 +170,6 @@ function apply(project: Project, p: SplitPhaseParams): RefactoringResult {
     success: true,
     filesChanged: [p.file],
     description: `Split function '${p.target}' into '${p.firstPhaseName}' and '${p.secondPhaseName}'`,
-    diff: [],
   };
 }
 

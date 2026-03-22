@@ -86,7 +86,7 @@ function buildWrapperClass(className: string, primitiveType: string): string {
 function apply(project: Project, p: ReplacePrimitiveWithObjectParams): RefactoringResult {
   const sf = project.getSourceFile(p.file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}`, diff: [] };
+    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
   }
 
   const varDecl = sf.getVariableDeclaration(p.target);
@@ -95,7 +95,6 @@ function apply(project: Project, p: ReplacePrimitiveWithObjectParams): Refactori
       success: false,
       filesChanged: [],
       description: `Variable '${p.target}' not found`,
-      diff: [],
     };
   }
 
@@ -111,7 +110,6 @@ function apply(project: Project, p: ReplacePrimitiveWithObjectParams): Refactori
     success: true,
     filesChanged: [p.file],
     description: `Wrapped primitive variable '${p.target}' in new class '${p.className}'`,
-    diff: [],
   };
 }
 
