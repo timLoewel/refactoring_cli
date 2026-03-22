@@ -1,12 +1,5 @@
 import { SyntaxKind } from "ts-morph";
-import type {
-  Block,
-  ClassDeclaration,
-  FunctionDeclaration,
-  Project,
-  SourceFile,
-  VariableDeclaration,
-} from "ts-morph";
+import type { Block, ClassDeclaration, FunctionDeclaration, Project, SourceFile } from "ts-morph";
 import type {
   ParamDefinition,
   ParamSchema,
@@ -102,7 +95,7 @@ interface ResolveFailure {
   result: RefactoringResult;
 }
 
-export type ResolveResult<T> = ResolveSuccess<T> | ResolveFailure;
+type ResolveResult<T> = ResolveSuccess<T> | ResolveFailure;
 
 export interface SourceFileContext {
   sourceFile: SourceFile;
@@ -117,11 +110,6 @@ export interface FunctionContext {
 export interface ClassContext {
   sourceFile: SourceFile;
   cls: ClassDeclaration;
-}
-
-export interface VariableContext {
-  sourceFile: SourceFile;
-  declaration: VariableDeclaration;
 }
 
 // ---------------------------------------------------------------------------
@@ -187,27 +175,6 @@ export function resolveClass(
   }
 
   return { ok: true, value: { sourceFile, cls } };
-}
-
-export function resolveVariable(
-  project: Project,
-  params: Record<string, unknown>,
-): ResolveResult<VariableContext> {
-  const fileResult = resolveSourceFile(project, params);
-  if (!fileResult.ok) {
-    return fileResult;
-  }
-  const { sourceFile } = fileResult.value;
-  const target = params["target"] as string;
-
-  const declaration = sourceFile
-    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-    .find((d) => d.getName() === target);
-  if (!declaration) {
-    return { ok: false, result: failureResult(`Variable '${target}' not found in file`) };
-  }
-
-  return { ok: true, value: { sourceFile, declaration } };
 }
 
 // ---------------------------------------------------------------------------

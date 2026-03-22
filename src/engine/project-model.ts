@@ -56,7 +56,7 @@ export function loadProject(options: LoadProjectOptions = {}): ProjectModel {
   return { project, projectRoot, sourceFiles };
 }
 
-export function matchesGlob(filePath: string, pattern: string): boolean {
+function matchesGlob(filePath: string, pattern: string): boolean {
   const regexStr = pattern
     .replace(/\./g, "\\.")
     .replace(/\*\*/g, "<<GLOBSTAR>>")

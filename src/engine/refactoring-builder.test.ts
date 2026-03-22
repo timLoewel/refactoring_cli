@@ -7,7 +7,6 @@ import {
   resolveSourceFile,
   resolveFunction,
   resolveClass,
-  resolveVariable,
   defineRefactoring,
 } from "./refactoring-builder.js";
 import { registry } from "./refactoring-registry.js";
@@ -222,28 +221,6 @@ describe("shared resolvers", () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.result.description).toContain("MyClass");
-      }
-    });
-  });
-
-  describe("resolveVariable", () => {
-    it("returns variable declaration on success", () => {
-      const project = makeProject({
-        "src/foo.ts": "export const myVar = 42;",
-      });
-      const result = resolveVariable(project, { file: "src/foo.ts", target: "myVar" });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value.declaration.getName()).toBe("myVar");
-      }
-    });
-
-    it("returns failure when variable not found", () => {
-      const project = makeProject({ "src/foo.ts": "export const x = 1;" });
-      const result = resolveVariable(project, { file: "src/foo.ts", target: "myVar" });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.result.description).toContain("myVar");
       }
     });
   });

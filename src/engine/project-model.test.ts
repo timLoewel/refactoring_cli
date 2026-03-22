@@ -1,23 +1,7 @@
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadProject, matchesGlob } from "./project-model.js";
-
-describe("matchesGlob", () => {
-  it("matches ** glob patterns", () => {
-    expect(matchesGlob("/project/node_modules/foo/bar.ts", "**/node_modules/**")).toBe(true);
-    expect(matchesGlob("/project/src/app.ts", "**/node_modules/**")).toBe(false);
-  });
-
-  it("matches * glob patterns", () => {
-    expect(matchesGlob("/project/src/foo.generated.ts", "*.generated.ts")).toBe(true);
-  });
-
-  it("matches dist and build defaults", () => {
-    expect(matchesGlob("/project/dist/index.js", "**/dist/**")).toBe(true);
-    expect(matchesGlob("/project/build/output.js", "**/build/**")).toBe(true);
-  });
-});
+import { loadProject } from "./project-model.js";
 
 describe("loadProject", () => {
   let tempDir: string;

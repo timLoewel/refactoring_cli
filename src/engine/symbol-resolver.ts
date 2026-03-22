@@ -110,26 +110,49 @@ function extractDeclarations(sf: SourceFile): Map<SymbolKind, DeclEntry[]> {
 
 const ALL_KINDS: SymbolKind[] = ["variable", "function", "class", "interface", "type", "enum"];
 
+interface DeclarationEntry {
+  name: string;
+  kind: SymbolKind;
+  filePath: string;
+  line: number;
+  exported: boolean;
+  nameNode: Node;
+}
+
+function* forEachDeclaration(
+  sourceFiles: SourceFile[],
+  kinds: SymbolKind[] = ALL_KINDS,
+): Generator<DeclarationEntry> {
+  for (const sf of sourceFiles) {
+    const filePath = sf.getFilePath();
+    const decls = extractDeclarations(sf);
+    for (const kind of kinds) {
+      for (const entry of decls.get(kind) ?? []) {
+        yield {
+          name: entry.name,
+          kind,
+          filePath,
+          line: entry.line,
+          exported: entry.exported,
+          nameNode: entry.nameNode,
+        };
+      }
+    }
+  }
+}
+
 export function searchSymbols(
   project: Project,
   pattern: string,
   options: SearchOptions = {},
 ): SymbolInfo[] {
-  const results: SymbolInfo[] = [];
   const kinds = options.kind ? [options.kind] : ALL_KINDS;
+  const results: SymbolInfo[] = [];
 
-  for (const sf of project.getSourceFiles()) {
-    const filePath = sf.getFilePath();
-    const decls = extractDeclarations(sf);
-
-    for (const kind of kinds) {
-      const entries = decls.get(kind) ?? [];
-      for (const entry of entries) {
-        if (!matchesPattern(entry.name, pattern)) continue;
-        if (options.exported && !entry.exported) continue;
-        results.push(makeSymbolInfo(entry.name, kind, filePath, entry.line, entry.exported));
-      }
-    }
+  for (const decl of forEachDeclaration(project.getSourceFiles(), kinds)) {
+    if (!matchesPattern(decl.name, pattern)) continue;
+    if (options.exported && !decl.exported) continue;
+    results.push(makeSymbolInfo(decl.name, decl.kind, decl.filePath, decl.line, decl.exported));
   }
 
   return results;
@@ -157,28 +180,31 @@ export function findReferences(
 }
 
 export function findUnused(project: Project, options: UnusedOptions = {}): SymbolInfo[] {
-  const unused: SymbolInfo[] = [];
   const sourceFiles = options.ignoreTests
     ? project.getSourceFiles().filter((sf) => !isTestFile(sf.getFilePath()))
     : project.getSourceFiles();
+  const kinds = options.kind ? [options.kind] : ALL_KINDS;
 
-  for (const sf of sourceFiles) {
-    const symbols = getAllSymbolsInFile(sf);
-    for (const sym of symbols) {
-      if (options.kind && sym.kind !== options.kind) continue;
-
-      const refs = findReferences(project, sym.name, { kind: sym.kind });
-      const nonDefinitionRefs = options.ignoreTests
-        ? refs.filter((r) => !r.isDefinition && !isTestFile(r.filePath))
-        : refs.filter((r) => !r.isDefinition);
-
-      if (nonDefinitionRefs.length === 0) {
-        unused.push(sym);
-      }
+  const unused: SymbolInfo[] = [];
+  for (const decl of forEachDeclaration(sourceFiles, kinds)) {
+    if (!hasNonDefinitionRefs(project, decl.name, decl.kind, options.ignoreTests)) {
+      unused.push(makeSymbolInfo(decl.name, decl.kind, decl.filePath, decl.line, decl.exported));
     }
   }
-
   return unused;
+}
+
+function hasNonDefinitionRefs(
+  project: Project,
+  name: string,
+  kind: SymbolKind,
+  ignoreTests?: boolean,
+): boolean {
+  const refs = findReferences(project, name, { kind });
+  const nonDefRefs = ignoreTests
+    ? refs.filter((r) => !r.isDefinition && !isTestFile(r.filePath))
+    : refs.filter((r) => !r.isDefinition);
+  return nonDefRefs.length > 0;
 }
 
 function isTestFile(filePath: string): boolean {
@@ -211,21 +237,13 @@ function isExported(node: Node): boolean {
 }
 
 function findDeclarationNodes(project: Project, name: string, kind?: SymbolKind): Node[] {
-  const nodes: Node[] = [];
   const kinds = kind ? [kind] : ALL_KINDS;
-
-  for (const sf of project.getSourceFiles()) {
-    const decls = extractDeclarations(sf);
-    for (const k of kinds) {
-      const entries = decls.get(k) ?? [];
-      for (const entry of entries) {
-        if (entry.name === name) {
-          nodes.push(entry.nameNode);
-        }
-      }
+  const nodes: Node[] = [];
+  for (const decl of forEachDeclaration(project.getSourceFiles(), kinds)) {
+    if (decl.name === name) {
+      nodes.push(decl.nameNode);
     }
   }
-
   return nodes;
 }
 
@@ -261,22 +279,30 @@ function collectReferences(node: Node, seen: Set<string>): ReferenceInfo[] {
   return refs;
 }
 
+function extractCallerNames(
+  project: Project,
+  refs: ReferenceInfo[],
+  excludeName: string,
+): Set<string> {
+  const callerNames = new Set<string>();
+  for (const ref of refs) {
+    if (!ref.isDefinition) {
+      const callerName = extractCallerName(project, ref.filePath, ref.line);
+      if (callerName && callerName !== excludeName) {
+        callerNames.add(callerName);
+      }
+    }
+  }
+  return callerNames;
+}
+
 function collectTransitiveRefs(
   project: Project,
   symbolName: string,
   allRefs: ReferenceInfo[],
   seen: Set<string>,
 ): void {
-  const callerNames = new Set<string>();
-  for (const ref of allRefs) {
-    if (!ref.isDefinition) {
-      const callerName = extractCallerName(project, ref.filePath, ref.line);
-      if (callerName && callerName !== symbolName) {
-        callerNames.add(callerName);
-      }
-    }
-  }
-  for (const callerName of callerNames) {
+  for (const callerName of extractCallerNames(project, allRefs, symbolName)) {
     const transitiveRefs = findReferences(project, callerName, { transitive: false });
     for (const ref of transitiveRefs) {
       const key = `${ref.filePath}:${String(ref.line)}`;
@@ -308,19 +334,4 @@ function extractCallerName(project: Project, filePath: string, line: number): st
     current = current.getParent();
   }
   return null;
-}
-
-function getAllSymbolsInFile(sf: SourceFile): SymbolInfo[] {
-  const symbols: SymbolInfo[] = [];
-  const filePath = sf.getFilePath();
-  const decls = extractDeclarations(sf);
-
-  for (const kind of ALL_KINDS) {
-    const entries = decls.get(kind) ?? [];
-    for (const entry of entries) {
-      symbols.push(makeSymbolInfo(entry.name, kind, filePath, entry.line, entry.exported));
-    }
-  }
-
-  return symbols;
 }
