@@ -62,4 +62,4 @@
 
 - [x] 10.1 Apply roam-health-fixes change (dead export cleanup, symbol-resolver simplification, apply complexity reduction)
 - [x] 10.2 Run `roam health` and verify score >= 60
-- [ ] 10.3 Re-enable `roam health --gate` in `.husky/pre-commit` (uncomment the line)
+- [x] 10.3 Re-enable `roam health --gate` in `.husky/pre-commit` (uncomment the line)

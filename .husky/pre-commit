@@ -14,6 +14,6 @@ fi
 # Roam quality gates
 if command -v roam &> /dev/null; then
   roam index
-  # roam health --gate  # Temporarily disabled during architecture-v2 migration (re-enable in task 10.3)
+  roam health --gate
   roam diff
 fi
