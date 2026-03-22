@@ -1,6 +1,6 @@
 ## 1. Builder Infrastructure
 
-- [ ] 1.1 Create param helper functions (fileParam, stringParam, identifierParam, numberParam) in `src/engine/refactoring-builder.ts`
+- [x] 1.1 Create param helper functions (fileParam, stringParam, identifierParam, numberParam) in `src/engine/refactoring-builder.ts`
 - [ ] 1.2 Create shared resolvers (resolveSourceFile, resolveFunction, resolveClass, resolveVariable) in `src/engine/refactoring-builder.ts`
 - [ ] 1.3 Implement `defineRefactoring()` builder that generates ParamSchema, wraps preconditions/apply, and calls `registry.register()`
 - [ ] 1.4 Tests for builder: param helpers, resolvers, defineRefactoring registration
