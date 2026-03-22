@@ -28,8 +28,8 @@
 - [x] 4.5 Migrate split-variable
 - [x] 4.6 Migrate replace-magic-literal
 - [x] 4.7 Migrate slide-statements
-- [ ] 4.8 Migrate remove-dead-code
-- [ ] 4.9 Migrate introduce-assertion
+- [x] 4.8 Migrate remove-dead-code
+- [x] 4.9 Migrate introduce-assertion
 - [ ] 4.10 Migrate return-modified-value
 - [ ] 4.11 Migrate replace-control-flag-with-break
 

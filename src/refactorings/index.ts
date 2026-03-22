@@ -10,7 +10,7 @@ import "./split-variable/index.js"; // self-registers via defineRefactoring
 import "./replace-magic-literal/index.js"; // self-registers via defineRefactoring
 import "./slide-statements/index.js"; // self-registers via defineRefactoring
 import "./remove-dead-code/index.js"; // self-registers via defineRefactoring
-import { introduceAssertion } from "./introduce-assertion/index.js";
+import "./introduce-assertion/index.js"; // self-registers via defineRefactoring
 import { returnModifiedValue } from "./return-modified-value/index.js";
 import { replaceControlFlagWithBreak } from "./replace-control-flag-with-break/index.js";
 
@@ -77,7 +77,6 @@ import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclass
 
 const allRefactorings: RefactoringDefinition[] = [
   // Tier 1
-  introduceAssertion,
   returnModifiedValue,
   replaceControlFlagWithBreak,
   // Tier 2
