@@ -43,7 +43,7 @@
 
 ## 7. Migrate Tier 4 Refactorings (12 modules)
 
-- [ ] 7.1 Migrate all 12 Tier 4 refactorings to use defineRefactoring (batch)
+- [x] 7.1 Migrate all 12 Tier 4 refactorings to use defineRefactoring (batch)
 
 ## 8. Remove Barrel and Wire Self-Registration
 

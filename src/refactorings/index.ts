@@ -1,6 +1,3 @@
-import { registry } from "../engine/refactoring-registry.js";
-import type { RefactoringDefinition } from "../engine/refactoring.types.js";
-
 // Tier 1 — Variable & Expression
 import "./extract-variable/index.js"; // self-registers via defineRefactoring
 import "./inline-variable/index.js"; // self-registers via defineRefactoring
@@ -62,37 +59,20 @@ import "./combine-functions-into-class/index.js"; // self-registers via defineRe
 import "./rename-field/index.js"; // self-registers via defineRefactoring
 
 // Tier 4 — Inheritance
-import { extractSuperclass } from "./extract-superclass/index.js";
-import { collapseHierarchy } from "./collapse-hierarchy/index.js";
-import { pullUpMethod } from "./pull-up-method/index.js";
-import { pullUpField } from "./pull-up-field/index.js";
-import { pullUpConstructorBody } from "./pull-up-constructor-body/index.js";
-import { pushDownMethod } from "./push-down-method/index.js";
-import { pushDownField } from "./push-down-field/index.js";
-import { removeSubclass } from "./remove-subclass/index.js";
-import { replaceSubclassWithDelegate } from "./replace-subclass-with-delegate/index.js";
-import { replaceSuperclassWithDelegate } from "./replace-superclass-with-delegate/index.js";
-import { replaceConstructorWithFactoryFunction } from "./replace-constructor-with-factory-function/index.js";
-import { replaceTypeCodeWithSubclasses } from "./replace-type-code-with-subclasses/index.js";
-
-const allRefactorings: RefactoringDefinition[] = [
-  // Tier 4
-  extractSuperclass,
-  collapseHierarchy,
-  pullUpMethod,
-  pullUpField,
-  pullUpConstructorBody,
-  pushDownMethod,
-  pushDownField,
-  removeSubclass,
-  replaceSubclassWithDelegate,
-  replaceSuperclassWithDelegate,
-  replaceConstructorWithFactoryFunction,
-  replaceTypeCodeWithSubclasses,
-];
+import "./extract-superclass/index.js"; // self-registers via defineRefactoring
+import "./collapse-hierarchy/index.js"; // self-registers via defineRefactoring
+import "./pull-up-method/index.js"; // self-registers via defineRefactoring
+import "./pull-up-field/index.js"; // self-registers via defineRefactoring
+import "./pull-up-constructor-body/index.js"; // self-registers via defineRefactoring
+import "./push-down-method/index.js"; // self-registers via defineRefactoring
+import "./push-down-field/index.js"; // self-registers via defineRefactoring
+import "./remove-subclass/index.js"; // self-registers via defineRefactoring
+import "./replace-subclass-with-delegate/index.js"; // self-registers via defineRefactoring
+import "./replace-superclass-with-delegate/index.js"; // self-registers via defineRefactoring
+import "./replace-constructor-with-factory-function/index.js"; // self-registers via defineRefactoring
+import "./replace-type-code-with-subclasses/index.js"; // self-registers via defineRefactoring
 
 export function registerAll(): void {
-  for (const def of allRefactorings) {
-    registry.register(def);
-  }
+  // All refactorings self-register via defineRefactoring side-effect imports above.
+  // This function exists for backward compatibility.
 }

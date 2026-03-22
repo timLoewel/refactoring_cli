@@ -1,60 +1,25 @@
 import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface CollapseHierarchyParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the subclass to collapse into its parent",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): CollapseHierarchyParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: CollapseHierarchyParams): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    errors.push(`Class '${p.target}' does not extend any class`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' does not extend any class`] };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -66,28 +31,23 @@ function preconditions(project: Project, p: CollapseHierarchyParams): Preconditi
   return { ok: errors.length === 0, errors };
 }
 
-function apply(project: Project, p: CollapseHierarchyParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' has no superclass`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' has no superclass` };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -110,20 +70,21 @@ function apply(project: Project, p: CollapseHierarchyParams): RefactoringResult 
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Collapsed subclass '${p.target}' into parent class '${parentName}'`,
+    filesChanged: [file],
+    description: `Collapsed subclass '${target}' into parent class '${parentName}'`,
   };
 }
 
-export const collapseHierarchy: RefactoringDefinition = {
+export const collapseHierarchy = defineRefactoring({
   name: "Collapse Hierarchy",
   kebabName: "collapse-hierarchy",
   description:
     "Merges a subclass that adds nothing meaningful back into its parent class and removes the subclass.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as CollapseHierarchyParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as CollapseHierarchyParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the subclass to collapse into its parent"),
+  ],
+  preconditions,
+  apply,
+});

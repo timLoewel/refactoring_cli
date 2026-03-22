@@ -1,60 +1,25 @@
 import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface RemoveSubclassParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the subclass to remove",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): RemoveSubclassParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: RemoveSubclassParams): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    errors.push(`Class '${p.target}' does not extend any class — it is not a subclass`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' does not extend any class — it is not a subclass`] };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -70,28 +35,23 @@ function buildTypeFieldName(subclassName: string): string {
   return subclassName.charAt(0).toLowerCase() + subclassName.slice(1) + "Type";
 }
 
-function apply(project: Project, p: RemoveSubclassParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' has no superclass`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' has no superclass` };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -104,8 +64,8 @@ function apply(project: Project, p: RemoveSubclassParams): RefactoringResult {
     };
   }
 
-  const typeFieldName = buildTypeFieldName(p.target);
-  const typeValue = p.target.toLowerCase();
+  const typeFieldName = buildTypeFieldName(target);
+  const typeValue = target.toLowerCase();
 
   // Add a type discriminator field to the parent if not present
   if (!parentClass.getProperty(typeFieldName)) {
@@ -122,20 +82,21 @@ function apply(project: Project, p: RemoveSubclassParams): RefactoringResult {
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Removed subclass '${p.target}', merged into '${parentName}' with type field '${typeFieldName}'`,
+    filesChanged: [file],
+    description: `Removed subclass '${target}', merged into '${parentName}' with type field '${typeFieldName}'`,
   };
 }
 
-export const removeSubclass: RefactoringDefinition = {
+export const removeSubclass = defineRefactoring({
   name: "Remove Subclass",
   kebabName: "remove-subclass",
   description:
     "Removes a subclass by merging it into its parent and replacing the subclass distinction with a type field.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as RemoveSubclassParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as RemoveSubclassParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the subclass to remove"),
+  ],
+  preconditions,
+  apply,
+});

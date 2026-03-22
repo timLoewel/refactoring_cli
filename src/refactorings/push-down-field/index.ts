@@ -1,131 +1,70 @@
 import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface PushDownFieldParams {
-  file: string;
-  target: string;
-  field: string;
-  subclass: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the superclass containing the field",
-      required: true,
-    },
-    {
-      name: "field",
-      type: "string",
-      description: "Name of the field to push down",
-      required: true,
-    },
-    {
-      name: "subclass",
-      type: "string",
-      description: "Name of the subclass to receive the field",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): PushDownFieldParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    if (typeof r["field"] !== "string" || r["field"].trim() === "") {
-      throw new Error("param 'field' must be a non-empty string");
-    }
-    if (typeof r["subclass"] !== "string" || r["subclass"].trim() === "") {
-      throw new Error("param 'subclass' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-      field: r["field"] as string,
-      subclass: r["subclass"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: PushDownFieldParams): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const field = params["field"] as string;
+  const subclass = params["subclass"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const superClass = sf.getClass(p.target);
+  const superClass = sf.getClass(target);
   if (!superClass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
-  if (!superClass.getProperty(p.field)) {
-    errors.push(`Field '${p.field}' not found in class '${p.target}'`);
+  if (!superClass.getProperty(field)) {
+    errors.push(`Field '${field}' not found in class '${target}'`);
   }
 
-  const subClass = sf.getClass(p.subclass);
+  const subClass = sf.getClass(subclass);
   if (!subClass) {
-    errors.push(`Subclass '${p.subclass}' not found in file`);
+    errors.push(`Subclass '${subclass}' not found in file`);
   } else {
     const extendsClause = subClass.getExtends();
-    if (!extendsClause || extendsClause.getExpression().getText() !== p.target) {
-      errors.push(`Class '${p.subclass}' does not extend '${p.target}'`);
+    if (!extendsClause || extendsClause.getExpression().getText() !== target) {
+      errors.push(`Class '${subclass}' does not extend '${target}'`);
     }
-    if (subClass.getProperty(p.field)) {
-      errors.push(`Field '${p.field}' already exists in subclass '${p.subclass}'`);
+    if (subClass.getProperty(field)) {
+      errors.push(`Field '${field}' already exists in subclass '${subclass}'`);
     }
   }
 
   return { ok: errors.length === 0, errors };
 }
 
-function apply(project: Project, p: PushDownFieldParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const field = params["field"] as string;
+  const subclass = params["subclass"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const superClass = sf.getClass(p.target);
+  const superClass = sf.getClass(target);
   if (!superClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
-  const property = superClass.getProperty(p.field);
+  const property = superClass.getProperty(field);
   if (!property) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Field '${p.field}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Field '${field}' not found` };
   }
 
   const propertyText = property.getText();
 
-  const subClass = sf.getClass(p.subclass);
+  const subClass = sf.getClass(subclass);
   if (!subClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Subclass '${p.subclass}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Subclass '${subclass}' not found` };
   }
 
   property.remove();
@@ -133,20 +72,23 @@ function apply(project: Project, p: PushDownFieldParams): RefactoringResult {
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Pushed field '${p.field}' down from '${p.target}' to '${p.subclass}'`,
+    filesChanged: [file],
+    description: `Pushed field '${field}' down from '${target}' to '${subclass}'`,
   };
 }
 
-export const pushDownField: RefactoringDefinition = {
+export const pushDownField = defineRefactoring({
   name: "Push Down Field",
   kebabName: "push-down-field",
   description:
     "Moves a field from a superclass down to a specific subclass that is the sole user of that field.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as PushDownFieldParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as PushDownFieldParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the superclass containing the field"),
+    stringParam("field", "Name of the field to push down"),
+    stringParam("subclass", "Name of the subclass to receive the field"),
+  ],
+  preconditions,
+  apply,
+});

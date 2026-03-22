@@ -1,67 +1,31 @@
 import type { Project } from "ts-morph";
 import { Node } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface PullUpConstructorBodyParams {
-  file: string;
-  target: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the subclass whose constructor body to pull up",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): PullUpConstructorBodyParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-    };
-  },
-};
-
-function preconditions(project: Project, p: PullUpConstructorBodyParams): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
   const constructor = subclass.getConstructors()[0];
   if (!constructor) {
-    errors.push(`Class '${p.target}' has no constructor`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' has no constructor`] };
   }
 
   const extendsClause = subclass.getExtends();
   if (!extendsClause) {
-    errors.push(`Class '${p.target}' does not extend any class`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' does not extend any class`] };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -73,28 +37,23 @@ function preconditions(project: Project, p: PullUpConstructorBodyParams): Precon
   return { ok: errors.length === 0, errors };
 }
 
-function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const subclass = sf.getClass(p.target);
+  const subclass = sf.getClass(target);
   if (!subclass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
   const subConstructor = subclass.getConstructors()[0];
   if (!subConstructor) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `No constructor in '${p.target}'`,
-    };
+    return { success: false, filesChanged: [], description: `No constructor in '${target}'` };
   }
 
   const extendsClause = subclass.getExtends();
@@ -102,7 +61,7 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
     return {
       success: false,
       filesChanged: [],
-      description: `Class '${p.target}' has no superclass`,
+      description: `Class '${target}' has no superclass`,
     };
   }
 
@@ -151,20 +110,21 @@ function apply(project: Project, p: PullUpConstructorBodyParams): RefactoringRes
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Pulled constructor body of '${p.target}' up to '${parentName}'`,
+    filesChanged: [file],
+    description: `Pulled constructor body of '${target}' up to '${parentName}'`,
   };
 }
 
-export const pullUpConstructorBody: RefactoringDefinition = {
+export const pullUpConstructorBody = defineRefactoring({
   name: "Pull Up Constructor Body",
   kebabName: "pull-up-constructor-body",
   description:
     "Moves common constructor initialization logic from a subclass up to the superclass constructor.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as PullUpConstructorBodyParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as PullUpConstructorBodyParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the subclass whose constructor body to pull up"),
+  ],
+  preconditions,
+  apply,
+});

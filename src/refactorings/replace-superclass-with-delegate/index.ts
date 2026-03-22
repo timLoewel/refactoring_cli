@@ -1,78 +1,30 @@
 import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface ReplaceSuperclassWithDelegateParams {
-  file: string;
-  target: string;
-  delegateFieldName: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the class that currently inherits from a superclass",
-      required: true,
-    },
-    {
-      name: "delegateFieldName",
-      type: "string",
-      description: "Name for the new delegate field that will replace the superclass",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ReplaceSuperclassWithDelegateParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    if (typeof r["delegateFieldName"] !== "string" || r["delegateFieldName"].trim() === "") {
-      throw new Error("param 'delegateFieldName' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-      delegateFieldName: r["delegateFieldName"] as string,
-    };
-  },
-};
-
-function preconditions(
-  project: Project,
-  p: ReplaceSuperclassWithDelegateParams,
-): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const delegateFieldName = params["delegateFieldName"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
   const extendsClause = targetClass.getExtends();
   if (!extendsClause) {
-    errors.push(`Class '${p.target}' does not extend any class`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' does not extend any class`] };
   }
 
-  if (targetClass.getProperty(p.delegateFieldName)) {
-    errors.push(`Field '${p.delegateFieldName}' already exists in class '${p.target}'`);
+  if (targetClass.getProperty(delegateFieldName)) {
+    errors.push(`Field '${delegateFieldName}' already exists in class '${target}'`);
   }
 
   return { ok: errors.length === 0, errors };
@@ -85,28 +37,24 @@ function buildForwardingMethods(superclassMethods: string[], delegateFieldName: 
   );
 }
 
-function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const delegateFieldName = params["delegateFieldName"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
   const extendsClause = targetClass.getExtends();
   if (!extendsClause) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' has no superclass`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' has no superclass` };
   }
 
   const parentName = extendsClause.getExpression().getText();
@@ -119,39 +67,41 @@ function apply(project: Project, p: ReplaceSuperclassWithDelegateParams): Refact
   targetClass.removeExtends();
 
   // Add a delegate field pointing to an instance of the former superclass
-  const refreshedClass = sf.getClass(p.target);
+  const refreshedClass = sf.getClass(target);
   if (!refreshedClass) {
     return {
       success: false,
       filesChanged: [],
-      description: `Class '${p.target}' disappeared after transformation`,
+      description: `Class '${target}' disappeared after transformation`,
     };
   }
 
-  refreshedClass.addMember(`private ${p.delegateFieldName}: ${parentName} = new ${parentName}();`);
+  refreshedClass.addMember(`private ${delegateFieldName}: ${parentName} = new ${parentName}();`);
 
   // Add forwarding methods for each inherited method
-  const forwardingMethods = buildForwardingMethods(superclassMethodNames, p.delegateFieldName);
+  const forwardingMethods = buildForwardingMethods(superclassMethodNames, delegateFieldName);
   for (const methodText of forwardingMethods) {
     refreshedClass.addMember(methodText);
   }
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Replaced superclass '${parentName}' in '${p.target}' with delegate field '${p.delegateFieldName}'`,
+    filesChanged: [file],
+    description: `Replaced superclass '${parentName}' in '${target}' with delegate field '${delegateFieldName}'`,
   };
 }
 
-export const replaceSuperclassWithDelegate: RefactoringDefinition = {
+export const replaceSuperclassWithDelegate = defineRefactoring({
   name: "Replace Superclass with Delegate",
   kebabName: "replace-superclass-with-delegate",
   description:
     "Replaces a class's superclass inheritance with a delegate field, forwarding calls through composition instead of inheritance.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ReplaceSuperclassWithDelegateParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ReplaceSuperclassWithDelegateParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the class that currently inherits from a superclass"),
+    stringParam("delegateFieldName", "Name for the new delegate field that will replace the superclass"),
+  ],
+  preconditions,
+  apply,
+});

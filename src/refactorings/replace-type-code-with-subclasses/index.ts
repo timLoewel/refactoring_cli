@@ -1,72 +1,25 @@
 import type { Project } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import { defineRefactoring, fileParam, stringParam } from "../../engine/refactoring-builder.js";
 
-interface ReplaceTypeCodeWithSubclassesParams {
-  file: string;
-  target: string;
-  typeField: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the class containing the type code field",
-      required: true,
-    },
-    {
-      name: "typeField",
-      type: "string",
-      description: "Name of the type code field to replace with subclasses",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ReplaceTypeCodeWithSubclassesParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    if (typeof r["typeField"] !== "string" || r["typeField"].trim() === "") {
-      throw new Error("param 'typeField' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-      typeField: r["typeField"] as string,
-    };
-  },
-};
-
-function preconditions(
-  project: Project,
-  p: ReplaceTypeCodeWithSubclassesParams,
-): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const typeField = params["typeField"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
-  if (!targetClass.getProperty(p.typeField)) {
-    errors.push(`Field '${p.typeField}' not found in class '${p.target}'`);
+  if (!targetClass.getProperty(typeField)) {
+    errors.push(`Field '${typeField}' not found in class '${target}'`);
   }
 
   return { ok: errors.length === 0, errors };
@@ -85,27 +38,27 @@ function buildSubclassText(
   return `class ${subclassName} extends ${parentName} {\n  get ${typeFieldName}(): string { return "${typeValue}"; }\n}\n`;
 }
 
-function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const typeField = params["typeField"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
-  const typeProperty = targetClass.getProperty(p.typeField);
+  const typeProperty = targetClass.getProperty(typeField);
   if (!typeProperty) {
     return {
       success: false,
       filesChanged: [],
-      description: `Field '${p.typeField}' not found in '${p.target}'`,
+      description: `Field '${typeField}' not found in '${target}'`,
     };
   }
 
@@ -116,36 +69,38 @@ function apply(project: Project, p: ReplaceTypeCodeWithSubclassesParams): Refact
   // Make the type field abstract/overrideable by converting it to a getter
   typeProperty.remove();
 
-  const refreshedClass = sf.getClass(p.target);
+  const refreshedClass = sf.getClass(target);
   if (refreshedClass) {
     refreshedClass.addGetAccessor({
-      name: p.typeField,
+      name: typeField,
       returnType: "string",
-      statements: [`throw new Error("Subclass must override ${p.typeField}");`],
+      statements: [`throw new Error("Subclass must override ${typeField}");`],
     });
   }
 
   // Generate a concrete subclass for the known type value
-  const subclassName = capitalizeFirst(typeValue) + p.target;
-  const subclassText = buildSubclassText(subclassName, p.target, p.typeField, typeValue);
+  const subclassName = capitalizeFirst(typeValue) + target;
+  const subclassText = buildSubclassText(subclassName, target, typeField, typeValue);
   sf.addStatements(`\n${subclassText}`);
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Replaced type code field '${p.typeField}' in '${p.target}' with subclass hierarchy; created '${subclassName}'`,
+    filesChanged: [file],
+    description: `Replaced type code field '${typeField}' in '${target}' with subclass hierarchy; created '${subclassName}'`,
   };
 }
 
-export const replaceTypeCodeWithSubclasses: RefactoringDefinition = {
+export const replaceTypeCodeWithSubclasses = defineRefactoring({
   name: "Replace Type Code with Subclasses",
   kebabName: "replace-type-code-with-subclasses",
   description:
     "Replaces a type code field in a class with a proper subclass hierarchy, making the type distinction explicit in the class structure.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ReplaceTypeCodeWithSubclassesParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ReplaceTypeCodeWithSubclassesParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the class containing the type code field"),
+    stringParam("typeField", "Name of the type code field to replace with subclasses"),
+  ],
+  preconditions,
+  apply,
+});

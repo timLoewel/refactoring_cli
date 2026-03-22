@@ -1,78 +1,36 @@
 import type { Project } from "ts-morph";
 import { SyntaxKind } from "ts-morph";
-import type {
-  RefactoringDefinition,
-  ParamSchema,
-  PreconditionResult,
-  RefactoringResult,
-} from "../../engine/refactoring.types.js";
+import type { PreconditionResult, RefactoringResult } from "../../engine/refactoring.types.js";
+import {
+  defineRefactoring,
+  fileParam,
+  identifierParam,
+  stringParam,
+} from "../../engine/refactoring-builder.js";
 
-interface ReplaceConstructorWithFactoryFunctionParams {
-  file: string;
-  target: string;
-  factoryName: string;
-}
-
-const params: ParamSchema = {
-  definitions: [
-    { name: "file", type: "string", description: "Path to the TypeScript file", required: true },
-    {
-      name: "target",
-      type: "string",
-      description: "Name of the class whose constructor to replace with a factory",
-      required: true,
-    },
-    {
-      name: "factoryName",
-      type: "string",
-      description: "Name for the new factory function",
-      required: true,
-    },
-  ],
-  validate(raw: unknown): ReplaceConstructorWithFactoryFunctionParams {
-    const r = raw as Record<string, unknown>;
-    if (typeof r["file"] !== "string" || r["file"].trim() === "") {
-      throw new Error("param 'file' must be a non-empty string");
-    }
-    if (typeof r["target"] !== "string" || r["target"].trim() === "") {
-      throw new Error("param 'target' must be a non-empty string");
-    }
-    if (typeof r["factoryName"] !== "string" || r["factoryName"].trim() === "") {
-      throw new Error("param 'factoryName' must be a non-empty string");
-    }
-    return {
-      file: r["file"] as string,
-      target: r["target"] as string,
-      factoryName: r["factoryName"] as string,
-    };
-  },
-};
-
-function preconditions(
-  project: Project,
-  p: ReplaceConstructorWithFactoryFunctionParams,
-): PreconditionResult {
+function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const factoryName = params["factoryName"] as string;
   const errors: string[] = [];
 
-  const sf = project.getSourceFile(p.file);
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    errors.push(`File not found in project: ${p.file}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    errors.push(`Class '${p.target}' not found in file`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
 
-  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(p.factoryName)) {
-    errors.push(`'${p.factoryName}' is not a valid identifier`);
+  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(factoryName)) {
+    errors.push(`'${factoryName}' is not a valid identifier`);
   }
 
-  const existingFactory = sf.getFunction(p.factoryName);
+  const existingFactory = sf.getFunction(factoryName);
   if (existingFactory) {
-    errors.push(`Function '${p.factoryName}' already exists in file`);
+    errors.push(`Function '${factoryName}' already exists in file`);
   }
 
   return { ok: errors.length === 0, errors };
@@ -111,22 +69,19 @@ function replaceNewExpressions(
   }
 }
 
-function apply(
-  project: Project,
-  p: ReplaceConstructorWithFactoryFunctionParams,
-): RefactoringResult {
-  const sf = project.getSourceFile(p.file);
+function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
+  const file = params["file"] as string;
+  const target = params["target"] as string;
+  const factoryName = params["factoryName"] as string;
+
+  const sf = project.getSourceFile(file);
   if (!sf) {
-    return { success: false, filesChanged: [], description: `File not found: ${p.file}` };
+    return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const targetClass = sf.getClass(p.target);
+  const targetClass = sf.getClass(target);
   if (!targetClass) {
-    return {
-      success: false,
-      filesChanged: [],
-      description: `Class '${p.target}' not found`,
-    };
+    return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
 
   const constructor = targetClass.getConstructors()[0];
@@ -137,33 +92,35 @@ function apply(
         .join(", ")
     : "";
 
-  const factoryText = buildFactorySignature(p.target, p.factoryName, constructorParams);
+  const factoryText = buildFactorySignature(target, factoryName, constructorParams);
 
   // Replace new ClassName(...) calls with factoryName(...) throughout the file
-  replaceNewExpressions(project, p.file, p.target, p.factoryName);
+  replaceNewExpressions(project, file, target, factoryName);
 
   // Add factory function after the class
-  const refreshedFile = project.getSourceFile(p.file);
+  const refreshedFile = project.getSourceFile(file);
   if (refreshedFile) {
     refreshedFile.addStatements(`\n${factoryText}\n`);
   }
 
   return {
     success: true,
-    filesChanged: [p.file],
-    description: `Replaced constructor of '${p.target}' with factory function '${p.factoryName}'`,
+    filesChanged: [file],
+    description: `Replaced constructor of '${target}' with factory function '${factoryName}'`,
   };
 }
 
-export const replaceConstructorWithFactoryFunction: RefactoringDefinition = {
+export const replaceConstructorWithFactoryFunction = defineRefactoring({
   name: "Replace Constructor with Factory Function",
   kebabName: "replace-constructor-with-factory-function",
   description:
     "Introduces a named factory function for a class, replacing direct constructor calls with the factory.",
   tier: 4,
-  params,
-  preconditions: (project: Project, raw: unknown): PreconditionResult =>
-    preconditions(project, params.validate(raw) as ReplaceConstructorWithFactoryFunctionParams),
-  apply: (project: Project, raw: unknown): RefactoringResult =>
-    apply(project, params.validate(raw) as ReplaceConstructorWithFactoryFunctionParams),
-};
+  params: [
+    fileParam(),
+    stringParam("target", "Name of the class whose constructor to replace with a factory"),
+    identifierParam("factoryName", "Name for the new factory function"),
+  ],
+  preconditions,
+  apply,
+});
