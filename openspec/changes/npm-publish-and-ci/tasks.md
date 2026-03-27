@@ -18,7 +18,7 @@
 
 ## 4. Publish Workflow
 
-- [ ] 4.1 Create `.github/workflows/publish.yml` — build, npm publish on `v*` tag, create GitHub Release
+- [x] 4.1 Create `.github/workflows/publish.yml` — build, npm publish on `v*` tag, create GitHub Release
 
 ## 5. README.md
 
