@@ -1,7 +1,59 @@
 import { SyntaxKind, Node } from "ts-morph";
+import type { IfStatement, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+function findTargetIf(sf: SourceFile, lineNum: number): IfStatement | undefined {
+  return sf
+    .getDescendantsOfKind(SyntaxKind.IfStatement)
+    .find((s) => s.getStartLineNumber() === lineNum);
+}
+
+function collectConsecutiveConditions(allStatements: Node[], startIdx: number): string[] {
+  const conditions: string[] = [];
+  let idx = startIdx;
+  while (idx < allStatements.length) {
+    const stmt = allStatements[idx];
+    if (!stmt || stmt.getKind() !== SyntaxKind.IfStatement) break;
+    const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
+    if (!ifStmt) break;
+    conditions.push(ifStmt.getExpression().getText());
+    idx++;
+  }
+  return conditions;
+}
+
+function extractReturnExpression(node: Node): string {
+  const ifStmt = node.asKind(SyntaxKind.IfStatement);
+  if (!ifStmt) return "undefined";
+  const thenBlock = ifStmt.getThenStatement();
+  const returnStmt = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
+  return returnStmt ? (returnStmt.getExpression()?.getText() ?? "undefined") : "undefined";
+}
+
+function replaceWithConsolidated(
+  allStatements: Node[],
+  startIdx: number,
+  conditions: string[],
+  returnExpr: string,
+): boolean {
+  const consolidated = `if (${conditions.map((c) => `(${c})`).join(" || ")}) return ${returnExpr};`;
+
+  const toRemove = allStatements.slice(startIdx, startIdx + conditions.length);
+  const sortedRemove = [...toRemove].sort((a, b) => b.getStart() - a.getStart());
+  for (let i = 1; i < sortedRemove.length; i++) {
+    const nodeToRemove = sortedRemove[i];
+    if (nodeToRemove && Node.isStatement(nodeToRemove)) {
+      nodeToRemove.remove();
+    }
+  }
+
+  const firstNode = allStatements[startIdx];
+  if (!firstNode) return false;
+  firstNode.replaceWithText(consolidated);
+  return true;
+}
 
 export const consolidateConditionalExpression = defineRefactoring<SourceFileContext>({
   name: "Consolidate Conditional Expression",
@@ -24,15 +76,12 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
       return { ok: false, errors };
     }
 
-    const ifStatements = sf.getDescendantsOfKind(SyntaxKind.IfStatement);
-    const firstIf = ifStatements.find((s) => s.getStartLineNumber() === lineNum);
-
+    const firstIf = findTargetIf(sf, lineNum);
     if (!firstIf) {
       errors.push(`No if statement found at line ${lineNum} in file`);
       return { ok: false, errors };
     }
 
-    // Find the parent block and check for consecutive if-returns
     const parent = firstIf.getParent();
     if (!parent || parent.getKind() !== SyntaxKind.Block) {
       errors.push(`If statement at line ${lineNum} is not inside a block`);
@@ -41,7 +90,6 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
 
     const siblings = parent.getChildrenOfKind(SyntaxKind.IfStatement);
     const adjacentIfs = siblings.filter((s) => s.getStartLineNumber() >= lineNum);
-
     if (adjacentIfs.length < 2) {
       errors.push(`Need at least 2 consecutive if statements starting at line ${lineNum}`);
     }
@@ -53,9 +101,7 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
     const file = params["file"] as string;
     const lineNum = Number(params["target"] as string);
 
-    const ifStatements = sf.getDescendantsOfKind(SyntaxKind.IfStatement);
-    const firstIf = ifStatements.find((s) => s.getStartLineNumber() === lineNum);
-
+    const firstIf = findTargetIf(sf, lineNum);
     if (!firstIf) {
       return {
         success: false,
@@ -73,7 +119,6 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
       };
     }
 
-    // Collect consecutive if-return statements starting at target line
     const allStatements = parent.getChildSyntaxList()?.getChildren() ?? [];
     const startIdx = allStatements.findIndex((s) => s.getStartLineNumber() === lineNum);
     if (startIdx === -1) {
@@ -84,18 +129,8 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
       };
     }
 
-    const consecutiveIfs: string[] = [];
-    let idx = startIdx;
-    while (idx < allStatements.length) {
-      const stmt = allStatements[idx];
-      if (!stmt || stmt.getKind() !== SyntaxKind.IfStatement) break;
-      const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
-      if (!ifStmt) break;
-      consecutiveIfs.push(ifStmt.getExpression().getText());
-      idx++;
-    }
-
-    if (consecutiveIfs.length < 2) {
+    const conditions = collectConsecutiveConditions(allStatements, startIdx);
+    if (conditions.length < 2) {
       return {
         success: false,
         filesChanged: [],
@@ -103,57 +138,29 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
       };
     }
 
-    // Get the return value from the first if (assume all return the same or similar value)
-    const firstIfNodeRaw = allStatements[startIdx];
-    if (!firstIfNodeRaw) {
+    const firstIfNode = allStatements[startIdx];
+    if (!firstIfNode) {
       return {
         success: false,
         filesChanged: [],
         description: `Could not access first if statement`,
       };
     }
-    const firstIfNode = firstIfNodeRaw.asKind(SyntaxKind.IfStatement);
-    if (!firstIfNode) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Could not cast first if statement`,
-      };
-    }
-    const thenBlock = firstIfNode.getThenStatement();
-    const returnStmt = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
-    const returnExpr = returnStmt
-      ? (returnStmt.getExpression()?.getText() ?? "undefined")
-      : "undefined";
 
-    // Build combined condition
-    const combinedCondition = consecutiveIfs.map((c) => `(${c})`).join(" || ");
-    const consolidated = `if (${combinedCondition}) return ${returnExpr};`;
-
-    // Remove the consecutive if statements and replace with consolidated one
-    const toRemove = allStatements.slice(startIdx, startIdx + consecutiveIfs.length);
-    const sortedRemove = [...toRemove].sort((a, b) => b.getStart() - a.getStart());
-    for (let i = 1; i < sortedRemove.length; i++) {
-      const nodeToRemove = sortedRemove[i];
-      if (nodeToRemove && Node.isStatement(nodeToRemove)) {
-        nodeToRemove.remove();
-      }
-    }
-    // Replace the first one
-    const firstNode = allStatements[startIdx];
-    if (!firstNode) {
+    const returnExpr = extractReturnExpression(firstIfNode);
+    const replaced = replaceWithConsolidated(allStatements, startIdx, conditions, returnExpr);
+    if (!replaced) {
       return {
         success: false,
         filesChanged: [],
         description: `Could not access first node to replace`,
       };
     }
-    firstNode.replaceWithText(consolidated);
 
     return {
       success: true,
       filesChanged: [file],
-      description: `Consolidated ${consecutiveIfs.length} if-return statements at line ${lineNum} into one`,
+      description: `Consolidated ${conditions.length} if-return statements at line ${lineNum} into one`,
     };
   },
 });

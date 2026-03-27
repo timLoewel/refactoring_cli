@@ -1,7 +1,39 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, type ParameterDeclaration, type SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
+
+function addReturnStatement(ctx: FunctionContext, firstParam: ParameterDeclaration): void {
+  const paramName = firstParam.getName();
+  ctx.body.addStatements(`return ${paramName};`);
+
+  const existingReturnType = ctx.fn.getReturnTypeNode();
+  if (!existingReturnType || existingReturnType.getText() === "void") {
+    const paramTypeNode = firstParam.getTypeNode();
+    ctx.fn.setReturnType(paramTypeNode ? paramTypeNode.getText() : "unknown");
+  }
+}
+
+function updateCallSites(sourceFile: SourceFile, target: string): void {
+  const callExprs = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
+    const expr = call.getExpression();
+    return Node.isIdentifier(expr) && expr.getText() === target;
+  });
+
+  for (const call of callExprs) {
+    const callParent = call.getParent();
+    if (!callParent || !Node.isExpressionStatement(callParent)) continue;
+
+    const callArgs = call.getArguments();
+    const firstArg = callArgs[0];
+    if (!firstArg) continue;
+
+    const argText = firstArg.getText();
+    callParent.replaceWithText(
+      `${argText} = ${target}(${callArgs.map((a) => a.getText()).join(", ")});`,
+    );
+  }
+}
 
 export const returnModifiedValue = defineRefactoring<FunctionContext>({
   name: "Return Modified Value",
@@ -30,8 +62,7 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
     const file = params["file"] as string;
     const target = params["target"] as string;
 
-    const parameters = ctx.fn.getParameters();
-    const firstParam = parameters[0];
+    const firstParam = ctx.fn.getParameters()[0];
     if (!firstParam) {
       return {
         success: false,
@@ -40,49 +71,13 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
       };
     }
 
-    const paramName = firstParam.getName();
-
-    // Add return statement at end of function body
-    ctx.body.addStatements(`return ${paramName};`);
-
-    // Update the function's return type annotation if it was void or absent
-    const existingReturnType = ctx.fn.getReturnTypeNode();
-    if (!existingReturnType || existingReturnType.getText() === "void") {
-      const paramTypeNode = firstParam.getTypeNode();
-      const returnTypeText = paramTypeNode ? paramTypeNode.getText() : "unknown";
-      ctx.fn.setReturnType(returnTypeText);
-    }
-
-    // Update call sites: wrap existing call expression with assignment
-    const callExprs = ctx.sourceFile
-      .getDescendantsOfKind(SyntaxKind.CallExpression)
-      .filter((call) => {
-        const expr = call.getExpression();
-        return Node.isIdentifier(expr) && expr.getText() === target;
-      });
-
-    for (const call of callExprs) {
-      const callParent = call.getParent();
-      if (!callParent || !Node.isExpressionStatement(callParent)) {
-        continue;
-      }
-
-      const callArgs = call.getArguments();
-      const firstArg = callArgs[0];
-      if (!firstArg) {
-        continue;
-      }
-
-      const argText = firstArg.getText();
-      callParent.replaceWithText(
-        `${argText} = ${target}(${callArgs.map((a) => a.getText()).join(", ")});`,
-      );
-    }
+    addReturnStatement(ctx, firstParam);
+    updateCallSites(ctx.sourceFile, target);
 
     return {
       success: true,
       filesChanged: [file],
-      description: `Changed '${target}' to return its mutated parameter '${paramName}' and updated call sites`,
+      description: `Changed '${target}' to return its mutated parameter '${firstParam.getName()}' and updated call sites`,
     };
   },
 });
