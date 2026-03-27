@@ -16,6 +16,7 @@
     "format:check": "prettier --check 'src/**/*.ts'",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "prepublishOnly": "npm run build",
     "prepare": "husky"
   },
   "keywords": [
