@@ -25,6 +25,9 @@
     "cli",
     "ts-morph"
   ],
+  "files": [
+    "dist"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=18"

@@ -3,11 +3,11 @@
 - [x] 1.1 Add `prebuild` script to package.json that generates `src/core/cli/version.ts` from package.json
 - [x] 1.2 Add `src/core/cli/version.ts` to `.gitignore`
 - [x] 1.3 Remove the hardcoded `version.ts` from git tracking (`git rm --cached`)
-- [ ] 1.4 Verify `npm run build` produces correct version in `dist/core/cli/version.ts`
+- [x] 1.4 Verify `npm run build` produces correct version in `dist/core/cli/version.ts`
 
 ## 2. Package.json Packaging
 
-- [ ] 2.1 Add `"files": ["dist"]` to package.json
+- [x] 2.1 Add `"files": ["dist"]` to package.json
 - [ ] 2.2 Add `"prepublishOnly": "npm run build"` to scripts
 - [ ] 2.3 Add `repository`, `homepage`, and `bugs` fields pointing to timLoewel/refactoring_cli
 - [ ] 2.4 Verify `npm pack --dry-run` only includes dist/, package.json, README.md
