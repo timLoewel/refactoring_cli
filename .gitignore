@@ -10,3 +10,6 @@ coverage/
 
 # Local user settings
 .claude/settings.local.json
+
+# Generated at build time from package.json
+src/core/cli/version.ts
