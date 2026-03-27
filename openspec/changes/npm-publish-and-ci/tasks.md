@@ -22,9 +22,9 @@
 
 ## 5. README.md
 
-- [ ] 5.1 Create `README.md` with: what it is, installation, CLI usage examples, available commands
-- [ ] 5.2 Add "Using with Claude Code" section with CLAUDE.md snippet
-- [ ] 5.3 Add "Using with OpenCode" section with equivalent config
+- [x] 5.1 Create `README.md` with: what it is, installation, CLI usage examples, available commands
+- [x] 5.2 Add "Using with Claude Code" section with CLAUDE.md snippet
+- [x] 5.3 Add "Using with OpenCode" section with equivalent config
 
 ## 6. CLAUDE.md Update
 
