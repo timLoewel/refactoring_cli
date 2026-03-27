@@ -10,11 +10,11 @@
 - [x] 2.1 Add `"files": ["dist"]` to package.json
 - [x] 2.2 Add `"prepublishOnly": "npm run build"` to scripts
 - [x] 2.3 Add `repository`, `homepage`, and `bugs` fields pointing to timLoewel/refactoring_cli
-- [ ] 2.4 Verify `npm pack --dry-run` only includes dist/, package.json, README.md
+- [x] 2.4 Verify `npm pack --dry-run` only includes dist/, package.json, README.md
 
 ## 3. CI Workflow
 
-- [ ] 3.1 Create `.github/workflows/ci.yml` — lint, build, test on push/PR to main, Node 18 + 22 matrix
+- [x] 3.1 Create `.github/workflows/ci.yml` — lint, build, test on push/PR to main, Node 18 + 22 matrix
 
 ## 4. Publish Workflow
 
