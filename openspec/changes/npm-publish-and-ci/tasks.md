@@ -28,4 +28,4 @@
 
 ## 6. CLAUDE.md Update
 
-- [ ] 6.1 Add refactor CLI usage section to `CLAUDE.md` teaching the agent to prefer `refactor` commands for refactoring tasks
+- [x] 6.1 Add refactor CLI usage section to `CLAUDE.md` teaching the agent to prefer `refactor` commands for refactoring tasks
