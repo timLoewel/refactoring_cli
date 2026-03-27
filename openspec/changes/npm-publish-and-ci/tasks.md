@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add `prebuild` script to package.json that generates `src/core/cli/version.ts` from package.json
 - [x] 1.2 Add `src/core/cli/version.ts` to `.gitignore`
-- [ ] 1.3 Remove the hardcoded `version.ts` from git tracking (`git rm --cached`)
+- [x] 1.3 Remove the hardcoded `version.ts` from git tracking (`git rm --cached`)
 - [ ] 1.4 Verify `npm run build` produces correct version in `dist/core/cli/version.ts`
 
 ## 2. Package.json Packaging
