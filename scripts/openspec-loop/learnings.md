@@ -393,3 +393,65 @@ Session: `claude --resume de66cbc4-a51b-484c-80e2-7210c26a8c8a`
 - The roam health scoring uses dynamic percentile thresholds that penalize hub-and-spoke architectures regardless of code quality
 ### Failed Approaches
 - None
+
+Session: `claude --resume 05cf7e26-d852-4fae-81a5-d5fc4281a607`
+## Task 1.1: Add prebuild script to package.json
+### Patterns
+- npm `prebuild` script auto-runs before `build` — no need to chain commands manually
+- The `node -e` one-liner with `require('./package.json')` works in ESM projects because the script runs via `node` (CJS by default), not as an ESM module
+- The generated version.ts includes a comment noting it's generated, matching the design doc's convention
+### Gotchas
+- None — straightforward addition
+### Failed Approaches
+- None
+
+Session: `claude --resume 9fff240f-148a-4102-bdac-518b7b7ad2c5`
+## Task 1.2: Add version.ts to .gitignore
+### Patterns
+- The .gitignore already had sections with comments explaining each entry — followed the same pattern with a descriptive comment
+### Gotchas
+- None — straightforward addition
+### Failed Approaches
+- None
+
+Session: `claude --resume 77a236d5-f948-4125-8a9f-c7c71f2085ee`
+## Task 1.3: Remove version.ts from git tracking
+### Patterns
+- `git rm --cached` removes file from index while keeping working copy — the deletion is automatically staged
+- When a file is already in `.gitignore`, `git add` refuses to stage it (need `-f` flag) — but `git rm --cached` stages the deletion just fine
+- `git ls-files <path>` returns exit code 0 even with no matches — check line count instead of exit code
+### Gotchas
+- After `git rm --cached` on a gitignored file, don't try to `git add` it again — it's already staged as a deletion
+### Failed Approaches
+- None
+
+Session: `claude --resume 6d07587a-05eb-4d54-b682-4b217905fdfc`
+## Task 1.4: Verify npm run build produces correct version
+### Patterns
+- `npm run build` triggers `prebuild` automatically, which generates `src/core/cli/version.ts` before `tsc` runs
+- The generated `dist/core/cli/version.js` correctly contains the version string from package.json
+- Verification-only tasks require no code changes or commits
+### Gotchas
+- None
+### Failed Approaches
+- None
+
+Session: `claude --resume 3cc1d500-8422-46ac-8da8-605c7d52501e`
+## Task 2.1: Add "files": ["dist"] to package.json
+### Patterns
+- The `files` field in package.json is an allowlist — only listed directories/files are included in the published package (plus package.json, README.md, LICENSE which are always included)
+- Placement in package.json: added before `license` field, following the convention of metadata fields before dependency fields
+### Gotchas
+- None — straightforward addition
+### Failed Approaches
+- None
+
+Session: `claude --resume 2f90232e-1a7d-49d9-8c2a-3bd03d273995`
+## Task 2.2: Add prepublishOnly script to package.json
+### Patterns
+- `prepublishOnly` runs before `npm publish` and `npm pack` — ensures dist/ is always fresh when publishing
+- Placed before `prepare` in scripts section following alphabetical/logical ordering
+### Gotchas
+- None — straightforward one-line addition
+### Failed Approaches
+- None
