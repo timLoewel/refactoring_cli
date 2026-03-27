@@ -29,6 +29,14 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timLoewel/refactoring_cli.git"
+  },
+  "homepage": "https://github.com/timLoewel/refactoring_cli#readme",
+  "bugs": {
+    "url": "https://github.com/timLoewel/refactoring_cli/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18"

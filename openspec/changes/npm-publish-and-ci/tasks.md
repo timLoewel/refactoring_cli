@@ -9,7 +9,7 @@
 
 - [x] 2.1 Add `"files": ["dist"]` to package.json
 - [x] 2.2 Add `"prepublishOnly": "npm run build"` to scripts
-- [ ] 2.3 Add `repository`, `homepage`, and `bugs` fields pointing to timLoewel/refactoring_cli
+- [x] 2.3 Add `repository`, `homepage`, and `bugs` fields pointing to timLoewel/refactoring_cli
 - [ ] 2.4 Verify `npm pack --dry-run` only includes dist/, package.json, README.md
 
 ## 3. CI Workflow
