@@ -12,7 +12,34 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-CHANGE_NAME="${1:?Usage: ./loop.sh <change-name> [max-iterations]}"
+CHANGES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../openspec/changes"
+
+# List valid change names (directories excluding 'archive')
+valid_changes() {
+  find "$CHANGES_DIR" -mindepth 1 -maxdepth 1 -type d ! -name archive -printf '%f\n' | sort
+}
+
+if [ -z "$1" ]; then
+  VALID=$(valid_changes)
+  COUNT=$(echo "$VALID" | grep -c .)
+
+  if [ "$COUNT" -eq 0 ]; then
+    echo "No valid changes found in openspec/changes/."
+    exit 1
+  elif [ "$COUNT" -eq 1 ]; then
+    CHANGE_NAME="$VALID"
+    echo "Auto-selected only available change: $CHANGE_NAME"
+  else
+    echo "Available changes:"
+    echo "$VALID" | sed 's/^/  - /'
+    echo ""
+    echo "Usage: ./loop.sh <change-name> [max-iterations]"
+    exit 1
+  fi
+else
+  CHANGE_NAME="$1"
+fi
+
 MAX_ITERATIONS="${2:-20}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_FILE="$SCRIPT_DIR/prompt.md"
