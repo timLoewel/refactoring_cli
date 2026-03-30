@@ -71,33 +71,9 @@ All commands support `--json` for structured output and `--path <dir>` to target
 
 </details>
 
-## Using with Claude Code
+## Using with Claude Code / OpenCode
 
-Add this to your project's `CLAUDE.md`:
-
-```markdown
-## Refactoring with refactoring-cli
-
-This project has `refactoring-cli` available globally. When performing refactorings,
-prefer using the `refactor` CLI over manual AST edits.
-
-### Workflow
-1. `refactor search <pattern>` to find the symbol to refactor
-2. `refactor describe <name>` to check params and preconditions
-3. `refactor apply <name> file=<path> target=<name> [key=value...]` to apply
-4. `refactor apply <name> ... --dry-run` to preview changes first
-
-### Key commands
-- `refactor list --json` — all available refactorings
-- `refactor describe <name> --json` — params and preconditions for a refactoring
-- `refactor apply <name> [params...] --json` — apply with structured output
-- `refactor unused --json` — find dead code to clean up
-- `refactor fix-imports --json` — fix broken imports after moves
-```
-
-## Using with OpenCode
-
-Add this to your project's `.opencode/instructions.md`:
+Add this to your project's `CLAUDE.md`, `.opencode/instructions.md`, or `AGENTS.md`:
 
 ```markdown
 ## Refactoring with refactoring-cli
