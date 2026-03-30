@@ -53,6 +53,7 @@ export interface RefactoringDefinition {
   kebabName: string;
   description: string;
   tier: 1 | 2 | 3 | 4;
+  language: "typescript" | "python";
   params: ParamSchema;
   preconditions: (project: Project, params: unknown) => PreconditionResult;
   apply: (project: Project, params: unknown) => RefactoringResult;

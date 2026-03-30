@@ -1,23 +1,35 @@
-import { SyntaxKind } from "ts-morph";
-import type { Block, Project } from "ts-morph";
+import type { Project } from "ts-morph";
 import type {
-  ClassContext,
-  FunctionContext,
   ParamDefinition,
   ParamSchema,
   PreconditionResult,
   RefactoringDefinition,
   RefactoringResult,
-  SourceFileContext,
-} from "./refactoring.types.js";
-import { registry } from "./refactoring-registry.js";
+} from "../core/refactoring.types.js";
+import { registry } from "../core/refactoring-registry.js";
+import type { PyrightClient } from "./pyright-client.js";
+import type Parser from "tree-sitter";
+
+// ---------------------------------------------------------------------------
+// Python project context — wraps pyright LSP + tree-sitter parser
+// ---------------------------------------------------------------------------
+
+export interface PythonProjectContext {
+  pyright: PyrightClient;
+  parser: Parser;
+  projectRoot: string;
+}
+
+// ---------------------------------------------------------------------------
+// Param helpers (reused from TS builder pattern)
+// ---------------------------------------------------------------------------
 
 interface ParamHelper {
   definition: ParamDefinition;
   validate: (raw: Record<string, unknown>) => unknown;
 }
 
-function fileParam(name = "file", description = "Path to the TypeScript file"): ParamHelper {
+function fileParam(name = "file", description = "Path to the Python file"): ParamHelper {
   return {
     definition: { name, type: "string", description, required: true },
     validate(raw): unknown {
@@ -59,8 +71,9 @@ function identifierParam(name: string, description: string, required = true): Pa
       } else if (value !== undefined && typeof value !== "string") {
         throw new Error(`param '${name}' must be a string`);
       }
-      if (typeof value === "string" && !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(value)) {
-        throw new Error(`param '${name}' must be a valid identifier`);
+      // Python identifiers: letter or underscore, then letters/digits/underscores
+      if (typeof value === "string" && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
+        throw new Error(`param '${name}' must be a valid Python identifier`);
       }
       return value;
     },
@@ -84,8 +97,15 @@ function numberParam(name: string, description: string, required = true): ParamH
   };
 }
 
+export const pythonParam = {
+  file: fileParam,
+  string: stringParam,
+  identifier: identifierParam,
+  number: numberParam,
+} as const;
+
 // ---------------------------------------------------------------------------
-// Resolver result types
+// Builder config
 // ---------------------------------------------------------------------------
 
 interface ResolveSuccess<T> {
@@ -100,102 +120,20 @@ interface ResolveFailure {
 
 type ResolveResult<T> = ResolveSuccess<T> | ResolveFailure;
 
-// ---------------------------------------------------------------------------
-// Shared resolvers
-// ---------------------------------------------------------------------------
-
-function failureResult(description: string): RefactoringResult {
-  return { success: false, filesChanged: [], description };
-}
-
-function resolveSourceFile(
-  project: Project,
-  params: Record<string, unknown>,
-): ResolveResult<SourceFileContext> {
-  const file = params["file"] as string;
-  const sourceFile = project.getSourceFile(file);
-  if (!sourceFile) {
-    return { ok: false, result: failureResult(`File not found in project: ${file}`) };
-  }
-  return { ok: true, value: { sourceFile } };
-}
-
-function resolveFunction(
-  project: Project,
-  params: Record<string, unknown>,
-): ResolveResult<FunctionContext> {
-  const fileResult = resolveSourceFile(project, params);
-  if (!fileResult.ok) {
-    return fileResult;
-  }
-  const { sourceFile } = fileResult.value;
-  const target = params["target"] as string;
-
-  const fn = sourceFile
-    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
-    .find((f) => f.getName() === target);
-  if (!fn) {
-    return { ok: false, result: failureResult(`Function '${target}' not found in file`) };
-  }
-
-  const body = fn.getBody();
-  if (!body || body.getKind() !== SyntaxKind.Block) {
-    return { ok: false, result: failureResult(`Function '${target}' has no block body`) };
-  }
-
-  return { ok: true, value: { sourceFile, fn, body: body as Block } };
-}
-
-function resolveClass(
-  project: Project,
-  params: Record<string, unknown>,
-): ResolveResult<ClassContext> {
-  const fileResult = resolveSourceFile(project, params);
-  if (!fileResult.ok) {
-    return fileResult;
-  }
-  const { sourceFile } = fileResult.value;
-  const target = params["target"] as string;
-
-  const cls = sourceFile.getClass(target);
-  if (!cls) {
-    return { ok: false, result: failureResult(`Class '${target}' not found in file`) };
-  }
-
-  return { ok: true, value: { sourceFile, cls } };
-}
-
-// ---------------------------------------------------------------------------
-// Bundled param helpers and resolvers (reduces symbol fan-in)
-// ---------------------------------------------------------------------------
-
-export const param = {
-  file: fileParam,
-  string: stringParam,
-  identifier: identifierParam,
-  number: numberParam,
-} as const;
-
-export const resolve = {
-  sourceFile: resolveSourceFile,
-  function: resolveFunction,
-  class: resolveClass,
-} as const;
-
-// ---------------------------------------------------------------------------
-// defineRefactoring builder
-// ---------------------------------------------------------------------------
-
-export interface DefineRefactoringConfig<TContext = Project> {
+export interface DefinePythonRefactoringConfig<TContext = PythonProjectContext> {
   name: string;
   kebabName: string;
   tier: 1 | 2 | 3 | 4;
   description: string;
   params: ParamHelper[];
-  resolve?: (project: Project, params: Record<string, unknown>) => ResolveResult<TContext>;
+  resolve?: (ctx: PythonProjectContext, params: Record<string, unknown>) => ResolveResult<TContext>;
   preconditions?: (context: TContext, params: Record<string, unknown>) => PreconditionResult;
   apply: (context: TContext, params: Record<string, unknown>) => RefactoringResult;
 }
+
+// ---------------------------------------------------------------------------
+// definePythonRefactoring
+// ---------------------------------------------------------------------------
 
 function buildParamSchema(helpers: ParamHelper[]): ParamSchema {
   return {
@@ -210,24 +148,50 @@ function buildParamSchema(helpers: ParamHelper[]): ParamSchema {
   };
 }
 
-export function defineRefactoring<TContext = Project>(
-  config: DefineRefactoringConfig<TContext>,
+/**
+ * The Python project context is stored here by the CLI layer
+ * before any Python refactoring is applied. This avoids threading
+ * the context through the generic RefactoringDefinition.apply(Project, params)
+ * signature which expects a ts-morph Project.
+ */
+let activePythonContext: PythonProjectContext | null = null;
+
+export function setPythonContext(ctx: PythonProjectContext | null): void {
+  activePythonContext = ctx;
+}
+
+export function getPythonContext(): PythonProjectContext | null {
+  return activePythonContext;
+}
+
+export function definePythonRefactoring<TContext = PythonProjectContext>(
+  config: DefinePythonRefactoringConfig<TContext>,
 ): RefactoringDefinition {
   const paramSchema = buildParamSchema(config.params);
+
+  function getContext(): PythonProjectContext {
+    if (!activePythonContext) {
+      throw new Error(
+        "No Python project context set. Ensure pyright is initialized before applying Python refactorings.",
+      );
+    }
+    return activePythonContext;
+  }
 
   const definition: RefactoringDefinition = {
     name: config.name,
     kebabName: config.kebabName,
     description: config.description,
     tier: config.tier,
-    language: "typescript",
+    language: "python",
     params: paramSchema,
 
-    preconditions(project: Project, raw: unknown): PreconditionResult {
+    preconditions(_project: Project, raw: unknown): PreconditionResult {
       const validated = paramSchema.validate(raw) as Record<string, unknown>;
+      const ctx = getContext();
 
       if (config.resolve) {
-        const resolved = config.resolve(project, validated);
+        const resolved = config.resolve(ctx, validated);
         if (!resolved.ok) {
           return { ok: false, errors: [resolved.result.description] };
         }
@@ -238,23 +202,24 @@ export function defineRefactoring<TContext = Project>(
       }
 
       if (config.preconditions) {
-        return config.preconditions(project as unknown as TContext, validated);
+        return config.preconditions(ctx as unknown as TContext, validated);
       }
       return { ok: true, errors: [] };
     },
 
-    apply(project: Project, raw: unknown): RefactoringResult {
+    apply(_project: Project, raw: unknown): RefactoringResult {
       const validated = paramSchema.validate(raw) as Record<string, unknown>;
+      const ctx = getContext();
 
       if (config.resolve) {
-        const resolved = config.resolve(project, validated);
+        const resolved = config.resolve(ctx, validated);
         if (!resolved.ok) {
           return resolved.result;
         }
         return config.apply(resolved.value, validated);
       }
 
-      return config.apply(project as unknown as TContext, validated);
+      return config.apply(ctx as unknown as TContext, validated);
     },
   };
 
