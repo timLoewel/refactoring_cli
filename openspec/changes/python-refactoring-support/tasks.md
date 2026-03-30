@@ -185,7 +185,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - decorator-arg — magic literal in decorator argument (`@retry(max_attempts=3)`)
   - multiple-occurrences — same magic literal appears multiple times; replace all
 
-- [ ] 6.11 `decompose-conditional`
+- [x] 6.11 `decompose-conditional`
   - basic — extract complex condition into named boolean variables/functions
   - match-case — decompose a `match`/`case` statement (Python 3.10+)
   - isinstance-chain — `isinstance(x, A) or isinstance(x, B)` → `isinstance(x, (A, B))`
