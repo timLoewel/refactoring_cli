@@ -177,7 +177,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - enumerate — loop uses `enumerate()`; both split loops need it
   - zip — loop uses `zip()`; both split loops need it
 
-- [ ] 6.10 `replace-magic-literal`
+- [x] 6.10 `replace-magic-literal`
   - basic — replace a magic number with a named constant
   - typed — extracted constant gets a `Final[int]` or `Final[str]` annotation
   - fstring — magic literal inside f-string
@@ -213,7 +213,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - generator — function is a generator; replacement must also yield
   - async — async function; replacement must also be async
 
-- [ ] 6.17 `remove-dead-code`
+- [x] 6.17 `remove-dead-code`
   - basic — remove unreachable code after `return`
   - typed — removed code has type annotations; verify clean removal
   - unused-import — remove unused imports (common Python dead code)

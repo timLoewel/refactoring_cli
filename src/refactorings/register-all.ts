@@ -80,3 +80,5 @@ import "./rename-variable/python.js";
 import "./move-function/python.js";
 import "./extract-variable/python.js";
 import "./inline-variable/python.js";
+import "./replace-magic-literal/python.js";
+import "./remove-dead-code/python.js";
