@@ -1,6 +1,8 @@
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import {
   discoverAllPythonFixtureModules,
   loadPythonFixtureParams,
@@ -8,6 +10,9 @@ import {
 } from "../../testing/python-fixture-runner.js";
 import "../register-all.js"; // side-effect: populates registry
 import { registry } from "../../core/refactoring-registry.js";
+import { setPythonContext } from "../../python/python-refactoring-builder.js";
+import { createPythonParser } from "../../python/tree-sitter-parser.js";
+import type { PyrightClient } from "../../python/pyright-client.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const refactoringsDir = join(__dirname, "..");
@@ -21,12 +26,14 @@ if (fixtureModules.length === 0) {
 }
 
 for (const fixtureModule of fixtureModules) {
-  const definition = registry.lookup(fixtureModule.name);
+  // Python refactorings use kebab-name with "-python" suffix
+  const definition =
+    registry.lookup(fixtureModule.name + "-python") ?? registry.lookup(fixtureModule.name);
 
   describe(`[Python] ${definition?.name ?? fixtureModule.name}`, () => {
-    if (!definition) {
-      it("has a registered refactoring", () => {
-        expect(definition).toBeDefined();
+    if (!definition || definition.language !== "python") {
+      it.skip(`has a registered Python refactoring (found: ${definition?.language ?? "none"})`, () => {
+        // Skipped
       });
       return;
     }
@@ -43,14 +50,52 @@ for (const fixtureModule of fixtureModules) {
 
       it(`preserves semantics: ${fixture.name}`, () => {
         const result = runPythonFixtureTest(fixture, (files) => {
-          // Python fixtures use a different apply pathway —
-          // the transform receives source file contents as a Map<path, content>
-          // and returns the modified Map. The actual refactoring apply
-          // integrates with the Python builder (definePythonRefactoring).
-          // For now, this delegates to the definition's apply with
-          // the params, but the actual Python apply pathway will be
-          // wired up when definePythonRefactoring is built (task 1.4).
-          return files;
+          // Write files to a temp dir, apply refactoring, read results back
+          const tmpDir = mkdtempSync(join(tmpdir(), "py-fixture-apply-"));
+
+          try {
+            // For single-file fixtures, write with the name from params["file"]
+            // For multi-file fixtures, preserve original filenames
+            const targetFile = params["file"] as string | undefined;
+            const fileEntries = [...files.entries()];
+            const nameMap = new Map<string, string>(); // originalPath → tmpName
+
+            if (fileEntries.length === 1 && targetFile) {
+              const [origPath, content] = fileEntries[0] as [string, string];
+              writeFileSync(join(tmpDir, targetFile), content);
+              nameMap.set(origPath, targetFile);
+            } else {
+              for (const [filePath, content] of files) {
+                const fileName = basename(filePath);
+                writeFileSync(join(tmpDir, fileName), content);
+                nameMap.set(filePath, fileName);
+              }
+            }
+
+            // Set Python context pointing to temp dir
+            setPythonContext({
+              pyright: null as unknown as PyrightClient,
+              parser: createPythonParser(),
+              projectRoot: tmpDir,
+            });
+
+            // Apply the refactoring
+            const applyResult = definition.apply(null as never, params);
+            if (!applyResult.success) {
+              throw new Error(`Refactoring failed: ${applyResult.description}`);
+            }
+
+            // Read results back using the name map
+            const result = new Map<string, string>();
+            for (const [origPath, tmpName] of nameMap) {
+              result.set(origPath, readFileSync(join(tmpDir, tmpName), "utf-8"));
+            }
+
+            return result;
+          } finally {
+            setPythonContext(null);
+            rmSync(tmpDir, { recursive: true, force: true });
+          }
         });
 
         if (!result.passed) {

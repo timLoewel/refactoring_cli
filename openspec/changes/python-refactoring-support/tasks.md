@@ -46,7 +46,7 @@
 
 ## 3. Vertical Slice 1 — Rename Variable (single-file)
 
-- [ ] 3.1 Write Python fixtures (TDD — tests first, all should fail):
+- [x] 3.1 Write Python fixtures (TDD — tests first, all should fail):
   - `basic.fixture.py` — simple variable rename
   - `typed.fixture.py` — variable with type annotation (`x: int = 42`)
   - `multiple-refs.fixture.py` — variable used in multiple expressions
@@ -56,8 +56,8 @@
   - `nonlocal.fixture.py` — variable declared `nonlocal` in a nested function
   - `comprehension-scope.fixture.py` — variable used in comprehension (comprehension has own scope in Python 3)
   - `tuple-unpack.fixture.py` — variable from tuple unpacking (`a, b = 1, 2`, rename `a`)
-- [ ] 3.2 Implement `rename-variable` for Python using pyright `textDocument/rename`
-- [ ] 3.3 All fixtures pass; commit
+- [x] 3.2 Implement `rename-variable` for Python using pyright `textDocument/rename`
+- [x] 3.3 All fixtures pass; commit
 - [ ] 3.4 Run `roam health` / `roam diff`; refactor if needed; commit
 
 ## 4. Vertical Slice 2 — Move Function (multi-file)

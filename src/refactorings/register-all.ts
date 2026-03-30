@@ -74,3 +74,6 @@ import "./replace-subclass-with-delegate/index.js";
 import "./replace-superclass-with-delegate/index.js";
 import "./replace-constructor-with-factory-function/index.js";
 import "./replace-type-code-with-subclasses/index.js";
+
+// Python refactorings
+import "./rename-variable/python.js";

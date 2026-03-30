@@ -17,3 +17,14 @@ src/core/cli/output.ts
 # Barrel file that imports all 40 refactoring modules — flagged as god component
 # solely because it aggregates them for registry registration.
 src/refactorings/index.ts
+
+# Python infrastructure — utility code analogous to ts-morph for TypeScript.
+# pyright-client and python-refactoring-builder are expected bottlenecks:
+# every Python refactoring depends on them, just like every TS refactoring
+# depends on ts-morph's Project type.
+src/python/pyright-client.ts
+src/python/python-refactoring-builder.ts
+src/python/tree-sitter-parser.ts
+
+# Python fixtures
+**/*.fixture.py
