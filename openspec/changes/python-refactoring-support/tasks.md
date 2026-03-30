@@ -91,11 +91,11 @@
 
 ## 5. Architecture Reflection Checkpoint
 
-- [ ] 5.1 Evaluate: is pyright LSP latency acceptable? Measure round-trip times for references/rename on a non-trivial project
-- [ ] 5.2 Evaluate: does tree-sitter edit model work for complex transformations? Identify pain points from move-function implementation
-- [ ] 5.3 Evaluate: does the codegen layer handle all import/annotation variants? Review fixture results for edge cases
-- [ ] 5.4 Evaluate: is `definePythonRefactoring` as a parallel builder the right call, or should the architecture change?
-- [ ] 5.5 Decision: revise design.md and rewrite remaining tasks below if architectural changes are needed. If no changes needed, proceed.
+- [x] 5.1 Evaluate: is pyright LSP latency acceptable? Measure round-trip times for references/rename on a non-trivial project
+- [x] 5.2 Evaluate: does tree-sitter edit model work for complex transformations? Identify pain points from move-function implementation
+- [x] 5.3 Evaluate: does the codegen layer handle all import/annotation variants? Review fixture results for edge cases
+- [x] 5.4 Evaluate: is `definePythonRefactoring` as a parallel builder the right call, or should the architecture change?
+- [x] 5.5 Decision: revise design.md and rewrite remaining tasks below if architectural changes are needed. If no changes needed, proceed.
 
 ## 6. Single-file refactorings
 
