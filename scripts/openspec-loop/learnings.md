@@ -455,3 +455,87 @@ Session: `claude --resume 2f90232e-1a7d-49d9-8c2a-3bd03d273995`
 - None — straightforward one-line addition
 ### Failed Approaches
 - None
+
+Session: `claude --resume 6c61f4e7-8025-4c40-808d-bf2353706984`
+## Task 2.3: Add repository, homepage, and bugs fields to package.json
+### Patterns
+- npm standard metadata fields: `repository` (object with type+url), `homepage` (string URL with #readme), `bugs` (object with url to issues)
+- Placed before `license` field following conventional package.json ordering
+### Gotchas
+- None — straightforward metadata addition
+### Failed Approaches
+- None
+
+Session: `claude --resume 854a53d2-dc7c-48c7-8fcc-f792a5246ce1`
+## Task 2.4: Verify npm pack --dry-run only includes dist/, package.json, README.md
+### Patterns
+- `npm pack --dry-run` shows 453 files all under `dist/` plus `package.json` — the `"files": ["dist"]` allowlist works correctly
+- README.md and LICENSE are auto-included by npm when they exist, even without listing them in `files`
+- The `prepare` hook (`husky`) runs during `npm pack` — visible in the output
+- Verification-only tasks require no code changes or commits
+### Gotchas
+- `dist/testing/` and `dist/testing/__fixtures__/` are included because they're compiled by tsc into dist/ — this is a tsconfig concern, not a packaging concern, and is harmless
+### Failed Approaches
+- None
+
+Session: `claude --resume 55370a21-e8c9-44d2-998f-70a3376a5e10`
+## Task 3.1: Create .github/workflows/ci.yml
+### Patterns
+- The existing `roam.yml` workflow provides a good template for the project's GHA conventions (checkout@v4, ubuntu-latest)
+- `npm ci` is the correct install command for CI (deterministic, uses lockfile)
+- Roam health gate now passes at 67/100 (was 36 in previous sessions — appears to have improved)
+- The CI workflow is minimal: checkout, setup-node with cache, npm ci, lint, build, test — no need for separate jobs since all steps are fast
+### Gotchas
+- None — straightforward workflow creation
+### Failed Approaches
+- None
+
+Session: `claude --resume 560badc5-007f-4889-915e-944e31c63df9`
+## Task 4.1: Create .github/workflows/publish.yml
+### Patterns
+- The publish workflow needs `permissions: contents: write` for the `gh release create` step to work with `GITHUB_TOKEN`
+- `registry-url: https://registry.npmjs.org` must be set in `setup-node` for `npm publish` to use the auth token
+- npm uses `NODE_AUTH_TOKEN` env var (not `NPM_TOKEN` directly) when `registry-url` is configured via `setup-node`
+- The `--generate-notes` flag on `gh release create` auto-generates release notes from commits since last tag
+- Build + test runs before publish to catch any issues before pushing to npm
+### Gotchas
+- None — straightforward workflow creation following the design doc and CI workflow patterns
+### Failed Approaches
+- None
+
+Session: `claude --resume 3577de6e-57dd-41c1-a9d7-e553a47513e7`
+## Task 5.1-5.3: Create README.md with all sections
+### Patterns
+- Tasks 5.1, 5.2, and 5.3 were naturally implemented together since they're all sections of the same file
+- The CLI `--help` and `list --json` commands provide all the information needed for the README without reading source code
+- `describe <name> --json` output shows the param structure (name, type, description, required) which is useful for documenting usage examples
+- The project has 66 refactorings across 4 tiers
+### Gotchas
+- None — straightforward documentation task
+### Failed Approaches
+- None
+
+Session: `claude --resume f9ae714f-633c-407c-82f5-ac1504afa25d`
+## Task 6.1: Add refactor CLI usage section to CLAUDE.md
+### Patterns
+- The README already contained the exact CLAUDE.md snippet needed — reused it directly in the project's own CLAUDE.md
+- Placed the new section before "Core Modules" since it's operational guidance (how to use the CLI) rather than architectural documentation
+### Gotchas
+- None — straightforward documentation task
+### Failed Approaches
+- None
+
+Session: `claude --resume 36492bd0-8d0d-4e03-a009-99dd1c48f365`
+## Task 1.1: Add tree-sitter and tree-sitter-python npm dependencies
+### Patterns
+- Native `tree-sitter` + `tree-sitter-python` npm packages (node-gyp) compile successfully on Node 22 LTS
+- Native API is synchronous: `new Parser()`, `parser.setLanguage(Python)`, `parser.parse(source)` — no async init or WASM loading
+- Native tree-sitter uses GC for cleanup — no manual `tree.delete()` or `parser.delete()` calls needed
+- Project pinned to Node 22 via `.nvmrc` and `mise.toml` for native binding compatibility
+### Gotchas
+- Native `tree-sitter` node-gyp compilation fails on Node 24+ and Node 25 — C++20 V8 header incompatibility
+- ESLint forbids `!` non-null assertions — use optional chaining (`?.`) with separate `expect(x).toBeDefined()` assertions
+### Failed Approaches
+- `web-tree-sitter` (WASM) + `tree-sitter-wasms` — worked but slower and more complex; replaced with native bindings after switching to Node 22
+- Native tree-sitter on Node 25 — node-gyp C++20 compilation errors
+- Native tree-sitter on Node 24 — same node-gyp C++20 compilation errors

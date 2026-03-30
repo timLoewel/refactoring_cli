@@ -1,7 +1,7 @@
 import { parsePython, createPythonParser } from "../tree-sitter-parser.js";
 
 describe("tree-sitter Python parser", () => {
-  it("parses a simple Python file into an AST", async () => {
+  it("parses a simple Python file into an AST", () => {
     const source = `
 def greet(name: str) -> str:
     return f"Hello, {name}!"
@@ -10,7 +10,7 @@ x = greet("World")
 print(x)
 `.trim();
 
-    const tree = await parsePython(source);
+    const tree = parsePython(source);
     const root = tree.rootNode;
 
     expect(root.type).toBe("module");
@@ -28,12 +28,10 @@ print(x)
     const returnType = funcDef?.childForFieldName("return_type");
     expect(returnType).toBeTruthy();
     expect(returnType?.text).toBe("str");
-
-    tree.delete();
   });
 
-  it("creates a reusable parser instance", async () => {
-    const parser = await createPythonParser();
+  it("creates a reusable parser instance", () => {
+    const parser = createPythonParser();
 
     const tree1 = parser.parse("x = 1");
     expect(tree1.rootNode.type).toBe("module");
@@ -41,13 +39,9 @@ print(x)
     const tree2 = parser.parse("y = 2\nz = 3");
     expect(tree2.rootNode.type).toBe("module");
     expect(tree2.rootNode.childCount).toBe(2);
-
-    tree1.delete();
-    tree2.delete();
-    parser.delete();
   });
 
-  it("identifies Python-specific syntax nodes", async () => {
+  it("identifies Python-specific syntax nodes", () => {
     const source = `
 class Greeter:
     def __init__(self, name: str):
@@ -60,7 +54,7 @@ class Greeter:
 items = [x * 2 for x in range(10) if x > 3]
 `.trim();
 
-    const tree = await parsePython(source);
+    const tree = parsePython(source);
     const root = tree.rootNode;
 
     const classDef = root.children[0];
@@ -70,7 +64,5 @@ items = [x * 2 for x in range(10) if x > 3]
 
     const listComp = root.descendantsOfType("list_comprehension");
     expect(listComp.length).toBe(1);
-
-    tree.delete();
   });
 });

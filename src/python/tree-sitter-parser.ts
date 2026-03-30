@@ -1,42 +1,16 @@
-import Parser from "web-tree-sitter";
+import Parser from "tree-sitter";
 import { createRequire } from "node:module";
-import path from "node:path";
 
-let initialized = false;
+const require = createRequire(import.meta.url);
+const Python = require("tree-sitter-python") as Parser.Language;
 
-async function ensureInit(): Promise<void> {
-  if (!initialized) {
-    await Parser.init();
-    initialized = true;
-  }
-}
-
-function getPythonWasmPath(): string {
-  const require = createRequire(import.meta.url);
-  const wasmsDir = path.dirname(require.resolve("tree-sitter-wasms/package.json"));
-  return path.join(wasmsDir, "out", "tree-sitter-python.wasm");
-}
-
-let cachedLanguage: Parser.Language | null = null;
-
-async function getPythonLanguage(): Promise<Parser.Language> {
-  await ensureInit();
-  if (!cachedLanguage) {
-    cachedLanguage = await Parser.Language.load(getPythonWasmPath());
-  }
-  return cachedLanguage;
-}
-
-export async function createPythonParser(): Promise<Parser> {
-  const language = await getPythonLanguage();
+export function createPythonParser(): Parser {
   const parser = new Parser();
-  parser.setLanguage(language);
+  parser.setLanguage(Python);
   return parser;
 }
 
-export async function parsePython(source: string): Promise<Parser.Tree> {
-  const parser = await createPythonParser();
-  const tree = parser.parse(source);
-  parser.delete();
-  return tree;
+export function parsePython(source: string): Parser.Tree {
+  const parser = createPythonParser();
+  return parser.parse(source);
 }

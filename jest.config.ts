@@ -17,6 +17,7 @@ const config: Config = {
       },
     ],
   },
+  testPathIgnorePatterns: ["/node_modules/", "pyright-client\\.test\\.ts$"],
   moduleFileExtensions: ["ts", "js", "json"],
   coverageDirectory: "coverage",
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.fixture.ts"],

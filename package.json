@@ -39,7 +39,7 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "lint-staged": {
     "*.ts": [
@@ -50,10 +50,11 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "tree-sitter-wasms": "^0.1.13",
+    "pyright": "^1.1.408",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-python": "^0.25.0",
     "ts-morph": "^27.0.2",
-    "typescript": "^5.9.3",
-    "web-tree-sitter": "^0.24.7"
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

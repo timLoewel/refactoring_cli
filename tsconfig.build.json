@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.fixture.ts"]
+  "compilerOptions": {
+    "sourceMap": false,
+    "declarationMap": false
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.fixture.ts", "src/testing"]
 }
