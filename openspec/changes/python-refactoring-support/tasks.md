@@ -101,7 +101,7 @@
 
 Each refactoring: basic fixture + typed fixture + Python edge case fixtures as listed. TDD cycle: write fixtures → implement → commit → roam check → commit.
 
-- [ ] 6.1 `extract-variable`
+- [x] 6.1 `extract-variable`
   - basic — extract a repeated expression into a variable
   - typed — extracted expression has a known type, variable gets annotation
   - fstring — extract expression from inside f-string (`f"total: {a + b}"` → extract `a + b`)
@@ -110,7 +110,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - chained-comparison — extract from `1 < x < 10` (Python-specific syntax)
   - ternary — extract from conditional expression `x if cond else y`
 
-- [ ] 6.2 `inline-variable`
+- [x] 6.2 `inline-variable`
   - basic — inline a simple variable
   - typed — variable has type annotation; annotation is dropped when inlined
   - fstring — variable used in f-string; inlined value must be valid in f-string context
