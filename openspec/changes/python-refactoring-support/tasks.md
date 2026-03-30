@@ -4,7 +4,7 @@
 - [x] 1.2 Build pyright LSP client: spawn `pyright-langserver --stdio`, implement initialize/shutdown lifecycle, and request helpers for `textDocument/references`, `textDocument/definition`, `textDocument/hover`, `textDocument/rename`. Include tests for: graceful shutdown on CLI exit, crash recovery (auto-restart on next request), initialization blocking (wait for project analysis before accepting queries)
 - [x] 1.3 Build Python fixture runner: discover `.fixture.py` files, execute via Python subprocess, capture `main()` output, check semantic preservation (mirror TS fixture-runner.ts pattern). Create `all-python-fixtures.test.ts` parallel to `all-fixtures.test.ts` that discovers and runs all Python fixtures in the vitest suite
 - [x] 1.4 Build `definePythonRefactoring` builder and register Python refactorings in the shared registry with a `language: "python"` field on `RefactoringDefinition`
-- [ ] 1.5 Extend CLI: add `--lang` flag, auto-detect language from file extension, route to correct refactoring implementation
+- [x] 1.5 Extend CLI: add `--lang` flag, auto-detect language from file extension, route to correct refactoring implementation
 
 ## 2. Codegen layer with full import/annotation matrix
 

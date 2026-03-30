@@ -21,7 +21,11 @@ export function createProgram(): Command {
     .version(version)
     .option("--path <dir>", "path to the target project directory")
     .option("--config <tsconfig>", "path to tsconfig.json")
-    .option("--json", "output as JSON");
+    .option("--json", "output as JSON")
+    .option(
+      "--lang <language>",
+      "target language: typescript or python (auto-detected from file extension)",
+    );
 
   program.addCommand(createApplyCommand());
   program.addCommand(createListCommand());
