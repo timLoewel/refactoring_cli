@@ -235,7 +235,7 @@ function runTransformedPythonFixture(fixture: PythonFixture, files: Map<string, 
   const entryPath = fixture.type === "single" ? fixture.path : join(fixture.path, "entry.py");
 
   const script = `
-import sys, os, json, types, importlib
+import sys, os, json, types, importlib, importlib.abc, importlib.util
 
 files = json.loads(sys.stdin.read())
 entry_path = ${JSON.stringify(entryPath)}
@@ -244,26 +244,23 @@ entry_path = ${JSON.stringify(entryPath)}
 if ${fixture.type === "multi" ? "True" : "False"}:
     fixture_dir = ${JSON.stringify(fixture.type === "multi" ? fixture.path : "")}
 
-    class FixtureFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-        def find_module(self, fullname, path=None):
+    class FixtureFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path, target=None):
             candidate = os.path.join(fixture_dir, fullname + ".py")
             if candidate in files:
-                return self
+                return importlib.util.spec_from_loader(fullname, FixtureLoader(candidate))
             return None
 
-        def load_module(self, fullname):
-            if fullname in sys.modules:
-                return sys.modules[fullname]
-            candidate = os.path.join(fixture_dir, fullname + ".py")
-            mod = types.ModuleType(fullname)
-            mod.__file__ = candidate
-            mod.__loader__ = self
-            sys.modules[fullname] = mod
-            exec(files[candidate], mod.__dict__)
-            return mod
+    class FixtureLoader(importlib.abc.Loader):
+        def __init__(self, path):
+            self.path = path
+        def create_module(self, spec):
+            return None
+        def exec_module(self, module):
+            module.__file__ = self.path
+            exec(files[self.path], module.__dict__)
 
     sys.meta_path.insert(0, FixtureFinder())
-    sys.path.insert(0, fixture_dir)
 
 spec = {}
 exec(files[entry_path], spec)

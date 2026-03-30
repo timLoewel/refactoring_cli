@@ -77,3 +77,4 @@ import "./replace-type-code-with-subclasses/index.js";
 
 // Python refactorings
 import "./rename-variable/python.js";
+import "./move-function/python.js";

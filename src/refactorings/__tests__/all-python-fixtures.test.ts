@@ -1,7 +1,7 @@
 import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import {
   discoverAllPythonFixtureModules,
@@ -50,21 +50,21 @@ for (const fixtureModule of fixtureModules) {
 
       it(`preserves semantics: ${fixture.name}`, () => {
         const result = runPythonFixtureTest(fixture, (files) => {
-          // Write files to a temp dir, apply refactoring, read results back
           const tmpDir = mkdtempSync(join(tmpdir(), "py-fixture-apply-"));
 
           try {
-            // For single-file fixtures, write with the name from params["file"]
-            // For multi-file fixtures, preserve original filenames
-            const targetFile = params["file"] as string | undefined;
             const fileEntries = [...files.entries()];
             const nameMap = new Map<string, string>(); // originalPath → tmpName
+            const isMultiFile = fileEntries.length > 1;
 
-            if (fileEntries.length === 1 && targetFile) {
+            if (!isMultiFile && params["file"]) {
+              // Single-file: write with the name from params
               const [origPath, content] = fileEntries[0] as [string, string];
+              const targetFile = params["file"] as string;
               writeFileSync(join(tmpDir, targetFile), content);
               nameMap.set(origPath, targetFile);
             } else {
+              // Multi-file: preserve original filenames
               for (const [filePath, content] of files) {
                 const fileName = basename(filePath);
                 writeFileSync(join(tmpDir, fileName), content);
@@ -72,26 +72,37 @@ for (const fixtureModule of fixtureModules) {
               }
             }
 
-            // Set Python context pointing to temp dir
             setPythonContext({
               pyright: null as unknown as PyrightClient,
               parser: createPythonParser(),
               projectRoot: tmpDir,
             });
 
-            // Apply the refactoring
             const applyResult = definition.apply(null as never, params);
             if (!applyResult.success) {
               throw new Error(`Refactoring failed: ${applyResult.description}`);
             }
 
-            // Read results back using the name map
-            const result = new Map<string, string>();
+            // Read ALL .py files from temp dir back into the result map
+            const resultFiles = new Map<string, string>();
             for (const [origPath, tmpName] of nameMap) {
-              result.set(origPath, readFileSync(join(tmpDir, tmpName), "utf-8"));
+              try {
+                resultFiles.set(origPath, readFileSync(join(tmpDir, tmpName), "utf-8"));
+              } catch {
+                // File may have been deleted by refactoring
+              }
             }
 
-            return result;
+            // Also pick up any new .py files created in the temp dir
+            for (const entry of readdirSync(tmpDir)) {
+              if (!entry.endsWith(".py")) continue;
+              const alreadyMapped = [...nameMap.values()].includes(entry);
+              if (!alreadyMapped) {
+                resultFiles.set(join(tmpDir, entry), readFileSync(join(tmpDir, entry), "utf-8"));
+              }
+            }
+
+            return resultFiles;
           } finally {
             setPythonContext(null);
             rmSync(tmpDir, { recursive: true, force: true });

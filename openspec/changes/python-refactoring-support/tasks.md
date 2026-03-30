@@ -62,7 +62,7 @@
 
 ## 4. Vertical Slice 2 — Move Function (multi-file)
 
-- [ ] 4.1 Write Python fixtures covering import variants (TDD — tests first, all should fail):
+- [x] 4.1 Write Python fixtures covering import variants (TDD — tests first, all should fail):
   - `import-module/` — `import utils` → `utils.foo()`
   - `from-import/` — `from utils import foo`
   - `from-import-as/` — `from utils import foo as f`
@@ -72,21 +72,21 @@
   - `all-list/` — function listed in `__all__`, verify `__all__` is updated in source and target
   - `type-checking-import/` — moved function's type annotations only needed for type checking, uses `if TYPE_CHECKING:` block
   - `future-annotations/` — source file has `from __future__ import annotations`, verify correct handling
-- [ ] 4.2 Write Python fixtures covering type annotation variants (TDD — tests first):
+- [x] 4.2 Write Python fixtures covering type annotation variants (TDD — tests first):
   - `no-annotations/` — `def foo(x, y): ...`
   - `basic-annotations/` — `def foo(x: int) -> str: ...`
   - `typing-imports/` — `Optional[List[str]]` requiring typing imports in target
   - `dataclass-field/` — function that takes a `@dataclass` parameter
   - `union-types/` — `str | int` (PEP 604) vs `Union[str, int]`
-- [ ] 4.3 Write Python fixtures covering Python-specific gotchas:
+- [x] 4.3 Write Python fixtures covering Python-specific gotchas:
   - `with-decorator/` — function has decorators (`@cache`, `@staticmethod`) — must move decorator too
   - `with-docstring/` — function has a docstring — must be preserved
   - `async-function/` — `async def` function, callers use `await`
   - `generator-function/` — function with `yield`, callers iterate over it
   - `default-mutable/` — function with mutable default arg `def foo(x=[])` — preserve as-is
   - `closure-dependency/` — function references a module-level variable from source file — must add import or parameter
-- [ ] 4.4 Implement `move-function` for Python: pyright for references + definition, tree-sitter for extraction + insertion, codegen for import rewriting
-- [ ] 4.5 All fixtures pass; commit
+- [x] 4.4 Implement `move-function` for Python: pyright for references + definition, tree-sitter for extraction + insertion, codegen for import rewriting
+- [x] 4.5 All fixtures pass; commit
 - [ ] 4.6 Run `roam health` / `roam diff`; refactor if needed; commit
 
 ## 5. Architecture Reflection Checkpoint
