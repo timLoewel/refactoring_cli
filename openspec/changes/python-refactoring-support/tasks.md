@@ -8,8 +8,8 @@
 
 ## 2. Codegen layer with full import/annotation matrix
 
-- [ ] 2.1 Build import statement generator: given a symbol name + its definition location (from pyright), produce the correct Python import statement
-- [ ] 2.2 Unit tests for import generation — all import styles:
+- [x] 2.1 Build import statement generator: given a symbol name + its definition location (from pyright), produce the correct Python import statement
+- [x] 2.2 Unit tests for import generation — all import styles:
   - `import module`
   - `from module import name`
   - `from module import name as alias`
@@ -20,16 +20,16 @@
   - `if TYPE_CHECKING:` import blocks — imports only for type checkers, not at runtime
   - `from __future__ import annotations` present — all annotations are strings
   - `__all__` list — verify codegen updates `__all__` when adding public symbols to a module
-- [ ] 2.3 Build import merger: given a target file's existing imports + new imports to add, merge without duplicates
-- [ ] 2.4 Unit tests for import merging:
+- [x] 2.3 Build import merger: given a target file's existing imports + new imports to add, merge without duplicates
+- [x] 2.4 Unit tests for import merging:
   - Adding to existing `from X import a` → `from X import a, b`
   - No duplicate when import already exists
   - Correct grouping (stdlib / third-party / local) per PEP 8
   - Handling aliased imports alongside non-aliased
   - Merging into existing `if TYPE_CHECKING:` block when import is type-only
   - Preserving `from __future__ import annotations` as first import
-- [ ] 2.5 Build annotation preservation: extract type references from source text, resolve each via pyright, determine which need imports
-- [ ] 2.6 Unit tests for annotation handling:
+- [x] 2.5 Build annotation preservation: extract type references from source text, resolve each via pyright, determine which need imports
+- [x] 2.6 Unit tests for annotation handling:
   - `Optional[str]` → needs `from typing import Optional`
   - `str | None` → no import needed (PEP 604, Python 3.10+)
   - `list[int]` → no import needed (PEP 585, Python 3.9+)
