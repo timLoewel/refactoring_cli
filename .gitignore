@@ -13,3 +13,4 @@ coverage/
 
 # Generated at build time from package.json
 src/core/cli/version.ts
+__pycache__/

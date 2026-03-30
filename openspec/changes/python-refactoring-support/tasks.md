@@ -87,7 +87,7 @@
   - `closure-dependency/` — function references a module-level variable from source file — must add import or parameter
 - [x] 4.4 Implement `move-function` for Python: pyright for references + definition, tree-sitter for extraction + insertion, codegen for import rewriting
 - [x] 4.5 All fixtures pass; commit
-- [ ] 4.6 Run `roam health` / `roam diff`; refactor if needed; commit
+- [x] 4.6 Run `roam health` / `roam diff`; refactor if needed; commit
 
 ## 5. Architecture Reflection Checkpoint
 
