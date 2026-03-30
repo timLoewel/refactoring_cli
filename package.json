@@ -50,8 +50,10 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
+    "tree-sitter-wasms": "^0.1.13",
     "ts-morph": "^27.0.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
