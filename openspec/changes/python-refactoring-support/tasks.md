@@ -58,7 +58,7 @@
   - `tuple-unpack.fixture.py` — variable from tuple unpacking (`a, b = 1, 2`, rename `a`)
 - [x] 3.2 Implement `rename-variable` for Python using pyright `textDocument/rename`
 - [x] 3.3 All fixtures pass; commit
-- [ ] 3.4 Run `roam health` / `roam diff`; refactor if needed; commit
+- [x] 3.4 Run `roam health` / `roam diff`; refactor if needed; commit
 
 ## 4. Vertical Slice 2 — Move Function (multi-file)
 
