@@ -125,3 +125,4 @@ import "./remove-middle-man/python.js";
 import "./replace-inline-code-with-function-call/python.js";
 import "./replace-constructor-with-factory-function/python.js";
 import "./pull-up-method/python.js";
+import "./pull-up-field/python.js";
