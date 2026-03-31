@@ -222,7 +222,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - pass-remainder — after removing dead code from a block, insert `pass` if block would be empty
   - ellipsis-body — `...` as function body (protocol/abstract); must NOT be removed
 
-- [ ] 6.18 `introduce-assertion`
+- [x] 6.18 `introduce-assertion`
   - basic — add assertion for a condition
   - type-narrowing — assertion that narrows type (`assert isinstance(x, int)`); affects type checker
 

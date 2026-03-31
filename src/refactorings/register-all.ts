@@ -95,3 +95,4 @@ import "./replace-nested-conditional-with-guard-clauses/python.js";
 import "./replace-control-flag-with-break/python.js";
 import "./replace-temp-with-query/python.js";
 import "./substitute-algorithm/python.js";
+import "./introduce-assertion/python.js";
