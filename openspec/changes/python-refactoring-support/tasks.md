@@ -259,7 +259,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — new parameter needs type annotation inferred from the merged literals/values
   - positional-keyword — decide if new param is positional-only, keyword-only, or either
 
-- [ ] 6.25 `replace-parameter-with-query`
+- [x] 6.25 `replace-parameter-with-query`
   - basic — remove parameter, compute its value inside the function
   - typed — removed param had type annotation; internal query must produce same type
   - default-arg — parameter had a default value; query must handle the default case
