@@ -449,7 +449,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - dataclass-field — field on parent `@dataclass` → subclass dataclass
   - slots — field in parent `__slots__` → subclass `__slots__`
 
-- [ ] 9.7 `extract-superclass`
+- [x] 9.7 `extract-superclass`
   - basic — create a new base class from shared members of existing classes
   - typed — shared fields/methods keep type annotations in new superclass
   - cross-file — new file for superclass; imports updated in existing classes and their callers
