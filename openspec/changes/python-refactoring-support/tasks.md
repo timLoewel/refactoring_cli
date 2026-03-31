@@ -190,7 +190,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - match-case — decompose a `match`/`case` statement (Python 3.10+)
   - isinstance-chain — `isinstance(x, A) or isinstance(x, B)` → `isinstance(x, (A, B))`
 
-- [ ] 6.12 `consolidate-conditional-expression`
+- [x] 6.12 `consolidate-conditional-expression`
   - basic — merge adjacent `if` blocks with same body
   - walrus — conditions use walrus operator; consolidated condition must preserve assignment
 
