@@ -140,7 +140,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - default-args — function has default parameter values; inlined code must use defaults where caller didn't provide args
   - classmethod-staticmethod — `@classmethod` or `@staticmethod`; different `self`/`cls` handling
 
-- [ ] 6.5 `rename-field`
+- [x] 6.5 `rename-field`
   - basic — rename a plain class attribute
   - typed — rename a field with type annotation
   - dataclass — rename a dataclass field (affects auto-generated `__init__` parameter, keyword arguments at call sites)
