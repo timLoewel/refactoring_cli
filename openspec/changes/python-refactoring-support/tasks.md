@@ -194,7 +194,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - basic — merge adjacent `if` blocks with same body
   - walrus — conditions use walrus operator; consolidated condition must preserve assignment
 
-- [ ] 6.13 `replace-nested-conditional-with-guard-clauses`
+- [x] 6.13 `replace-nested-conditional-with-guard-clauses`
   - basic — nested `if`/`else` → early returns
   - with-cleanup — nested conditional inside `try`/`finally` or `with`; guard clause can't bypass cleanup
 
