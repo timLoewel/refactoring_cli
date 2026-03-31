@@ -198,7 +198,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - basic — nested `if`/`else` → early returns
   - with-cleanup — nested conditional inside `try`/`finally` or `with`; guard clause can't bypass cleanup
 
-- [ ] 6.14 `replace-control-flag-with-break`
+- [x] 6.14 `replace-control-flag-with-break`
   - basic — replace boolean flag controlling loop exit
   - for-else — Python's `for`/`else` construct (else runs if loop completes without `break`); `break` changes this semantics
   - nested-loop — flag controls outer loop; `break` only exits inner loop
