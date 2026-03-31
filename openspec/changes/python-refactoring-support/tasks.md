@@ -394,7 +394,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - self-param — all functions gain `self` parameter; first argument of functions that operated on shared data becomes `self.field`
   - init-generation — `__init__` must be generated from shared state across the functions
 
-- [ ] 8.12 `combine-functions-into-transform`
+- [x] 8.12 `combine-functions-into-transform`
   - basic — group functions into a pipeline that enriches an input record
   - typed — input record type annotations preserved through transform
   - cross-file — callers updated to use transform function

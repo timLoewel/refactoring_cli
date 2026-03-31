@@ -26,6 +26,7 @@ import "./move-statements-to-callers/index.js";
 import "./move-statements-to-callers/python.js";
 import "./replace-inline-code-with-function-call/index.js";
 import "./combine-functions-into-transform/index.js";
+import "./combine-functions-into-transform/python.js";
 import "./split-phase/index.js";
 import "./split-loop/index.js";
 import "./replace-loop-with-pipeline/index.js";
