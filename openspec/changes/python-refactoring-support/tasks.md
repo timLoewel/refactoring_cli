@@ -281,7 +281,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - callable-class — class with `__call__` method → function (Python-specific command pattern)
   - init-fields — class stores state in `__init__`; must become function parameters
 
-- [ ] 6.29 `replace-function-with-command`
+- [x] 6.29 `replace-function-with-command`
   - basic — replace a function with a class that has an `execute`/`__call__` method
   - typed — function params → class fields with type annotations; return type → method return type
   - closure-state — function uses closure variables; they become instance fields
