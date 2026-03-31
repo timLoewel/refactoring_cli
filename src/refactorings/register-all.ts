@@ -21,6 +21,7 @@ import "./change-function-declaration/index.js";
 import "./parameterize-function/index.js";
 import "./remove-flag-argument/index.js";
 import "./move-statements-into-function/index.js";
+import "./move-statements-into-function/python.js";
 import "./move-statements-to-callers/index.js";
 import "./replace-inline-code-with-function-call/index.js";
 import "./combine-functions-into-transform/index.js";

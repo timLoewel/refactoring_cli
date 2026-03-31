@@ -331,7 +331,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - dataclass-field — field on a `@dataclass`; affects auto-generated `__init__`
   - slots-field — field in `__slots__`; source and target `__slots__` updated
 
-- [ ] 8.2 `move-statements-into-function`
+- [x] 8.2 `move-statements-into-function`
   - basic — move repeated statements at call sites into the function body
   - typed — moved statements reference typed variables
   - cross-file — statements moved from callers in different files
