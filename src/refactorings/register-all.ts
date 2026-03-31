@@ -111,3 +111,4 @@ import "./replace-function-with-command/python.js";
 import "./encapsulate-variable/python.js";
 import "./encapsulate-collection/python.js";
 import "./replace-primitive-with-object/python.js";
+import "./move-field/python.js";

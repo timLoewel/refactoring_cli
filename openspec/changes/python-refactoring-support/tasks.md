@@ -323,7 +323,7 @@ Each: basic + typed + Python-idiom-specific + cross-file fixtures. TDD cycle per
 
 Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refactoring.
 
-- [ ] 8.1 `move-field`
+- [x] 8.1 `move-field`
   - basic — move a field from one class to another
   - typed — field has type annotation; preserved in target class
   - cross-file — callers' imports updated
