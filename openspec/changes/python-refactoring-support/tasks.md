@@ -480,14 +480,14 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - match-case — `match`/`case` on type code must be updated to use `isinstance` or polymorphism
   - string-constants — string constants used as type code (common Python pattern)
 
-- [ ] 9.11 `replace-subclass-with-delegate`
+- [x] 9.11 `replace-subclass-with-delegate`
   - basic — replace inheritance with delegation
   - typed — delegate field needs type annotation
   - cross-file — delegate class may be in new file; imports updated
   - abstract-methods — `@abstractmethod` implementations become delegate methods
   - super-calls — `super()` calls in subclass replaced with delegate calls
 
-- [ ] 9.12 `replace-superclass-with-delegate`
+- [x] 9.12 `replace-superclass-with-delegate`
   - basic — replace inheritance from parent with delegation to it
   - typed — delegate field needs type annotation; forwarding methods need annotations
   - cross-file — imports may change
