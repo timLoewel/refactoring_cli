@@ -243,7 +243,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — return type annotation added/changed
   - mutable-arg — modifying a list/dict argument; return instead of mutate
 
-- [ ] 6.22 `separate-query-from-modifier`
+- [x] 6.22 `separate-query-from-modifier`
   - basic — split function that both reads and writes into two functions
   - typed — new query function needs return type annotation
   - property-setter — `@property` setter that also returns a value; split into setter + query method
