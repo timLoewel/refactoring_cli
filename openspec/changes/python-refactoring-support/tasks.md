@@ -226,7 +226,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - basic — add assertion for a condition
   - type-narrowing — assertion that narrows type (`assert isinstance(x, int)`); affects type checker
 
-- [ ] 6.19 `replace-error-code-with-exception`
+- [x] 6.19 `replace-error-code-with-exception`
   - basic — function returns error code → raises exception
   - typed — return type changes (e.g., `int | None` → `int` with exception on error)
   - none-return — Python convention of returning `None` on error (more common than integer error codes)

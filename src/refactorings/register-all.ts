@@ -96,3 +96,4 @@ import "./replace-control-flag-with-break/python.js";
 import "./replace-temp-with-query/python.js";
 import "./substitute-algorithm/python.js";
 import "./introduce-assertion/python.js";
+import "./replace-error-code-with-exception/python.js";
