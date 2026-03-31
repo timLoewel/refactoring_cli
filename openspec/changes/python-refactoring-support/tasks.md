@@ -506,7 +506,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
 
 Each: idiom-specific fixtures. TDD cycle per refactoring.
 
-- [ ] 10.1 `replace-loop-with-pipeline`
+- [x] 10.1 `replace-loop-with-pipeline`
   - basic-comprehension — for-loop appending to list → list comprehension
   - generator — for-loop → generator expression (lazy evaluation)
   - nested — nested for-loops → nested comprehension
