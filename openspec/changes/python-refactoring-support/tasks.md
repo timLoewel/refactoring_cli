@@ -374,7 +374,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - typed — function's parameter/return types must match the inline code's types
   - cross-file — need to add import for the function being called
 
-- [ ] 8.9 `introduce-parameter-object`
+- [x] 8.9 `introduce-parameter-object`
   - basic — group parameters into an object
   - typed — params with annotations → dataclass fields with annotations
   - cross-file — callers import the new dataclass
