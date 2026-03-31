@@ -307,7 +307,7 @@ Each: basic + typed + Python-idiom-specific + cross-file fixtures. TDD cycle per
   - dict-access-patterns — callers use `d["key"]`, `d.get("key")`, `d.get("key", default)`; all must be rewritten
   - cross-file — record is used across files; imports updated
 
-- [ ] 7.3 `encapsulate-collection`
+- [x] 7.3 `encapsulate-collection`
   - basic — expose add/remove/iterator instead of raw collection
   - typed — collection has type annotation (`list[Item]`); accessor types derived from it
   - frozen-return — getter returns a copy or `tuple()` to prevent mutation

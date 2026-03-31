@@ -109,3 +109,4 @@ import "./preserve-whole-object/python.js";
 import "./replace-command-with-function/python.js";
 import "./replace-function-with-command/python.js";
 import "./encapsulate-variable/python.js";
+import "./encapsulate-collection/python.js";
