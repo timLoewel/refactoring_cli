@@ -418,7 +418,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - self-attributes — method uses `self.x` where `x` only exists on subclass; must add attribute to parent or make abstract
   - multiple-subclasses — same method in multiple subclasses; verify all subclasses' copies are identical before pulling up
 
-- [ ] 9.3 `pull-up-field`
+- [x] 9.3 `pull-up-field`
   - basic — move field from subclass to parent
   - typed — field annotation moves to parent
   - multiple-subclasses — field exists in multiple subclasses; all must have same type
@@ -426,7 +426,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - dataclass-field — field on `@dataclass` subclass → parent dataclass
   - slots — field in subclass `__slots__` → parent `__slots__`
 
-- [ ] 9.4 `pull-up-constructor-body`
+- [x] 9.4 `pull-up-constructor-body`
   - basic — move shared `__init__` code to parent class
   - typed — parameters with type annotations preserved in parent `__init__`
   - super-init — verify `super().__init__()` call ordering (Python executes in call order, not declaration order)
@@ -434,7 +434,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - dataclass-init — `@dataclass` generates `__init__`; can't manually pull up (should refuse or convert to non-dataclass)
   - field-assignment — `self.x = x` assignments must move correctly
 
-- [ ] 9.5 `push-down-method`
+- [x] 9.5 `push-down-method`
   - basic — move method from parent to subclass(es) that use it
   - typed — method type annotations preserved
   - single-subclass — method used by only one subclass; push to that one
