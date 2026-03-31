@@ -232,7 +232,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - none-return — Python convention of returning `None` on error (more common than integer error codes)
   - custom-exception — may need to define a new exception class
 
-- [ ] 6.20 `replace-exception-with-precheck`
+- [x] 6.20 `replace-exception-with-precheck`
   - basic — replace try/except with if-check before the operation
   - eafp-to-lbyl — Python idiom shift: "Easier to Ask Forgiveness" → "Look Before You Leap"
   - keyerror — `try: d[key]` → `if key in d:`
