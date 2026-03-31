@@ -269,7 +269,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — new param gets type annotation from the query's return type
   - positional-keyword — new param placement respects `/` and `*` separators
 
-- [ ] 6.27 `preserve-whole-object`
+- [x] 6.27 `preserve-whole-object`
   - basic — replace multiple parameters extracted from an object with the whole object
   - typed — parameter type changes from primitives to the object's class type
   - dataclass — object is a dataclass; parameter type is the dataclass class
