@@ -410,7 +410,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - subclass — factory on base class must return correct subclass type (return type is `Self` or `cls`)
   - new-vs-init — class overrides `__new__`; factory must handle `__new__` semantics
 
-- [ ] 9.2 `pull-up-method`
+- [x] 9.2 `pull-up-method`
   - basic — move method from subclass to parent
   - typed — method with typed params moves to parent; type annotations preserved
   - super-chain — method calls `super().method()`; after pull-up, super target changes
