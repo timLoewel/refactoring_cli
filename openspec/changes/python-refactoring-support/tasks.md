@@ -472,7 +472,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - isinstance — `isinstance()` checks rewritten to field checks
   - factory — creation sites changed from `Subclass()` to `Parent(type=...)`
 
-- [ ] 9.10 `replace-type-code-with-subclasses`
+- [x] 9.10 `replace-type-code-with-subclasses`
   - basic — enum/string type code → subclass hierarchy
   - typed — type annotations change from `str`/enum to base class type
   - cross-file — callers import subclasses or factory

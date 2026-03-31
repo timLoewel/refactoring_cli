@@ -132,3 +132,4 @@ import "./push-down-field/python.js";
 import "./extract-superclass/python.js";
 import "./collapse-hierarchy/python.js";
 import "./remove-subclass/python.js";
+import "./replace-type-code-with-subclasses/python.js";
