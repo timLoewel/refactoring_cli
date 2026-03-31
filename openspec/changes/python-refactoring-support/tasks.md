@@ -313,7 +313,7 @@ Each: basic + typed + Python-idiom-specific + cross-file fixtures. TDD cycle per
   - frozen-return — getter returns a copy or `tuple()` to prevent mutation
   - cross-file — callers in other files updated to use accessors
 
-- [ ] 7.4 `replace-primitive-with-object`
+- [x] 7.4 `replace-primitive-with-object`
   - basic — replace a `str` or `int` with a value object class
   - typed — type annotations change from primitive to new class
   - dataclass-value — new value object is a `@dataclass(frozen=True)`
