@@ -165,7 +165,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - try-except — slide past `try`/`except`/`finally` blocks (can't slide into/out of exception handler)
   - yield — slide past `yield` in a generator (changes generator behavior)
 
-- [ ] 6.8 `split-variable`
+- [x] 6.8 `split-variable`
   - basic — split a variable that's reused for different purposes
   - typed — split variable may need different type annotations for each use
   - augmented-assign — `x = 0; x += 1; x = "hello"; x += " world"` — split at the type change

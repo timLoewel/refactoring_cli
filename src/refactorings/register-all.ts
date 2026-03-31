@@ -88,3 +88,4 @@ import "./inline-function/python.js";
 import "./rename-field/python.js";
 import "./change-function-declaration/python.js";
 import "./slide-statements/python.js";
+import "./split-variable/python.js";
