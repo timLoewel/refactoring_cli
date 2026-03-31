@@ -159,7 +159,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - overload — function has `@overload` variants; all overloads must be updated together
   - default-mutable — parameter has mutable default (`def foo(x=[])`); preserve the pattern
 
-- [ ] 6.7 `slide-statements`
+- [x] 6.7 `slide-statements`
   - basic — slide a statement up or down
   - with-block — slide past a `with` statement (context manager scope boundary)
   - try-except — slide past `try`/`except`/`finally` blocks (can't slide into/out of exception handler)
