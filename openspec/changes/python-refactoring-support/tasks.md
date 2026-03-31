@@ -171,7 +171,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - augmented-assign — `x = 0; x += 1; x = "hello"; x += " world"` — split at the type change
   - walrus — variable used in walrus operator and regular assignment
 
-- [ ] 6.9 `split-loop`
+- [x] 6.9 `split-loop`
   - basic — split a loop that does two things
   - comprehension — splitting won't apply to comprehensions (they're expressions, not loop bodies)
   - enumerate — loop uses `enumerate()`; both split loops need it
