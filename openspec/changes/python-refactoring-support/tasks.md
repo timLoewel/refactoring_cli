@@ -403,7 +403,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
 
 Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycle per refactoring.
 
-- [ ] 9.1 `replace-constructor-with-factory-function`
+- [x] 9.1 `replace-constructor-with-factory-function`
   - basic — `__init__` direct call → factory function
   - typed — factory function return type annotation is the class type
   - classmethod-factory — Python idiom: `@classmethod` factory instead of standalone function
