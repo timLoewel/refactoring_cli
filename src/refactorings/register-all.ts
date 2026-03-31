@@ -64,6 +64,7 @@ import "./change-value-to-reference/index.js";
 import "./hide-delegate/index.js";
 import "./remove-middle-man/index.js";
 import "./combine-functions-into-class/index.js";
+import "./combine-functions-into-class/python.js";
 import "./rename-field/index.js";
 
 // Tier 4 — Inheritance

@@ -387,7 +387,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - cross-file — callers that checked for None/null now work with special case object
   - none-pattern — Python's `None` check pattern (`if x is None:`) is the most common trigger
 
-- [ ] 8.11 `combine-functions-into-class`
+- [x] 8.11 `combine-functions-into-class`
   - basic — group related functions into a class with methods
   - typed — function param/return types become method signatures; shared data becomes typed fields
   - cross-file — callers import new class instead of individual functions
