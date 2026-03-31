@@ -130,7 +130,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - closure — extracted code reads (but doesn't modify) variables from enclosing scope; they become parameters
   - multiple-returns — extracted code has multiple exit points (early return); needs careful control flow
 
-- [ ] 6.4 `inline-function`
+- [x] 6.4 `inline-function`
   - basic — inline a simple function at call site
   - typed — function has type-annotated params; annotations are dropped when inlined
   - decorator — function has decorators (`@cache`, `@staticmethod`); should refuse or warn (decorator behavior is lost)
