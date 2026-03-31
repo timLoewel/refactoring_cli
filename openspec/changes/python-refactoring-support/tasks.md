@@ -528,7 +528,7 @@ Each: idiom-specific fixtures. TDD cycle per refactoring.
   - eq-hash — frozen dataclass gets `__eq__` and `__hash__` for free; verify behavior preserved
   - dict-to-frozenset — `dict` used as record → `frozenset` of items (rare but valid)
 
-- [ ] 10.3 `change-value-to-reference`
+- [x] 10.3 `change-value-to-reference`
   - basic — multiple copies of same value object → shared reference
   - typed — type annotations preserved
   - registry — Python pattern: module-level registry dict or `functools.lru_cache` for instance sharing
