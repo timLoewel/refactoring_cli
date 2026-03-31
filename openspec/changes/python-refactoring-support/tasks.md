@@ -364,7 +364,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - typed — delegating method needs correct type annotations (return type from delegate's method)
   - cross-file — callers' chain access (`a.delegate.method()`) becomes `a.method()`; cross-file update
 
-- [ ] 8.7 `remove-middle-man`
+- [x] 8.7 `remove-middle-man`
   - basic — remove delegating method, expose delegate directly
   - typed — caller now accesses delegate; type annotations at call sites may change
   - cross-file — callers updated to access delegate directly

@@ -117,3 +117,4 @@ import "./move-field/python.js";
 import "./inline-class/python.js";
 import "./extract-class/python.js";
 import "./hide-delegate/python.js";
+import "./remove-middle-man/python.js";
