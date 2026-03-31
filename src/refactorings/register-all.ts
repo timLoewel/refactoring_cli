@@ -103,3 +103,4 @@ import "./separate-query-from-modifier/python.js";
 import "./remove-flag-argument/python.js";
 import "./parameterize-function/python.js";
 import "./replace-parameter-with-query/python.js";
+import "./replace-query-with-parameter/python.js";

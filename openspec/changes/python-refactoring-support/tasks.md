@@ -264,7 +264,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — removed param had type annotation; internal query must produce same type
   - default-arg — parameter had a default value; query must handle the default case
 
-- [ ] 6.26 `replace-query-with-parameter`
+- [x] 6.26 `replace-query-with-parameter`
   - basic — replace internal computation with a parameter
   - typed — new param gets type annotation from the query's return type
   - positional-keyword — new param placement respects `/` and `*` separators
