@@ -100,3 +100,4 @@ import "./replace-error-code-with-exception/python.js";
 import "./replace-exception-with-precheck/python.js";
 import "./return-modified-value/python.js";
 import "./separate-query-from-modifier/python.js";
+import "./remove-flag-argument/python.js";
