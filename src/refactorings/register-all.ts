@@ -93,3 +93,4 @@ import "./split-loop/python.js";
 import "./consolidate-conditional-expression/python.js";
 import "./replace-nested-conditional-with-guard-clauses/python.js";
 import "./replace-control-flag-with-break/python.js";
+import "./replace-temp-with-query/python.js";

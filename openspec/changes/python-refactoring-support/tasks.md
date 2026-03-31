@@ -203,7 +203,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - for-else — Python's `for`/`else` construct (else runs if loop completes without `break`); `break` changes this semantics
   - nested-loop — flag controls outer loop; `break` only exits inner loop
 
-- [ ] 6.15 `replace-temp-with-query`
+- [x] 6.15 `replace-temp-with-query`
   - basic — replace temp variable with function call
   - typed — extracted query function needs return type annotation
   - walrus — temp assigned via walrus operator
