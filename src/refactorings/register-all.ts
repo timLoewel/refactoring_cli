@@ -128,3 +128,4 @@ import "./pull-up-method/python.js";
 import "./pull-up-field/python.js";
 import "./pull-up-constructor-body/python.js";
 import "./push-down-method/python.js";
+import "./push-down-field/python.js";

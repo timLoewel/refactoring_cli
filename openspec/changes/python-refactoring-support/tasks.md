@@ -441,7 +441,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - abstract-removal — if method was `@abstractmethod`, remove abstract decorator after push-down
   - super-callers — other methods calling `super().method()` must be updated
 
-- [ ] 9.6 `push-down-field`
+- [x] 9.6 `push-down-field`
   - basic — move field from parent to subclass(es) that use it
   - typed — field annotation preserved
   - single-subclass — field used by only one subclass
