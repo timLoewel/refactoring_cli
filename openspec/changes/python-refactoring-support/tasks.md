@@ -150,7 +150,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - slots — rename a field declared in `__slots__`
   - typeddict — rename a TypedDict field (affects dict-style access `d["field"]` and attribute access)
 
-- [ ] 6.6 `change-function-declaration`
+- [x] 6.6 `change-function-declaration`
   - basic — rename a function parameter
   - typed — parameter has type annotation that must be preserved/updated
   - positional-only — function uses `/` separator (PEP 570); respect positional-only semantics

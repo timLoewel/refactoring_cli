@@ -86,3 +86,4 @@ import "./decompose-conditional/python.js";
 import "./extract-function/python.js";
 import "./inline-function/python.js";
 import "./rename-field/python.js";
+import "./change-function-declaration/python.js";
