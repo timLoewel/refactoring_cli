@@ -238,7 +238,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - keyerror — `try: d[key]` → `if key in d:`
   - attributeerror — `try: obj.attr` → `if hasattr(obj, "attr"):`
 
-- [ ] 6.21 `return-modified-value`
+- [x] 6.21 `return-modified-value`
   - basic — function modifies a parameter in place → return the modified value instead
   - typed — return type annotation added/changed
   - mutable-arg — modifying a list/dict argument; return instead of mutate
