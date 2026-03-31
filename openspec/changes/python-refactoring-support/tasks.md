@@ -208,7 +208,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — extracted query function needs return type annotation
   - walrus — temp assigned via walrus operator
 
-- [ ] 6.16 `substitute-algorithm`
+- [x] 6.16 `substitute-algorithm`
   - basic — replace function body with a simpler algorithm
   - generator — function is a generator; replacement must also yield
   - async — async function; replacement must also be async
