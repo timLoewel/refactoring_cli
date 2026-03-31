@@ -126,3 +126,4 @@ import "./replace-inline-code-with-function-call/python.js";
 import "./replace-constructor-with-factory-function/python.js";
 import "./pull-up-method/python.js";
 import "./pull-up-field/python.js";
+import "./pull-up-constructor-body/python.js";
