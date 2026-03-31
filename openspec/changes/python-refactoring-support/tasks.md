@@ -381,7 +381,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - namedtuple-variant — generate NamedTuple instead of dataclass (immutable parameter group)
   - keyword-args — callers using keyword arguments must switch to constructing the parameter object
 
-- [ ] 8.10 `introduce-special-case`
+- [x] 8.10 `introduce-special-case`
   - basic — replace conditional null/special checks with a special case object
   - typed — special case class has same interface (Protocol or subclass) with correct type annotations
   - cross-file — callers that checked for None/null now work with special case object

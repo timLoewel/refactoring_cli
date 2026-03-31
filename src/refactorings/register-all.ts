@@ -34,6 +34,7 @@ import "./decompose-conditional/index.js";
 import "./replace-nested-conditional-with-guard-clauses/index.js";
 import "./replace-conditional-with-polymorphism/index.js";
 import "./introduce-special-case/index.js";
+import "./introduce-special-case/python.js";
 import "./separate-query-from-modifier/index.js";
 import "./replace-parameter-with-query/index.js";
 import "./replace-query-with-parameter/index.js";
