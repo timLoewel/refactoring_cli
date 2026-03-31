@@ -520,7 +520,7 @@ Each: idiom-specific fixtures. TDD cycle per refactoring.
   - set-comprehension — loop building a set → set comprehension
   - reduce — loop accumulating a single value → `functools.reduce()` (or warn: often less readable)
 
-- [ ] 10.2 `change-reference-to-value`
+- [x] 10.2 `change-reference-to-value`
   - basic — mutable object → immutable equivalent
   - dataclass-frozen — mutable `@dataclass` → `@dataclass(frozen=True)`
   - list-to-tuple — `list` → `tuple` (type annotations change too)

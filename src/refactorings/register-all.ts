@@ -137,3 +137,4 @@ import "./replace-subclass-with-delegate/python.js";
 import "./replace-superclass-with-delegate/python.js";
 import "./replace-conditional-with-polymorphism/python.js";
 import "./replace-loop-with-pipeline/python.js";
+import "./change-reference-to-value/python.js";
