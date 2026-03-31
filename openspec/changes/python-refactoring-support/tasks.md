@@ -359,7 +359,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - circular-import — extracted class references source class → `if TYPE_CHECKING:` import to avoid circular import
   - dataclass — extracting from a `@dataclass`; extracted class may also be a `@dataclass`
 
-- [ ] 8.6 `hide-delegate`
+- [x] 8.6 `hide-delegate`
   - basic — add delegating method to hide the delegate
   - typed — delegating method needs correct type annotations (return type from delegate's method)
   - cross-file — callers' chain access (`a.delegate.method()`) becomes `a.method()`; cross-file update

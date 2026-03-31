@@ -4,7 +4,6 @@ import path from "node:path";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { definePythonRefactoring, pythonParam } from "../../python/python-refactoring-builder.js";
 import type { PythonProjectContext } from "../../python/python-refactoring-builder.js";
-import { parsePython } from "../../python/tree-sitter-parser.js";
 
 export const replacePythonMagicLiteral = definePythonRefactoring({
   name: "Replace Magic Literal (Python)",

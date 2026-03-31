@@ -116,3 +116,4 @@ import "./replace-primitive-with-object/python.js";
 import "./move-field/python.js";
 import "./inline-class/python.js";
 import "./extract-class/python.js";
+import "./hide-delegate/python.js";
