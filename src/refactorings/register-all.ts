@@ -51,6 +51,7 @@ import "./inline-class/index.js";
 import "./move-function/index.js";
 import "./move-field/index.js";
 import "./encapsulate-record/index.js";
+import "./encapsulate-record/python.js";
 import "./encapsulate-variable/index.js";
 import "./encapsulate-collection/index.js";
 import "./replace-primitive-with-object/index.js";

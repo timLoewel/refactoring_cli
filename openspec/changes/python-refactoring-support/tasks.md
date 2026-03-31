@@ -291,7 +291,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
 
 Each: basic + typed + Python-idiom-specific + cross-file fixtures. TDD cycle per refactoring.
 
-- [ ] 7.1 `encapsulate-variable`
+- [x] 7.1 `encapsulate-variable`
   - basic — module-level variable → getter/setter functions
   - typed — variable with type annotation; getter return type and setter param type
   - property — class attribute → `@property` with `@name.setter`
@@ -299,7 +299,7 @@ Each: basic + typed + Python-idiom-specific + cross-file fixtures. TDD cycle per
   - slots — attribute declared in `__slots__`; `@property` needs `__slots__` update
   - cross-file — external modules access the variable; imports updated to use getter/setter
 
-- [ ] 7.2 `encapsulate-record`
+- [x] 7.2 `encapsulate-record`
   - basic — plain dict with known keys → class with accessors
   - typed — dict with type comments or TypedDict → dataclass with typed fields
   - typeddict-to-dataclass — `TypedDict` → `@dataclass` (different runtime semantics)
