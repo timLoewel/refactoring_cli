@@ -275,7 +275,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - dataclass — object is a dataclass; parameter type is the dataclass class
   - namedtuple — object is a NamedTuple
 
-- [ ] 6.28 `replace-command-with-function`
+- [x] 6.28 `replace-command-with-function`
   - basic — replace a class with a single method with a standalone function
   - typed — class fields with type annotations → function params with annotations
   - callable-class — class with `__call__` method → function (Python-specific command pattern)

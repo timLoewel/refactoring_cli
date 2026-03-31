@@ -105,3 +105,4 @@ import "./parameterize-function/python.js";
 import "./replace-parameter-with-query/python.js";
 import "./replace-query-with-parameter/python.js";
 import "./preserve-whole-object/python.js";
+import "./replace-command-with-function/python.js";
