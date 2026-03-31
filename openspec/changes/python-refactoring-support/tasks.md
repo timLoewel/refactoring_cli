@@ -343,7 +343,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - cross-file — callers in different files receive the statements
   - indentation — moved statements must match the indentation level at each call site
 
-- [ ] 8.4 `inline-class`
+- [x] 8.4 `inline-class`
   - basic — merge a class into the class that uses it
   - typed — fields with type annotations merge into target
   - cross-file — all imports of the removed class rewritten
