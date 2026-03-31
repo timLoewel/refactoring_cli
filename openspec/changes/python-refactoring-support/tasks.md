@@ -351,7 +351,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - init-merge — `__init__` bodies must be merged correctly
   - decorator-class — class has decorators (`@dataclass`); decorators don't transfer
 
-- [ ] 8.5 `extract-class`
+- [x] 8.5 `extract-class`
   - basic — extract some fields/methods into a new class
   - typed — extracted fields keep their type annotations
   - cross-file — callers get new import for extracted class
