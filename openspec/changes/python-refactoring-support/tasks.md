@@ -369,7 +369,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - typed — caller now accesses delegate; type annotations at call sites may change
   - cross-file — callers updated to access delegate directly
 
-- [ ] 8.8 `replace-inline-code-with-function-call`
+- [x] 8.8 `replace-inline-code-with-function-call`
   - basic — replace inline code with a call to an existing function
   - typed — function's parameter/return types must match the inline code's types
   - cross-file — need to add import for the function being called
