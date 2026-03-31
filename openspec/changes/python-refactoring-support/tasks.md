@@ -458,14 +458,14 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - slots — `__slots__` in superclass and subclasses must be coordinated (subclass `__slots__` should only have new fields)
   - mro — verify MRO is correct after extraction (no conflicts)
 
-- [ ] 9.8 `collapse-hierarchy`
+- [x] 9.8 `collapse-hierarchy`
   - basic — merge subclass into parent (when subclass adds nothing)
   - typed — subclass type annotations merged into parent
   - cross-file — imports of removed subclass rewritten to parent
   - all-update — `__all__` updated if subclass was exported
   - isinstance — `isinstance(x, Subclass)` checks must be updated to `isinstance(x, Parent)`
 
-- [ ] 9.9 `remove-subclass`
+- [x] 9.9 `remove-subclass`
   - basic — replace subclass with parent using fields to distinguish
   - typed — type annotations referencing subclass changed to parent
   - cross-file — imports updated
