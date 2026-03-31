@@ -83,3 +83,4 @@ import "./inline-variable/python.js";
 import "./replace-magic-literal/python.js";
 import "./remove-dead-code/python.js";
 import "./decompose-conditional/python.js";
+import "./extract-function/python.js";

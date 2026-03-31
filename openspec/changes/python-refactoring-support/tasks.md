@@ -118,7 +118,7 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - tuple-unpack — variable from tuple unpacking (`a, b = foo()`); should refuse (can't inline one side)
   - multiple-assign — variable assigned multiple times; should refuse or only inline single-assignment case
 
-- [ ] 6.3 `extract-function`
+- [x] 6.3 `extract-function`
   - basic — extract statements into new function
   - typed — extracted code uses typed variables; generated signature needs type annotations for params and return
   - yield — extracted code contains `yield`; extracted function must be a generator (`def` not `return`)
