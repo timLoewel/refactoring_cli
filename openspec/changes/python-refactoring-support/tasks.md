@@ -494,7 +494,7 @@ Each: basic + typed + inheritance-specific + Python edge case fixtures. TDD cycl
   - protocol — class may now satisfy a `Protocol` instead of inheriting (Python structural typing)
   - init — `super().__init__()` becomes `self._delegate = Parent()`
 
-- [ ] 9.13 `replace-conditional-with-polymorphism`
+- [x] 9.13 `replace-conditional-with-polymorphism`
   - basic — replace if/elif chain with subclass methods
   - typed — conditional branches become typed subclass methods
   - cross-file — subclasses may be in new files

@@ -135,3 +135,4 @@ import "./remove-subclass/python.js";
 import "./replace-type-code-with-subclasses/python.js";
 import "./replace-subclass-with-delegate/python.js";
 import "./replace-superclass-with-delegate/python.js";
+import "./replace-conditional-with-polymorphism/python.js";
