@@ -248,13 +248,13 @@ Each refactoring: basic fixture + typed fixture + Python edge case fixtures as l
   - typed — new query function needs return type annotation
   - property-setter — `@property` setter that also returns a value; split into setter + query method
 
-- [ ] 6.23 `remove-flag-argument`
+- [x] 6.23 `remove-flag-argument`
   - basic — replace boolean flag with two separate functions
   - typed — removed param has type annotation
   - keyword-default — flag is a keyword argument with default (`def foo(verbose=False)`)
   - enum-flag — flag is an enum value, not a boolean
 
-- [ ] 6.24 `parameterize-function`
+- [x] 6.24 `parameterize-function`
   - basic — merge similar functions into one parameterized function
   - typed — new parameter needs type annotation inferred from the merged literals/values
   - positional-keyword — decide if new param is positional-only, keyword-only, or either
