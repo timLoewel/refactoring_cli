@@ -337,7 +337,7 @@ Each: basic + typed + cross-file + Python edge case fixtures. TDD cycle per refa
   - cross-file — statements moved from callers in different files
   - indentation — statements at different nesting levels in callers; re-indented when moved into function
 
-- [ ] 8.3 `move-statements-to-callers`
+- [x] 8.3 `move-statements-to-callers`
   - basic — move statements from function body to each call site
   - typed — moved statements have type-annotated variables
   - cross-file — callers in different files receive the statements
