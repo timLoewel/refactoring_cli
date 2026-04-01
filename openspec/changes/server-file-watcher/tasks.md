@@ -31,9 +31,9 @@
 
 ## 6. Testing
 
-- [ ] 6.1 Unit test `FileWatcher` debounce logic: verify coalescing, quiet-time reset, and `skipPaths` behavior
-- [ ] 6.2 Unit test event filtering: verify only in-scope source files trigger refresh
-- [ ] 6.3 Integration test: start daemon, modify a file externally, verify next apply sees the change
-- [ ] 6.4 Integration test: start daemon, create a new file, verify it becomes available for refactoring
-- [ ] 6.5 Integration test: start daemon, delete a file, verify it is removed from the project model
-- [ ] 6.6 Test `status` RPC method returns correct state before and after external changes
+- [x] 6.1 Unit test `FileWatcher` debounce logic: verify coalescing, quiet-time reset, and `skipPaths` behavior
+- [x] 6.2 Unit test event filtering: verify only in-scope source files trigger refresh
+- [x] 6.3 Integration test: start daemon, modify a file externally, verify next apply sees the change
+- [x] 6.4 Integration test: start daemon, create a new file, verify it becomes available for refactoring
+- [x] 6.5 Integration test: start daemon, delete a file, verify it is removed from the project model
+- [x] 6.6 Test `status` RPC method returns correct state before and after external changes
