@@ -37,6 +37,7 @@ export function createApplyCommand(): Command {
     .argument("<name>", "refactoring name (kebab-case)")
     .option("--dry-run", "preview changes without writing to disk")
     .allowUnknownOption(true)
+    .allowExcessArguments(true)
     .action((name: string, opts: { dryRun?: boolean }, cmd: Command) => {
       const global = getGlobalOptions(cmd);
       const isJson = global.json ?? false;

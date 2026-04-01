@@ -16,6 +16,7 @@
     "format:check": "prettier --check 'src/**/*.ts'",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "test:real": "node_modules/.bin/tsx scripts/test-real-codebase/run.ts",
     "prepublishOnly": "npm run build",
     "prepare": "husky"
   },
@@ -68,6 +69,7 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
+    "tsx": "^4.21.0",
     "typescript-eslint": "^8.57.1"
   }
 }
