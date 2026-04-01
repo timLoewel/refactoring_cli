@@ -173,13 +173,13 @@
 
 ## 12. Rename Field (TDD)
 
-- [ ] 12.1 Write fixtures:
+- [x] 12.1 Write fixtures:
   - `multiple-instances.fixture.ts` — field accessed on multiple instances
   - `optional-chaining.fixture.ts` — `obj?.field` access
   - `with-interface.fixture.ts` — class implements interface with same field name
   - `private-modifier.fixture.ts` — renaming a private field
   - `inherited-field.fixture.ts` — field is in a parent class
-- [ ] 12.2 Run and fix
+- [x] 12.2 Run and fix
 - [ ] 12.3 Commit
 
 ## 13. Remaining Refactorings — Fixture Coverage Pass
