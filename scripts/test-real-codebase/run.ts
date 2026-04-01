@@ -1,6 +1,6 @@
 import { spawnSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
-import { dirname, join, sep } from "path";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Project } from "ts-morph";
 
@@ -13,7 +13,6 @@ const TSX = join(ROOT, "node_modules/.bin/tsx");
 const TYPEORM_REF = "0.3.20";
 const TYPEORM_URL = "https://github.com/typeorm/typeorm.git";
 const CACHE_DIR = join(ROOT, "tmp", "real-codebase", `typeorm-${TYPEORM_REF}`);
-const WORK_DIR = join(ROOT, "tmp", "real-codebase", "work");
 
 // --- Arg parsing ---
 const scriptArgs = process.argv.slice(2);
@@ -236,25 +235,28 @@ function computeScope(file: string, reverseImportMap: Map<string, Set<string>>):
 }
 
 // --- Build apply params ---
-function buildApplyArgs(refactoring: RefactoringInfo, file: string, target: string): string[] {
-  const args: string[] = [refactoring.kebabName];
+function buildApplyParams(
+  refactoring: RefactoringInfo,
+  file: string,
+  target: string,
+): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
   for (const p of refactoring.params) {
     if (!p.required) continue;
     if (p.name === "file") {
-      args.push(`file=${file}`);
+      params["file"] = file;
     } else if (p.name === "target") {
-      args.push(`target=${target}`);
+      params["target"] = target;
     } else if (p.type === "number") {
-      args.push(`${p.name}=0`);
+      params[p.name] = 0;
     } else {
-      // string / identifier — provide a valid identifier placeholder
-      args.push(`${p.name}=__reftest__`);
+      params[p.name] = "__reftest__";
     }
   }
-  return args;
+  return params;
 }
 
-// --- Step 5: Apply in isolated copy ---
+// --- Step 5: Apply in-place with git rollback ---
 interface CandidateResult {
   /** true if preconditions passed and apply was attempted */
   isTarget: boolean;
@@ -263,77 +265,79 @@ interface CandidateResult {
   error: string | null;
 }
 
-let workCounter = 0;
-
-function makeTempCopy(): string {
-  const tempDir = join(WORK_DIR, `work-${workCounter++}`);
-  // Remove any leftover dir from a previous interrupted run
-  if (existsSync(tempDir)) {
-    rmSync(tempDir, { recursive: true, force: true });
-  }
-  // Copy source files only; symlink node_modules for speed
-  cpSync(CACHE_DIR, tempDir, {
-    recursive: true,
-    filter: (src) => !src.includes(`${sep}node_modules`),
-  });
-  symlinkSync(join(CACHE_DIR, "node_modules"), join(tempDir, "node_modules"));
-  return tempDir;
+interface ApplyResult {
+  success: boolean;
+  filesChanged: string[];
+  description: string;
 }
 
-function applyAndCheck(
+function gitRollback(cwd: string): void {
+  runShell("git checkout .", cwd);
+}
+
+async function applyAndCheck(
+  client: {
+    apply(name: string, params: Record<string, unknown>): Promise<ApplyResult>;
+    refresh(files: string[]): Promise<void>;
+  },
   refactoring: RefactoringInfo,
   candidate: Candidate,
   reverseImportMap: Map<string, Set<string>>,
-): CandidateResult {
-  const tempDir = makeTempCopy();
+): Promise<CandidateResult> {
+  const params = buildApplyParams(refactoring, candidate.file, candidate.target);
 
-  const relPath = candidate.file.slice(CACHE_DIR.length);
-  const tempFile = join(tempDir, relPath);
-
-  const applyArgs = buildApplyArgs(refactoring, tempFile, candidate.target);
-
+  let result: ApplyResult;
   try {
-    const out = runCLI(["apply", ...applyArgs], tempDir);
-
-    if (!out.ok) {
-      return { isTarget: true, applied: false, passed: false, error: out.error };
+    result = await client.apply(refactoring.kebabName, params);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isPreconditionFailure =
+      msg.includes("Precondition failed") || msg.includes("not found") || msg.includes("param '");
+    if (isPreconditionFailure) {
+      return { isTarget: false, applied: false, passed: false, error: null };
     }
-
-    if (!out.output.success) {
-      const msg = (out.output.errors ?? []).join("; ");
-      const isPreconditionFailure =
-        msg.includes("Precondition failed") || msg.includes("not found") || msg.includes("param '");
-      if (isPreconditionFailure) {
-        return { isTarget: false, applied: false, passed: false, error: null };
-      }
-      return { isTarget: true, applied: false, passed: false, error: msg };
-    }
-
-    // Step 5.3: compile check using TypeORM's own tsc
-    const tsc = join(CACHE_DIR, "node_modules/.bin/tsc");
-
-    // Use scoped tsconfig when possible (file ∪ transitive importers only)
-    const inMap = reverseImportMap.has(candidate.file);
-    let tscResult: { stdout: string; stderr: string; code: number };
-    if (inMap) {
-      const scope = computeScope(candidate.file, reverseImportMap);
-      const scopedPaths = Array.from(scope).map((p) => p.replace(CACHE_DIR, tempDir));
-      const scopedTsconfig = JSON.stringify({ extends: "./tsconfig.json", include: scopedPaths });
-      writeFileSync(join(tempDir, "tsconfig.scoped.json"), scopedTsconfig);
-      tscResult = runShell(`"${tsc}" --noEmit --project tsconfig.scoped.json`, tempDir);
-    } else {
-      tscResult = runShell(`"${tsc}" --noEmit`, tempDir);
-    }
-
-    return {
-      isTarget: true,
-      applied: true,
-      passed: tscResult.code === 0,
-      error: tscResult.code !== 0 ? tscResult.stdout.slice(0, 500) : null,
-    };
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true });
+    return { isTarget: true, applied: false, passed: false, error: msg };
   }
+
+  if (!result.success) {
+    const isPreconditionFailure =
+      result.description.includes("Precondition failed") ||
+      result.description.includes("not found") ||
+      result.description.includes("param '");
+    if (isPreconditionFailure) {
+      return { isTarget: false, applied: false, passed: false, error: null };
+    }
+    return { isTarget: true, applied: false, passed: false, error: result.description };
+  }
+
+  // Compile check using TypeORM's own tsc
+  const tsc = join(CACHE_DIR, "node_modules/.bin/tsc");
+
+  // Use scoped tsconfig when possible (file ∪ transitive importers only)
+  const inMap = reverseImportMap.has(candidate.file);
+  let tscResult: { stdout: string; stderr: string; code: number };
+  if (inMap) {
+    const scope = computeScope(candidate.file, reverseImportMap);
+    const scopedPaths = Array.from(scope);
+    const scopedTsconfig = JSON.stringify({ extends: "./tsconfig.json", include: scopedPaths });
+    writeFileSync(join(CACHE_DIR, "tsconfig.scoped.json"), scopedTsconfig);
+    tscResult = runShell(`"${tsc}" --noEmit --project tsconfig.scoped.json`, CACHE_DIR);
+  } else {
+    tscResult = runShell(`"${tsc}" --noEmit`, CACHE_DIR);
+  }
+
+  const passed = tscResult.code === 0;
+
+  // Rollback changes and refresh daemon's AST
+  gitRollback(CACHE_DIR);
+  await client.refresh(result.filesChanged);
+
+  return {
+    isTarget: true,
+    applied: true,
+    passed,
+    error: !passed ? tscResult.stdout.slice(0, 500) : null,
+  };
 }
 
 // --- Step 7: Stats ---
@@ -347,7 +351,7 @@ interface RefactoringStats {
 }
 
 // --- Main ---
-function main(): void {
+async function main(): Promise<void> {
   ensureCloned();
   checkBaseline();
 
@@ -379,7 +383,13 @@ function main(): void {
     return;
   }
 
-  mkdirSync(WORK_DIR, { recursive: true });
+  // Start daemon for the cached TypeORM project
+  process.stderr.write("Starting refactoring daemon...\n");
+  const { RefactorClient } = await import("../../src/core/refactor-client.js");
+  const { startDaemon } = await import("../../src/core/server/daemon.js");
+  await startDaemon(CACHE_DIR);
+  const client = await RefactorClient.connect(CACHE_DIR);
+  process.stderr.write("Daemon ready.\n");
 
   const stats: RefactoringStats[] = [];
 
@@ -398,7 +408,7 @@ function main(): void {
 
     let checked = 0;
     for (const candidate of candidates) {
-      const result = applyAndCheck(refactoring, candidate, reverseImportMap);
+      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap);
       checked++;
 
       if (!result.isTarget) continue;
@@ -424,7 +434,7 @@ function main(): void {
           }
         }
       } else {
-        // CLI crash or non-precondition apply failure
+        // Daemon error or non-precondition apply failure
         stat.failed++;
         process.stderr.write(
           `  [${checked}/${total}] ✗ ${candidate.target} (${candidate.file.split("/").pop()}) — apply failed: ${result.error}\n`,
@@ -444,7 +454,7 @@ function main(): void {
     stats.push(stat);
   }
 
-  rmSync(WORK_DIR, { recursive: true, force: true });
+  await client.close();
 
   // Step 7.2 / 7.3: summary
   if (isJson) {
@@ -469,4 +479,7 @@ function main(): void {
   for (const row of rows) process.stdout.write(fmt(row) + "\n");
 }
 
-main();
+main().catch((err) => {
+  process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});

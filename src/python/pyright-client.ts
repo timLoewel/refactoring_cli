@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { EventEmitter } from "node:events";
+import { FramingParser, frameMessage } from "../core/server/framing.js";
 
 // ---- JSON-RPC types ----
 
@@ -76,8 +77,7 @@ export class PyrightClient {
   private process: ChildProcess | null = null;
   private nextId = 1;
   private pending = new Map<number, PendingRequest>();
-  private buffer = "";
-  private contentLength = -1;
+  private parser = new FramingParser();
   private initialized = false;
   private initializing: Promise<void> | null = null;
   private rootUri: string;
@@ -171,8 +171,7 @@ export class PyrightClient {
     }
     this.process = null;
     this.initialized = false;
-    this.buffer = "";
-    this.contentLength = -1;
+    this.parser.reset();
     this.pending.clear();
   }
 
@@ -239,87 +238,62 @@ export class PyrightClient {
     const id = this.nextId++;
     const message: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
     const body = JSON.stringify(message);
-    const header = `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n`;
 
     return new Promise<unknown>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.process?.stdin?.write(header + body);
+      this.process?.stdin?.write(frameMessage(body));
     });
   }
 
   private sendResponse(id: number, result: unknown): void {
     const message = { jsonrpc: "2.0", id, result };
     const body = JSON.stringify(message);
-    const header = `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n`;
-    this.process?.stdin?.write(header + body);
+    this.process?.stdin?.write(frameMessage(body));
   }
 
   private sendNotification(method: string, params: unknown): void {
     const message: JsonRpcNotification = { jsonrpc: "2.0", method, params };
     const body = JSON.stringify(message);
-    const header = `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n`;
-    this.process?.stdin?.write(header + body);
+    this.process?.stdin?.write(frameMessage(body));
   }
 
   private handleData(data: string): void {
-    this.buffer += data;
-    this.tryParse();
+    const messages = this.parser.feed(data);
+    for (const bodyStr of messages) {
+      this.dispatch(bodyStr);
+    }
   }
 
-  private tryParse(): void {
-    while (true) {
-      if (this.contentLength === -1) {
-        const headerEnd = this.buffer.indexOf("\r\n\r\n");
-        if (headerEnd === -1) return;
-        const header = this.buffer.slice(0, headerEnd);
-        const match = /Content-Length:\s*(\d+)/i.exec(header);
-        if (!match) {
-          // Skip malformed header
-          this.buffer = this.buffer.slice(headerEnd + 4);
-          continue;
-        }
-        this.contentLength = parseInt(match[1] ?? "0", 10);
-        this.buffer = this.buffer.slice(headerEnd + 4);
-      }
+  private dispatch(bodyStr: string): void {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(bodyStr) as Record<string, unknown>;
+    } catch {
+      return;
+    }
 
-      if (Buffer.byteLength(this.buffer) < this.contentLength) return;
+    // Server-to-client request (has id + method) — respond with empty result
+    if ("method" in parsed && "id" in parsed && parsed["id"] != null) {
+      this.sendResponse(parsed["id"] as number, null);
+      return;
+    }
 
-      // Extract exactly contentLength bytes
-      const buf = Buffer.from(this.buffer);
-      const bodyStr = buf.subarray(0, this.contentLength).toString();
-      this.buffer = buf.subarray(this.contentLength).toString();
-      this.contentLength = -1;
+    // Notification (has method, no id) — ignore
+    if ("method" in parsed) return;
 
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(bodyStr) as Record<string, unknown>;
-      } catch {
-        continue;
-      }
+    // Response (has id, no method)
+    const id = parsed["id"] as number | undefined;
+    if (id === undefined || id === null) return;
 
-      // Server-to-client request (has id + method) — respond with empty result
-      if ("method" in parsed && "id" in parsed && parsed["id"] != null) {
-        this.sendResponse(parsed["id"] as number, null);
-        continue;
-      }
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
 
-      // Notification (has method, no id) — ignore
-      if ("method" in parsed) continue;
-
-      // Response (has id, no method)
-      const id = parsed["id"] as number | undefined;
-      if (id === undefined || id === null) continue;
-
-      const pending = this.pending.get(id);
-      if (!pending) continue;
-      this.pending.delete(id);
-
-      if (parsed["error"]) {
-        const err = parsed["error"] as { code: number; message: string };
-        pending.reject(new Error(`LSP error ${err.code}: ${err.message}`));
-      } else {
-        pending.resolve(parsed["result"]);
-      }
+    if (parsed["error"]) {
+      const err = parsed["error"] as { code: number; message: string };
+      pending.reject(new Error(`LSP error ${err.code}: ${err.message}`));
+    } else {
+      pending.resolve(parsed["result"]);
     }
   }
 }

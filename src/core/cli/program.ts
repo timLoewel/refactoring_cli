@@ -9,6 +9,7 @@ import { createReferencesCommand } from "./commands/references.js";
 import { createUnusedCommand } from "./commands/unused.js";
 import { createFixImportsCommand } from "./commands/fix-imports.js";
 import { createHelpCommand } from "./commands/help.js";
+import { createServeCommand } from "./commands/serve.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -35,6 +36,7 @@ export function createProgram(): Command {
   program.addCommand(createUnusedCommand());
   program.addCommand(createFixImportsCommand());
   program.addCommand(createHelpCommand());
+  program.addCommand(createServeCommand());
 
   program.on("command:*", (operands: string[]) => {
     const isJson = program.opts<{ json?: boolean }>().json ?? false;
