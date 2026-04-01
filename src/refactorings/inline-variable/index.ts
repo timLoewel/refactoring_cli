@@ -28,6 +28,25 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
     const initializer = decl.getInitializer();
     if (!initializer) {
       errors.push(`Variable '${target}' has no initializer and cannot be inlined`);
+      return { ok: false, errors };
+    }
+
+    // Refuse to inline a side-effect initializer (call expression) used more than once,
+    // as that would change how many times the function is called.
+    const hasSideEffect = initializer.getDescendantsOfKind(SyntaxKind.CallExpression).length > 0;
+    if (hasSideEffect) {
+      const refCount = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
+        if (id.getText() !== target) return false;
+        const parent = id.getParent();
+        return parent && !(Node.isVariableDeclaration(parent) && parent.getNameNode() === id);
+      }).length;
+      if (refCount > 1) {
+        errors.push(
+          `Variable '${target}' has a side-effect initializer and is used ${refCount} times. ` +
+            `Inlining would change how many times the function is called. ` +
+            `Inline manually or ensure the initializer is pure.`,
+        );
+      }
     }
 
     return { ok: errors.length === 0, errors };
@@ -59,49 +78,47 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
     }
 
     const initText = initializer.getText();
+    // Wrap in parens if initializer is a complex expression that could change
+    // semantics when inlined into a surrounding expression (e.g. `a + b` inlined
+    // into `sum * 2` would give `a + b * 2` without parens).
+    const needsParens =
+      Node.isBinaryExpression(initializer) || Node.isConditionalExpression(initializer);
+    const inlineText = needsParens ? `(${initText})` : initText;
 
     // Find all identifier references to this variable (excluding the declaration itself)
-    const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
-      if (id.getText() !== target) return false;
-      const parent = id.getParent();
-      if (!parent) return false;
-      // Exclude the declaration name itself
-      if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
-      return true;
-    });
+    const refPositions = sf
+      .getDescendantsOfKind(SyntaxKind.Identifier)
+      .filter((id) => {
+        if (id.getText() !== target) return false;
+        const parent = id.getParent();
+        if (!parent) return false;
+        // Exclude the declaration name itself
+        if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+        return true;
+      })
+      .map((id) => id.getStart())
+      .sort((a, b) => b - a); // reverse order so later replacements don't shift earlier positions
 
-    // Replace in reverse order to preserve positions
-    const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());
-    for (const ref of sorted) {
-      ref.replaceWithText(initText);
-    }
-
-    // Remove the variable declaration statement
-    const declStatement = decl.getParent();
-    if (!declStatement) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Could not locate declaration statement for '${target}'`,
-      };
-    }
-    const declStatementParent = declStatement.getParent();
-    if (!declStatementParent) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Could not locate parent of declaration statement for '${target}'`,
-      };
-    }
-
-    if (Node.isVariableDeclarationList(declStatement)) {
-      const list = declStatement;
-      const listParent = list.getParent();
-      if (listParent && Node.isVariableStatement(listParent)) {
-        listParent.remove();
+    // Replace references by re-finding each by position (stable across mutations)
+    for (const pos of refPositions) {
+      const id = sf.getDescendantAtPos(pos);
+      if (id && Node.isIdentifier(id) && id.getText() === target) {
+        id.replaceWithText(inlineText);
       }
-    } else if (Node.isVariableStatement(declStatement)) {
-      declStatement.remove();
+    }
+
+    // Re-find the declaration after mutations (original node may be stale)
+    const freshDecl = sf
+      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+      .find((d) => d.getName() === target);
+    if (freshDecl) {
+      const list = freshDecl.getParent();
+      if (list && Node.isVariableDeclarationList(list)) {
+        const stmt = list.getParent();
+        if (stmt && Node.isVariableStatement(stmt)) {
+          stmt.remove();
+        }
+      }
     }
 
     return {

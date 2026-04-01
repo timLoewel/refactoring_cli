@@ -19,7 +19,7 @@
 
 ## 2. Inline Variable (TDD)
 
-- [ ] 2.1 Write fixtures:
+- [x] 2.1 Write fixtures:
   - `used-multiple-times.fixture.ts` — variable used N times, all replaced
   - `operator-precedence.fixture.ts` — `const sum = a + b; sum * 2` → needs `(a + b) * 2`
   - `side-effect-initializer.fixture.ts` — `getRandom()` initializer, used 2×
@@ -28,10 +28,10 @@
   - `let-variable.fixture.ts` — `let` declaration
   - `computed-initializer.fixture.ts` — `part / total` inlined into `.toFixed()` chain
   - `in-condition.fixture.ts` — inlined into if condition
-- [ ] 2.2 Run tests — expected failures: operator-precedence (wrapping bug), side-effect (semantic change)
-- [ ] 2.3 Fix: wrap initializer in parens when inlining into higher-precedence context
-- [ ] 2.4 Fix: add precondition/warning when initializer has side effects and used > once
-- [ ] 2.5 All fixtures pass; commit
+- [x] 2.2 Run tests — expected failures: operator-precedence (wrapping bug), side-effect (semantic change)
+- [x] 2.3 Fix: wrap initializer in parens when inlining into higher-precedence context
+- [x] 2.4 Fix: add precondition/warning when initializer has side effects and used > once
+- [x] 2.5 All fixtures pass; commit
 
 ## 3. Extract Variable (TDD)
 
