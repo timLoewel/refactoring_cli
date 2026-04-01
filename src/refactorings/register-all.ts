@@ -139,3 +139,6 @@ import "./replace-conditional-with-polymorphism/python.js";
 import "./replace-loop-with-pipeline/python.js";
 import "./change-reference-to-value/python.js";
 import "./change-value-to-reference/python.js";
+import "./replace-derived-variable-with-query/python.js";
+import "./remove-setting-method/python.js";
+import "./split-phase/python.js";

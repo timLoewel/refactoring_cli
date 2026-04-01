@@ -533,19 +533,19 @@ Each: idiom-specific fixtures. TDD cycle per refactoring.
   - typed — type annotations preserved
   - registry — Python pattern: module-level registry dict or `functools.lru_cache` for instance sharing
 
-- [ ] 10.4 `replace-derived-variable-with-query`
+- [x] 10.4 `replace-derived-variable-with-query`
   - basic — cached computed value → `@property`
   - cached-property — cached computed value → `@cached_property` (Python 3.8+)
   - typed — property needs return type annotation
   - slots — class uses `__slots__`; `@cached_property` needs `__dict__` in slots or won't work
 
-- [ ] 10.5 `remove-setting-method`
+- [x] 10.5 `remove-setting-method`
   - basic — remove setter, assign only in `__init__`
   - property-readonly — remove `@x.setter` from a `@property`, making it read-only
   - final-field — annotate field as `Final[int]` (from typing)
   - dataclass — dataclass field → `field(init=True)` with no setter (or `frozen=True` on class)
 
-- [ ] 10.6 `split-phase`
+- [x] 10.6 `split-phase`
   - basic — split a function into two sequential phases
   - typed — intermediate data structure between phases has type annotations
   - cross-file — intermediate data structure is a new dataclass in a new file
@@ -555,13 +555,13 @@ Each: idiom-specific fixtures. TDD cycle per refactoring.
 
 These edge cases affect many refactorings and should be tested once per affected category rather than in every single refactoring.
 
-- [ ] 11.1 `future-annotations` — test with `from __future__ import annotations` active for: extract-function, move-function, extract-class, pull-up-method (representative sample). Verify that string-ified annotations are handled correctly when moved.
-- [ ] 11.2 `type-checking-blocks` — test with `if TYPE_CHECKING:` imports for: move-function, extract-class, inline-class. Verify type-only imports land in `if TYPE_CHECKING:` block in target, not in runtime imports.
-- [ ] 11.3 `async-variants` — test async versions of: extract-function (→ `async def`), inline-function (preserve `await`), move-function (`async def` with `await`), substitute-algorithm (generator → async generator)
-- [ ] 11.4 `decorator-preservation` — test that decorators survive: move-function, pull-up-method, push-down-method, rename-field (property decorators). Decorators must move with the decorated item.
-- [ ] 11.5 `docstring-preservation` — test that docstrings survive: move-function, extract-function, pull-up-method, extract-class. Docstrings must remain as first statement of the moved item.
-- [ ] 11.6 `name-mangling` — test `__private` attribute handling for: rename-field, move-field, encapsulate-variable, pull-up-field. Verify both the declaration and all mangled access sites (`_ClassName__field`) are updated.
-- [ ] 11.7 `all-list-maintenance` — test `__all__` updates for: move-function, extract-class, inline-class, collapse-hierarchy, remove-subclass. Verify `__all__` is updated in both source and target modules.
+- [x] 11.1 `future-annotations` — test with `from __future__ import annotations` active for: extract-function, move-function, extract-class, pull-up-method (representative sample). Verify that string-ified annotations are handled correctly when moved.
+- [x] 11.2 `type-checking-blocks` — test with `if TYPE_CHECKING:` imports for: move-function, extract-class, inline-class. Verify type-only imports land in `if TYPE_CHECKING:` block in target, not in runtime imports.
+- [x] 11.3 `async-variants` — test async versions of: extract-function (→ `async def`), inline-function (preserve `await`), move-function (`async def` with `await`), substitute-algorithm (generator → async generator)
+- [x] 11.4 `decorator-preservation` — test that decorators survive: move-function, pull-up-method, push-down-method, rename-field (property decorators). Decorators must move with the decorated item.
+- [x] 11.5 `docstring-preservation` — test that docstrings survive: move-function, extract-function, pull-up-method, extract-class. Docstrings must remain as first statement of the moved item.
+- [x] 11.6 `name-mangling` — test `__private` attribute handling for: rename-field, move-field, encapsulate-variable, pull-up-field. Verify both the declaration and all mangled access sites (`_ClassName__field`) are updated.
+- [x] 11.7 `all-list-maintenance` — test `__all__` updates for: move-function, extract-class, inline-class, collapse-hierarchy, remove-subclass. Verify `__all__` is updated in both source and target modules.
 
 ## 12. Skipped refactorings (with rationale)
 
