@@ -49,7 +49,7 @@
 
 ## 4. Inline Function (TDD)
 
-- [ ] 4.1 Write fixtures:
+- [x] 4.1 Write fixtures:
   - `with-parameters.fixture.ts` — fn takes params, body uses them
   - `return-value-used.fixture.ts` — `const x = fn()`
   - `single-expression-arrow.fixture.ts` — arrow fn expression body
@@ -63,12 +63,12 @@
   - `function-expression.fixture.ts` — `const fn = function() {}`
   - `call-in-template.fixture.ts` — `` `${fn()}` ``
   - `call-in-conditional.fixture.ts` — `if (fn())`
-- [ ] 4.2 Fix: never remove function if any call site was not inlined
-- [ ] 4.3 Fix: parameter substitution (map param names → call argument texts)
-- [ ] 4.4 Fix: return value inlining (single `return <expr>` body → inline as expression)
-- [ ] 4.5 Fix: support arrow functions and function expressions (not just FunctionDeclaration)
-- [ ] 4.6 Fix: preconditions — recursive, generator, unhandleable call sites
-- [ ] 4.7 All fixtures pass; commit
+- [x] 4.2 Fix: never remove function if any call site was not inlined
+- [x] 4.3 Fix: parameter substitution (map param names → call argument texts)
+- [x] 4.4 Fix: return value inlining (single `return <expr>` body → inline as expression)
+- [x] 4.5 Fix: support arrow functions and function expressions (not just FunctionDeclaration)
+- [x] 4.6 Fix: preconditions — recursive, generator, unhandleable call sites
+- [x] 4.7 All fixtures pass; commit
 
 ## 5. Extract Function (TDD)
 

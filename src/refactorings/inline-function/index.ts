@@ -1,60 +1,267 @@
-import { SyntaxKind, Node } from "ts-morph";
-import type { Statement } from "ts-morph";
+import {
+  Node,
+  SyntaxKind,
+  type ArrowFunction,
+  type FunctionDeclaration,
+  type FunctionExpression,
+  type SourceFile,
+} from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { FunctionContext } from "../../core/refactoring.types.js";
+import type { SourceFileContext } from "../../core/refactoring.types.js";
 
-export const inlineFunction = defineRefactoring<FunctionContext>({
+type FunctionLike = FunctionDeclaration | ArrowFunction | FunctionExpression;
+
+interface FunctionInfo {
+  paramNames: string[];
+  paramDefaults: (string | undefined)[];
+  /** Non-null when body is a single expression (arrow function without block). */
+  bodyExpression: string | null;
+  /** Non-null when body is a block. */
+  bodyStatements: string[] | null;
+  /** Non-null when body is a block with exactly one `return <expr>` statement. */
+  singleReturnExpr: string | null;
+  isGenerator: boolean;
+  isAsync: boolean;
+  isRecursive: boolean;
+  remove: () => void;
+}
+
+function extractFunctionInfo(
+  fn: FunctionLike,
+  name: string,
+  isGenerator: boolean,
+  isAsync: boolean,
+  remove: () => void,
+): FunctionInfo {
+  const parameters = fn.getParameters();
+  const paramNames = parameters.map((p) => {
+    const n = p.getNameNode();
+    return Node.isIdentifier(n) ? n.getText() : "";
+  });
+  const paramDefaults = parameters.map((p) => p.getInitializer()?.getText());
+
+  const body = fn.getBody();
+
+  let bodyExpression: string | null = null;
+  let bodyStatements: string[] | null = null;
+  let singleReturnExpr: string | null = null;
+
+  if (body && !Node.isBlock(body)) {
+    // Arrow function expression body
+    bodyExpression = body.getText();
+  } else if (body && Node.isBlock(body)) {
+    const stmts = body.getStatements();
+    bodyStatements = stmts.map((s) => s.getText());
+    if (stmts.length === 1) {
+      const retExpr = stmts[0]?.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+      if (retExpr) singleReturnExpr = retExpr.getText();
+    }
+  }
+
+  const bodyText = bodyExpression ?? bodyStatements?.join("\n") ?? "";
+  const isRecursive = new RegExp(`\\b${name}\\b`).test(bodyText);
+
+  return {
+    paramNames,
+    paramDefaults,
+    bodyExpression,
+    bodyStatements,
+    singleReturnExpr,
+    isGenerator,
+    isAsync,
+    isRecursive,
+    remove,
+  };
+}
+
+function findFunction(sf: SourceFile, target: string): FunctionInfo | null {
+  // Try FunctionDeclaration
+  const funcDecl = sf
+    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+    .find((f) => f.getName() === target);
+  if (funcDecl) {
+    return extractFunctionInfo(funcDecl, target, funcDecl.isGenerator(), funcDecl.isAsync(), () =>
+      funcDecl.remove(),
+    );
+  }
+
+  // Try VariableDeclaration with ArrowFunction or FunctionExpression
+  const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration).find((d) => {
+    if (d.getName() !== target) return false;
+    const init = d.getInitializer();
+    return init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init));
+  });
+  if (varDecl) {
+    const init = varDecl.getInitializer();
+    if (!init || (!Node.isArrowFunction(init) && !Node.isFunctionExpression(init))) return null;
+    const fnLike = init as ArrowFunction | FunctionExpression;
+    const isAsync = fnLike.isAsync();
+    const isGenerator = Node.isFunctionExpression(fnLike) ? fnLike.isGenerator() : false;
+    const stmt = varDecl.getParent()?.getParent();
+    return extractFunctionInfo(fnLike, target, isGenerator, isAsync, () => {
+      if (stmt && Node.isVariableStatement(stmt)) stmt.remove();
+    });
+  }
+
+  return null;
+}
+
+function substituteParams(
+  text: string,
+  paramNames: string[],
+  args: string[],
+  defaults: (string | undefined)[],
+): string {
+  let result = text;
+  for (let i = 0; i < paramNames.length; i++) {
+    const argText = i < args.length ? args[i] : (defaults[i] ?? "undefined");
+    result = result.replace(new RegExp(`\\b${paramNames[i]}\\b`, "g"), argText);
+  }
+  return result;
+}
+
+function canInlineAsExpression(info: FunctionInfo): boolean {
+  return info.bodyExpression !== null || info.singleReturnExpr !== null;
+}
+
+function getInlineExpression(info: FunctionInfo, args: string[]): string {
+  const expr = info.bodyExpression ?? info.singleReturnExpr ?? "";
+  return substituteParams(expr, info.paramNames, args, info.paramDefaults);
+}
+
+export const inlineFunction = defineRefactoring<SourceFileContext>({
   name: "Inline Function",
   kebabName: "inline-function",
   tier: 2,
   description:
     "Replaces all call sites of a function with the function's body and removes the declaration.",
   params: [param.file(), param.identifier("target", "Name of the function to inline")],
-  resolve: (project, params) =>
-    resolve.function(project, params as { file: string; target: string }),
-  preconditions(): PreconditionResult {
-    return { ok: true, errors: [] };
+  resolve: (project, params) => resolve.sourceFile(project, params as { file: string }),
+  preconditions(ctx: SourceFileContext, params: Record<string, unknown>): PreconditionResult {
+    const errors: string[] = [];
+    const sf = ctx.sourceFile;
+    const target = params["target"] as string;
+
+    const info = findFunction(sf, target);
+    if (!info) {
+      errors.push(`Function '${target}' not found in file`);
+      return { ok: false, errors };
+    }
+
+    if (info.isGenerator) {
+      errors.push(`Function '${target}' is a generator and cannot be inlined`);
+    }
+
+    if (info.isRecursive) {
+      errors.push(`Function '${target}' is recursive and cannot be inlined`);
+    }
+
+    if (errors.length > 0) return { ok: false, errors };
+
+    // Collect direct call positions
+    const directCallPositions = new Set(
+      sf
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter((c) => {
+          const expr = c.getExpression();
+          return Node.isIdentifier(expr) && expr.getText() === target;
+        })
+        .map((c) => c.getExpression().getStart()),
+    );
+
+    // Check for non-direct-call usages (method calls, passed as value, etc.)
+    const allUsages = sf
+      .getDescendantsOfKind(SyntaxKind.Identifier)
+      .filter((id) => id.getText() === target);
+    for (const id of allUsages) {
+      const parent = id.getParent();
+      // Skip the function's own name node in its declaration
+      if (
+        parent &&
+        (Node.isFunctionDeclaration(parent) ||
+          Node.isVariableDeclaration(parent) ||
+          Node.isFunctionExpression(parent) ||
+          Node.isArrowFunction(parent))
+      ) {
+        continue;
+      }
+      if (!directCallPositions.has(id.getStart())) {
+        errors.push(
+          `Function '${target}' is used in a non-call context (e.g., passed as value or ` +
+            `accessed as method). All usages must be direct calls to inline.`,
+        );
+        break;
+      }
+    }
+
+    if (errors.length > 0) return { ok: false, errors };
+
+    // For multi-statement bodies, only ExpressionStatement call sites can be inlined
+    if (!canInlineAsExpression(info)) {
+      const callSites = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+        const expr = c.getExpression();
+        return Node.isIdentifier(expr) && expr.getText() === target;
+      });
+      for (const call of callSites) {
+        if (!Node.isExpressionStatement(call.getParent())) {
+          errors.push(
+            `Function '${target}' has a multi-statement body and is called in an expression ` +
+              `position. Can only inline void functions called as standalone statements.`,
+          );
+          break;
+        }
+      }
+    }
+
+    return { ok: errors.length === 0, errors };
   },
-  apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
+  apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
     const sf = ctx.sourceFile;
     const file = params["file"] as string;
     const target = params["target"] as string;
-    const { fn, body } = ctx;
 
-    // Get body statements as text (strip outer braces)
-    const bodyStatements: Statement[] = Node.isBlock(body) ? body.getStatements() : [];
-    const bodyText = bodyStatements.map((s: Statement) => s.getText()).join("\n");
-
-    // Replace call expressions matching the target function
-    const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
-      const expr = c.getExpression();
-      return expr.getText() === target;
-    });
-
-    // Replace each call site's expression statement with the inlined body
-    const callStatements = calls
-      .map((c) => {
-        const parent = c.getParent();
-        if (parent && SyntaxKind[parent.getKind()] === "ExpressionStatement") {
-          return parent;
-        }
-        return null;
-      })
-      .filter((s): s is NonNullable<typeof s> => s !== null);
-
-    const sorted = [...callStatements].sort((a, b) => b.getStart() - a.getStart());
-    for (const stmt of sorted) {
-      stmt.replaceWithText(bodyText);
+    const info = findFunction(sf, target);
+    if (!info) {
+      return { success: false, filesChanged: [], description: `Function '${target}' not found` };
     }
 
-    // Remove the function declaration
-    fn.remove();
+    const callSites = sf
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .filter((c) => {
+        const expr = c.getExpression();
+        return Node.isIdentifier(expr) && expr.getText() === target;
+      })
+      .sort((a, b) => b.getStart() - a.getStart());
+
+    if (canInlineAsExpression(info)) {
+      // Replace each CallExpression node with the inlined expression
+      for (const call of callSites) {
+        const args = call.getArguments().map((a) => a.getText());
+        call.replaceWithText(getInlineExpression(info, args));
+      }
+    } else {
+      // Multi-statement void body: replace the parent ExpressionStatement
+      const bodyStatements = info.bodyStatements ?? [];
+      for (const call of callSites) {
+        const callParent = call.getParent();
+        if (!callParent || !Node.isExpressionStatement(callParent)) continue;
+        const args = call.getArguments().map((a) => a.getText());
+        const inlined = bodyStatements
+          .map((s) => substituteParams(s, info.paramNames, args, info.paramDefaults))
+          .join("\n");
+        callParent.replaceWithText(inlined);
+      }
+    }
+
+    // Re-find the function after mutations (original closure may be stale)
+    const freshInfo = findFunction(sf, target);
+    if (freshInfo) freshInfo.remove();
 
     return {
       success: true,
       filesChanged: [file],
-      description: `Inlined function '${target}' at ${sorted.length} call site(s)`,
+      description: `Inlined function '${target}' at ${callSites.length} call site(s)`,
     };
   },
 });
