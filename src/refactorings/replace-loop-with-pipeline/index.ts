@@ -52,8 +52,9 @@ function tryBuildFilterReplacement(
   const pushMatch = pushText.match(/^(\w+)\.push\((.+)\);?$/s);
   if (!pushMatch) return null;
 
-  const arrayName = pushMatch[1]!;
-  const mappedExpr = pushMatch[2]!;
+  const arrayName = pushMatch[1];
+  const mappedExpr = pushMatch[2];
+  if (arrayName === undefined || mappedExpr === undefined) return null;
   const condText = ifStmt.getExpression().getText();
 
   if (mappedExpr.trim() === varName) {
@@ -86,10 +87,7 @@ function hasBreakOrContinue(body: Node): boolean {
   );
 }
 
-function findPrecedingEmptyArrayDecl(
-  loop: Node,
-  arrayName: string,
-): VariableStatement | undefined {
+function findPrecedingEmptyArrayDecl(loop: Node, arrayName: string): VariableStatement | undefined {
   const parent = loop.getParent();
   if (!parent) return undefined;
 
@@ -207,7 +205,10 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
     if (replacement.startsWith("const ")) {
       const nameMatch = replacement.match(/^const\s+(\w+)\s*=/);
       if (nameMatch) {
-        precedingDecl = findPrecedingEmptyArrayDecl(loop, nameMatch[1]!);
+        const declName = nameMatch[1];
+        if (declName) {
+          precedingDecl = findPrecedingEmptyArrayDecl(loop, declName);
+        }
       }
     }
 
