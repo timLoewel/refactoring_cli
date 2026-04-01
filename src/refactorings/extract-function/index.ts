@@ -29,7 +29,11 @@ function findTargetStatements(
   const inRange = (s: Statement): boolean =>
     s.getStartLineNumber() >= startLine && s.getEndLineNumber() <= endLine;
 
-  type Candidate = { stmts: Statement[]; container: StatementsContainer; span: number };
+  interface Candidate {
+    stmts: Statement[];
+    container: StatementsContainer;
+    span: number;
+  }
   const candidates: Candidate[] = [];
 
   const sfStmts = sf.getStatements().filter(inRange);
@@ -87,7 +91,7 @@ function findOuterScopeParams(
   sf: SourceFile,
   startLine: number,
   endLine: number,
-): Array<{ name: string; type: string }> {
+): { name: string; type: string }[] {
   const result = new Map<string, string>();
 
   for (const stmt of stmts) {
@@ -117,14 +121,13 @@ function findOuterScopeParams(
       const firstDecl = sfDecls[0];
       if (!firstDecl) continue;
 
-      let typeStr = "unknown";
+      let typeStr: string;
       if (Node.isVariableDeclaration(firstDecl)) {
         typeStr = getParamType(firstDecl);
       } else if (Node.isParameter(firstDecl)) {
         typeStr = getParamType(firstDecl);
       } else {
-        const typeNode = firstDecl.getType();
-        typeStr = typeNode.getText();
+        typeStr = firstDecl.getType().getText();
       }
 
       result.set(varName, typeStr);
@@ -138,11 +141,7 @@ function findOuterScopeParams(
  * Find variables declared in the extraction range that are referenced AFTER it.
  * These must be returned from the extracted function.
  */
-function findEscapingDeclarations(
-  stmts: Statement[],
-  sf: SourceFile,
-  endLine: number,
-): string[] {
+function findEscapingDeclarations(stmts: Statement[], sf: SourceFile, endLine: number): string[] {
   const escaping: string[] = [];
 
   for (const stmt of stmts) {
@@ -212,16 +211,18 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
           // Only bare break (no label, no enclosing loop within the range)
           return (
             !b.getLabel() &&
-            b.getAncestors().every(
-              (a) =>
-                a === stmt ||
-                (!Node.isForStatement(a) &&
-                  !Node.isForOfStatement(a) &&
-                  !Node.isForInStatement(a) &&
-                  !Node.isWhileStatement(a) &&
-                  !Node.isDoStatement(a) &&
-                  !Node.isSwitchStatement(a)),
-            )
+            b
+              .getAncestors()
+              .every(
+                (a) =>
+                  a === stmt ||
+                  (!Node.isForStatement(a) &&
+                    !Node.isForOfStatement(a) &&
+                    !Node.isForInStatement(a) &&
+                    !Node.isWhileStatement(a) &&
+                    !Node.isDoStatement(a) &&
+                    !Node.isSwitchStatement(a)),
+              )
           );
         });
         if (hasBreak) {
@@ -231,21 +232,21 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
         const hasContinue = stmt.getDescendantsOfKind(SyntaxKind.ContinueStatement).some((c) => {
           return (
             !c.getLabel() &&
-            c.getAncestors().every(
-              (a) =>
-                a === stmt ||
-                (!Node.isForStatement(a) &&
-                  !Node.isForOfStatement(a) &&
-                  !Node.isForInStatement(a) &&
-                  !Node.isWhileStatement(a) &&
-                  !Node.isDoStatement(a)),
-            )
+            c
+              .getAncestors()
+              .every(
+                (a) =>
+                  a === stmt ||
+                  (!Node.isForStatement(a) &&
+                    !Node.isForOfStatement(a) &&
+                    !Node.isForInStatement(a) &&
+                    !Node.isWhileStatement(a) &&
+                    !Node.isDoStatement(a)),
+              )
           );
         });
         if (hasContinue) {
-          errors.push(
-            "Cannot extract: selection contains a 'continue' that exits an outer loop",
-          );
+          errors.push("Cannot extract: selection contains a 'continue' that exits an outer loop");
         }
       }
     }

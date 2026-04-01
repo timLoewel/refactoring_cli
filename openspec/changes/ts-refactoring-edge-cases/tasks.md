@@ -122,7 +122,7 @@
 
 ## 8. Move Function (TDD)
 
-- [ ] 8.1 Write multi-file fixtures:
+- [x] 8.1 Write multi-file fixtures:
   - `no-deps/` — zero-dependency move (validate multi-file infra)
   - `carries-imports/` — fn uses imported symbol
   - `consumer-updates/` — other files import the moved fn
@@ -133,11 +133,11 @@
   - `namespace-import/` — fn uses `import * as ns`
   - `overloaded/` — overload signatures move together
   - `arrow-function/` — const arrow fn (refusal or support)
-- [ ] 8.2 Fix: import analysis + carrying to destination
-- [ ] 8.3 Fix: consumer import rewriting
-- [ ] 8.4 Fix: export preservation, local reference handling
-- [ ] 8.5 Fix: overload support, JSDoc via getFullText()
-- [ ] 8.6 All fixtures pass; commit
+- [x] 8.2 Fix: import analysis + carrying to destination
+- [x] 8.3 Fix: consumer import rewriting
+- [x] 8.4 Fix: export preservation, local reference handling
+- [x] 8.5 Fix: overload support, JSDoc via getFullText()
+- [x] 8.6 All fixtures pass; commit
 
 ## 9. Change Function Declaration (TDD)
 
