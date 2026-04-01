@@ -46,7 +46,7 @@
     "*.ts": [
       "eslint --fix --no-warn-ignored",
       "prettier --write",
-      "node --experimental-vm-modules node_modules/.bin/jest --findRelatedTests --passWithNoTests"
+      "node --experimental-vm-modules node_modules/.bin/jest --findRelatedTests --passWithNoTests --forceExit"
     ]
   },
   "dependencies": {

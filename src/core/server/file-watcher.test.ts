@@ -65,6 +65,18 @@ function readResponse(
   });
 }
 
+async function shutdownDaemon(
+  socket: ReturnType<typeof connect>,
+  parser: FramingParser,
+  sendRequest: (method: string, params: Record<string, unknown>) => number,
+): Promise<void> {
+  sendRequest("shutdown", {});
+  await readResponse(socket, parser);
+  socket.destroy();
+  // Wait for server to fully close
+  await new Promise((r) => setTimeout(r, 100));
+}
+
 describe("file-watcher integration", () => {
   let tmpDir: string;
 
@@ -84,13 +96,17 @@ describe("file-watcher integration", () => {
 
     sendRequest("status", {});
     const response = await readResponse(socket, parser);
-    const result = response["result"] as { watching: boolean; pendingRefresh: boolean; pendingFiles: number };
+    const result = response["result"] as {
+      watching: boolean;
+      pendingRefresh: boolean;
+      pendingFiles: number;
+    };
 
     expect(result.watching).toBe(true);
     expect(result.pendingRefresh).toBe(false);
     expect(result.pendingFiles).toBe(0);
 
-    socket.end();
+    await shutdownDaemon(socket, parser, sendRequest);
   }, 15000);
 
   it("detects externally modified file and refreshes model", async () => {
@@ -118,7 +134,7 @@ describe("file-watcher integration", () => {
     const result = response["result"] as { success: boolean };
     expect(result.success).toBe(true);
 
-    socket.end();
+    await shutdownDaemon(socket, parser, sendRequest);
   }, 15000);
 
   it("detects new file creation and adds to project", async () => {
@@ -127,10 +143,7 @@ describe("file-watcher integration", () => {
     const { socket, parser, sendRequest } = await connectAndInit(data.port, data.token);
 
     // Create a new file
-    writeFileSync(
-      join(tmpDir, "src", "newfile.ts"),
-      'const fresh = "new";\nexport { fresh };\n',
-    );
+    writeFileSync(join(tmpDir, "src", "newfile.ts"), 'const fresh = "new";\nexport { fresh };\n');
 
     // Wait for debounce
     await new Promise((r) => setTimeout(r, 300));
@@ -146,15 +159,12 @@ describe("file-watcher integration", () => {
     const result = response["result"] as { success: boolean };
     expect(result.success).toBe(true);
 
-    socket.end();
+    await shutdownDaemon(socket, parser, sendRequest);
   }, 15000);
 
   it("detects file deletion and removes from project", async () => {
     // Add a second file so we have something to delete
-    writeFileSync(
-      join(tmpDir, "src", "todelete.ts"),
-      'export const temp = 1;\n',
-    );
+    writeFileSync(join(tmpDir, "src", "todelete.ts"), "export const temp = 1;\n");
 
     await startDaemon(tmpDir);
     const data = portfile.read(tmpDir) as portfile.PortfileData;
@@ -175,7 +185,7 @@ describe("file-watcher integration", () => {
     const response = await readResponse(socket, parser);
     expect(response["error"]).toBeDefined();
 
-    socket.end();
+    await shutdownDaemon(socket, parser, sendRequest);
   }, 15000);
 
   it("status shows pending during debounce window", async () => {
@@ -184,17 +194,18 @@ describe("file-watcher integration", () => {
     const { socket, parser, sendRequest } = await connectAndInit(data.port, data.token);
 
     // Modify file and immediately check status (before debounce flushes)
-    writeFileSync(
-      join(tmpDir, "src", "index.ts"),
-      'const quick = "change";\nexport { quick };\n',
-    );
+    writeFileSync(join(tmpDir, "src", "index.ts"), 'const quick = "change";\nexport { quick };\n');
 
     // Small delay to let fs.watch fire but not enough for debounce
     await new Promise((r) => setTimeout(r, 30));
 
     sendRequest("status", {});
     const response = await readResponse(socket, parser);
-    const result = response["result"] as { watching: boolean; pendingRefresh: boolean; pendingFiles: number };
+    const result = response["result"] as {
+      watching: boolean;
+      pendingRefresh: boolean;
+      pendingFiles: number;
+    };
 
     expect(result.watching).toBe(true);
     // pendingRefresh may or may not be true depending on timing —
@@ -205,6 +216,6 @@ describe("file-watcher integration", () => {
     // Wait for debounce to complete before cleanup
     await new Promise((r) => setTimeout(r, 200));
 
-    socket.end();
+    await shutdownDaemon(socket, parser, sendRequest);
   }, 15000);
 });
