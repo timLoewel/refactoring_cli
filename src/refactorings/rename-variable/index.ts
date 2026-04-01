@@ -1,7 +1,29 @@
+import type { SourceFile } from "ts-morph";
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+function findNameNode(sf: SourceFile, target: string): Node | undefined {
+  const varDecl = sf
+    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+    .find((d) => d.getName() === target);
+  if (varDecl) {
+    const nameNode = varDecl.getNameNode();
+    return Node.isIdentifier(nameNode) ? nameNode : undefined;
+  }
+
+  const paramDecl = sf.getDescendantsOfKind(SyntaxKind.Parameter).find((p) => {
+    const n = p.getNameNode();
+    return Node.isIdentifier(n) && n.getText() === target;
+  });
+  if (paramDecl) {
+    const nameNode = paramDecl.getNameNode();
+    return Node.isIdentifier(nameNode) ? nameNode : undefined;
+  }
+
+  return undefined;
+}
 
 export const renameVariable = defineRefactoring<SourceFileContext>({
   name: "Rename Variable",
@@ -21,11 +43,7 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
     const target = params["target"] as string;
     const name = params["name"] as string;
 
-    const decl = sf
-      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-      .find((d) => d.getName() === target);
-
-    if (!decl) {
+    if (!findNameNode(sf, target)) {
       errors.push(`Variable '${target}' not found in file`);
     }
 
@@ -41,11 +59,9 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
     const target = params["target"] as string;
     const name = params["name"] as string;
 
-    const decl = sf
-      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-      .find((d) => d.getName() === target);
+    const nameNode = findNameNode(sf, target);
 
-    if (!decl) {
+    if (!nameNode) {
       return {
         success: false,
         filesChanged: [],
@@ -53,17 +69,6 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // ts-morph rename propagates to all references in scope.
-    // getNameNode() returns BindingName which may be a destructuring pattern;
-    // we only support simple identifier declarations.
-    const nameNode = decl.getNameNode();
-    if (!Node.isIdentifier(nameNode)) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Variable '${target}' uses destructuring and cannot be renamed with this refactoring`,
-      };
-    }
     nameNode.rename(name);
 
     return {
