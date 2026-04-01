@@ -1,15 +1,19 @@
-import { Node } from "ts-morph";
-import type { Statement } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
+import type { SourceFile, Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
-function findStatementAtLine(statements: Statement[], line: number): Statement | undefined {
-  return statements.find((s) => {
-    const sf = s.getSourceFile();
-    const lineAndCol = sf.getLineAndColumnAtPos(s.getStart());
-    return lineAndCol.line === line;
-  });
+function findStatementAtLine(sf: SourceFile, line: number): Statement | undefined {
+  for (const s of sf.getStatements()) {
+    if (sf.getLineAndColumnAtPos(s.getStart()).line === line) return s;
+  }
+  for (const block of sf.getDescendantsOfKind(SyntaxKind.Block)) {
+    for (const s of block.getStatements()) {
+      if (sf.getLineAndColumnAtPos(s.getStart()).line === line) return s;
+    }
+  }
+  return undefined;
 }
 
 interface MoveResult {
@@ -68,9 +72,7 @@ export const slideStatements = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
-    const allStatements = sf.getStatements();
-
-    const targetStmt = findStatementAtLine(allStatements, target);
+    const targetStmt = findStatementAtLine(sf, target);
     if (!targetStmt) {
       errors.push(
         `No statement found starting at line ${target} in file: ${params["file"] as string}`,
@@ -78,7 +80,7 @@ export const slideStatements = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
-    const destStmt = findStatementAtLine(allStatements, destination);
+    const destStmt = findStatementAtLine(sf, destination);
     if (!destStmt) {
       errors.push(
         `No statement found starting at line ${destination} in file: ${params["file"] as string}`,
@@ -93,8 +95,7 @@ export const slideStatements = defineRefactoring<SourceFileContext>({
     const target = params["target"] as number;
     const destination = params["destination"] as number;
 
-    const allStatements = sf.getStatements();
-    const targetStmt = findStatementAtLine(allStatements, target);
+    const targetStmt = findStatementAtLine(sf, target);
     if (!targetStmt) {
       return {
         success: false,
@@ -103,7 +104,7 @@ export const slideStatements = defineRefactoring<SourceFileContext>({
       };
     }
 
-    const destStmt = findStatementAtLine(allStatements, destination);
+    const destStmt = findStatementAtLine(sf, destination);
     if (!destStmt) {
       return {
         success: false,

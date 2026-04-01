@@ -148,16 +148,16 @@
   - `recursive-function.fixture.ts` — function calls itself, recursive call updated
   - `shadowed-name.fixture.ts` — another function/variable has same name in inner scope
 - [x] 9.2 Fix or document: arrow function support
-- [ ] 9.3 Commit
+- [x] 9.3 Commit
 
 ## 10. Slide Statements (TDD)
 
-- [ ] 10.1 Write fixtures:
+- [x] 10.1 Write fixtures:
   - `move-forward.fixture.ts` — move statement to earlier position
   - `move-backward.fixture.ts` — move statement to later position
   - `inside-function-body.fixture.ts` — move within function body (not top-level)
   - `dependency-violation.fixture.ts` — move past a dependency (document behavior)
-- [ ] 10.2 Fix: `findStatementAtLine` should work inside function bodies, not just top-level
+- [x] 10.2 Fix: `findStatementAtLine` should work inside function bodies, not just top-level
 - [ ] 10.3 Commit
 
 ## 11. Split Variable (TDD)
