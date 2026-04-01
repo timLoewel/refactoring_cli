@@ -91,7 +91,7 @@
 
 ## 6. Replace Temp With Query (TDD)
 
-- [ ] 6.1 Write fixtures:
+- [x] 6.1 Write fixtures:
   - `string-type.fixture.ts` — string initializer → `(): string`
   - `boolean-type.fixture.ts` — boolean initializer → `(): boolean`
   - `numeric-type.fixture.ts` — number initializer (existing behavior)
@@ -99,10 +99,10 @@
   - `multiple-references.fixture.ts` — temp used twice
   - `in-class-method.fixture.ts` — temp inside a method
   - `with-outer-scope-reference.fixture.ts` — initializer uses outer-scope vars
-- [ ] 6.2 Fix: return type inference (use ts-morph type checker, not hardcoded `number`)
-- [ ] 6.3 Fix: outer scope variables → parameters (same as extract-function)
-- [ ] 6.4 Fix: update call sites when parameters are added
-- [ ] 6.5 All fixtures pass; commit
+- [x] 6.2 Fix: return type inference (use ts-morph type checker, not hardcoded `number`)
+- [x] 6.3 Fix: outer scope variables → parameters (same as extract-function)
+- [x] 6.4 Fix: update call sites when parameters are added
+- [x] 6.5 All fixtures pass; commit
 
 ## 7. Replace Loop With Pipeline (TDD)
 

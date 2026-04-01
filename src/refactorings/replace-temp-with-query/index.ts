@@ -1,7 +1,100 @@
 import { Node, SyntaxKind } from "ts-morph";
+import type { Identifier, ParameterDeclaration, SourceFile, VariableDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+/** True if the identifier is used as a value, not as a property/declaration name. */
+function isValueReference(id: Identifier): boolean {
+  const parent = id.getParent();
+  if (!parent) return false;
+  if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) return false;
+  if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+  if (Node.isBindingElement(parent) && parent.getNameNode() === id) return false;
+  if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) return false;
+  if (Node.isMethodDeclaration(parent) && parent.getNameNode() === id) return false;
+  return true;
+}
+
+/** Get a type string, widening literal types to their base. */
+function getWidenedType(decl: VariableDeclaration | ParameterDeclaration): string {
+  const typeNode = decl.getTypeNode();
+  if (typeNode) return typeNode.getText();
+  const t = decl.getType();
+  if (t.isStringLiteral()) return "string";
+  if (t.isNumberLiteral()) return "number";
+  if (t.isBooleanLiteral()) return "boolean";
+  const text = t.getText();
+  if (text.includes("import(") || text.startsWith("typeof ")) return "unknown";
+  return text;
+}
+
+/**
+ * Find identifiers in the initializer that refer to variables declared inside
+ * a function body (not accessible from a top-level extracted function).
+ * These become parameters of the extracted query function.
+ */
+function findParamsForInitializer(
+  initializer: ReturnType<VariableDeclaration["getInitializer"]>,
+  sf: SourceFile,
+): { name: string; type: string }[] {
+  if (!initializer) return [];
+
+  const result = new Map<string, string>();
+  const initStart = initializer.getStart();
+  const initEnd = initializer.getEnd();
+
+  for (const id of initializer.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    if (!isValueReference(id)) continue;
+
+    const sym = id.getSymbol();
+    if (!sym) continue;
+
+    const decls = sym.getDeclarations();
+    if (!decls || decls.length === 0) continue;
+
+    // Only declarations in this source file
+    const sfDecls = decls.filter((d) => d.getSourceFile() === sf);
+    if (sfDecls.length === 0) continue;
+
+    // Skip declarations that are WITHIN the initializer (e.g., arrow function params)
+    const anyInsideInit = sfDecls.some((d) => {
+      const pos = d.getStart();
+      return pos >= initStart && pos <= initEnd;
+    });
+    if (anyInsideInit) continue;
+
+    // Only include declarations that are inside a function body (not file-level).
+    // Top-level declarations are accessible from the extracted function; local ones are not.
+    const firstDecl = sfDecls[0];
+    if (!firstDecl) continue;
+
+    const insideFunction = firstDecl
+      .getAncestors()
+      .some(
+        (a) =>
+          Node.isFunctionDeclaration(a) ||
+          Node.isArrowFunction(a) ||
+          Node.isFunctionExpression(a) ||
+          Node.isMethodDeclaration(a),
+      );
+    if (!insideFunction) continue;
+
+    const varName = id.getText();
+    if (result.has(varName)) continue;
+
+    let typeStr = "unknown";
+    if (Node.isVariableDeclaration(firstDecl)) {
+      typeStr = getWidenedType(firstDecl);
+    } else if (Node.isParameter(firstDecl)) {
+      typeStr = getWidenedType(firstDecl);
+    }
+
+    result.set(varName, typeStr);
+  }
+
+  return Array.from(result.entries()).map(([name, type]) => ({ name, type }));
+}
 
 export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
   name: "Replace Temp with Query",
@@ -69,27 +162,13 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     }
 
     const initText = initializer.getText();
+    const retType = getWidenedType(decl);
+    const funcParams = findParamsForInitializer(initializer, sf);
+    const paramList = funcParams.map((p) => `${p.name}: ${p.type}`).join(", ");
+    const funcArgs = funcParams.map((p) => p.name).join(", ");
+    const callExpr = `${funcName}(${funcArgs})`;
 
-    // Find the declaration's containing statement so we know where to insert the function
-    const declStatement = decl.getParent();
-    if (!declStatement) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Could not locate declaration statement for '${target}'`,
-      };
-    }
-
-    const scopeParent = declStatement.getParent();
-    if (!scopeParent) {
-      return {
-        success: false,
-        filesChanged: [],
-        description: `Could not locate scope parent for '${target}'`,
-      };
-    }
-
-    // Replace all identifier references to the temp variable with a call to the query function
+    // Replace all identifier references to the temp variable with a call
     const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
       const parent = id.getParent();
@@ -100,21 +179,27 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
 
     const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());
     for (const ref of sorted) {
-      ref.replaceWithText(`${funcName}()`);
+      ref.replaceWithText(callExpr);
     }
 
     // Remove the temp variable declaration
-    if (Node.isVariableDeclarationList(declStatement)) {
-      const listParent = declStatement.getParent();
-      if (listParent && Node.isVariableStatement(listParent)) {
-        listParent.remove();
+    const declStatement = decl.getParent();
+    if (declStatement) {
+      if (Node.isVariableDeclarationList(declStatement)) {
+        const listParent = declStatement.getParent();
+        if (listParent && Node.isVariableStatement(listParent)) {
+          listParent.remove();
+        }
+      } else if (Node.isVariableStatement(declStatement)) {
+        declStatement.remove();
       }
-    } else if (Node.isVariableStatement(declStatement)) {
-      declStatement.remove();
     }
 
-    // Insert the query function at the top of the source file (before first statement)
-    sf.insertStatements(0, `function ${funcName}(): number {\n  return ${initText};\n}\n`);
+    // Insert query function at the top of the source file
+    sf.insertStatements(
+      0,
+      `function ${funcName}(${paramList}): ${retType} {\n  return ${initText};\n}\n`,
+    );
 
     return {
       success: true,
