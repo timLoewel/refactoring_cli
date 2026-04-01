@@ -228,6 +228,13 @@ export class PyrightClient {
     return result as Range | null;
   }
 
+  notifyFileSaved(uri: string): void {
+    if (!this.initialized || !this.process || this.process.killed) return;
+    this.sendNotification("textDocument/didSave", {
+      textDocument: { uri },
+    });
+  }
+
   onCrash(listener: (code: number | null) => void): void {
     this.emitter.on("crash", listener);
   }
