@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, symlinkSync } from "fs";
+import { cpSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { dirname, join, sep } from "path";
 import { fileURLToPath } from "url";
 import { Project } from "ts-morph";
@@ -165,9 +165,15 @@ interface Candidate {
   target: string;
 }
 
-function enumerateCandidates(projectDir: string): Candidate[] {
+interface EnumerationResult {
+  candidates: Candidate[];
+  reverseImportMap: Map<string, Set<string>>;
+}
+
+function enumerateCandidates(projectDir: string): EnumerationResult {
   const project = new Project({ tsConfigFilePath: join(projectDir, "tsconfig.json") });
   const candidates: Candidate[] = [];
+  const reverseImportMap = new Map<string, Set<string>>();
 
   for (const sf of project.getSourceFiles()) {
     const filePath = sf.getFilePath();
@@ -195,9 +201,38 @@ function enumerateCandidates(projectDir: string): Candidate[] {
         }
       }
     }
+
+    // Build reverse import map: imported file → set of files that import it
+    for (const imp of sf.getImportDeclarations()) {
+      const imported = imp.getModuleSpecifierSourceFile();
+      if (!imported) continue;
+      const importedPath = imported.getFilePath();
+      let importers = reverseImportMap.get(importedPath);
+      if (!importers) {
+        importers = new Set<string>();
+        reverseImportMap.set(importedPath, importers);
+      }
+      importers.add(filePath);
+    }
   }
 
-  return candidates;
+  return { candidates, reverseImportMap };
+}
+
+// --- Transitive scope computation ---
+function computeScope(file: string, reverseImportMap: Map<string, Set<string>>): Set<string> {
+  const scope = new Set<string>([file]);
+  const queue: string[] = [file];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const importer of reverseImportMap.get(current) ?? []) {
+      if (!scope.has(importer)) {
+        scope.add(importer);
+        queue.push(importer);
+      }
+    }
+  }
+  return scope;
 }
 
 // --- Build apply params ---
@@ -245,7 +280,11 @@ function makeTempCopy(): string {
   return tempDir;
 }
 
-function applyAndCheck(refactoring: RefactoringInfo, candidate: Candidate): CandidateResult {
+function applyAndCheck(
+  refactoring: RefactoringInfo,
+  candidate: Candidate,
+  reverseImportMap: Map<string, Set<string>>,
+): CandidateResult {
   const tempDir = makeTempCopy();
 
   const relPath = candidate.file.slice(CACHE_DIR.length);
@@ -272,7 +311,20 @@ function applyAndCheck(refactoring: RefactoringInfo, candidate: Candidate): Cand
 
     // Step 5.3: compile check using TypeORM's own tsc
     const tsc = join(CACHE_DIR, "node_modules/.bin/tsc");
-    const tscResult = runShell(`"${tsc}" --noEmit`, tempDir);
+
+    // Use scoped tsconfig when possible (file ∪ transitive importers only)
+    const inMap = reverseImportMap.has(candidate.file);
+    let tscResult: { stdout: string; stderr: string; code: number };
+    if (inMap) {
+      const scope = computeScope(candidate.file, reverseImportMap);
+      const scopedPaths = Array.from(scope).map((p) => p.replace(CACHE_DIR, tempDir));
+      const scopedTsconfig = JSON.stringify({ extends: "./tsconfig.json", include: scopedPaths });
+      writeFileSync(join(tempDir, "tsconfig.scoped.json"), scopedTsconfig);
+      tscResult = runShell(`"${tsc}" --noEmit --project tsconfig.scoped.json`, tempDir);
+    } else {
+      tscResult = runShell(`"${tsc}" --noEmit`, tempDir);
+    }
+
     return {
       isTarget: true,
       applied: true,
@@ -304,7 +356,7 @@ function main(): void {
   process.stderr.write(`${refactorings.length} TypeScript refactoring(s) loaded.\n`);
 
   process.stderr.write("Enumerating candidates...\n");
-  const allCandidates = enumerateCandidates(CACHE_DIR);
+  const { candidates: allCandidates, reverseImportMap } = enumerateCandidates(CACHE_DIR);
   const candidates =
     maxCandidates !== undefined ? allCandidates.slice(0, maxCandidates) : allCandidates;
   process.stderr.write(
@@ -346,7 +398,7 @@ function main(): void {
 
     let checked = 0;
     for (const candidate of candidates) {
-      const result = applyAndCheck(refactoring, candidate);
+      const result = applyAndCheck(refactoring, candidate, reverseImportMap);
       checked++;
 
       if (!result.isTarget) continue;
