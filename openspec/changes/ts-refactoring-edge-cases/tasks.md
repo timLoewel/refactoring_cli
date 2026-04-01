@@ -72,7 +72,7 @@
 
 ## 5. Extract Function (TDD)
 
-- [ ] 5.1 Write fixtures:
+- [x] 5.1 Write fixtures:
   - `reads-outer-variable.fixture.ts` — extracted code reads outer-scope var → parameter
   - `produces-return-value.fixture.ts` — extracted var used after range
   - `inside-function-body.fixture.ts` — extract from within a function body
@@ -83,11 +83,11 @@
   - `this-context.fixture.ts` — extracted code uses `this`
   - `single-expression.fixture.ts` — extract a complex expression statement
   - `mutation-of-outer.fixture.ts` — `let` variable modified in range
-- [ ] 5.2 Fix: nested statement extraction (walk descendants, not just sf.getStatements())
-- [ ] 5.3 Fix: scope analysis (outer reads → params, inner escapes → return value)
-- [ ] 5.4 Fix: async detection, preconditions for break/continue/yield
-- [ ] 5.5 Fix: multi-value return (destructuring)
-- [ ] 5.6 All fixtures pass; commit
+- [x] 5.2 Fix: nested statement extraction (walk descendants, not just sf.getStatements())
+- [x] 5.3 Fix: scope analysis (outer reads → params, inner escapes → return value)
+- [x] 5.4 Fix: async detection, preconditions for break/continue/yield
+- [x] 5.5 Fix: multi-value return (destructuring)
+- [x] 5.6 All fixtures pass; commit
 
 ## 6. Replace Temp With Query (TDD)
 
