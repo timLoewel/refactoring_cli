@@ -1,5 +1,5 @@
 import { SyntaxKind } from "ts-morph";
-import type { Node } from "ts-morph";
+import type { Node, Statement, VariableStatement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -29,7 +29,43 @@ function buildSinglePushReplacement(
   return `const ${arrayName} = ${expression}.map((${varName}) => ${mappedExpr});`;
 }
 
+function tryBuildFilterReplacement(
+  expression: string,
+  varName: string,
+  statements: Node[],
+): string | null {
+  if (statements.length !== 1) return null;
+  const stmt = statements[0];
+  if (!stmt || stmt.getKind() !== SyntaxKind.IfStatement) return null;
+
+  const ifStmt = stmt.asKindOrThrow(SyntaxKind.IfStatement);
+  if (ifStmt.getElseStatement()) return null;
+
+  const thenBlock = ifStmt.getThenStatement().asKind(SyntaxKind.Block);
+  if (!thenBlock) return null;
+
+  const thenStatements = thenBlock.getStatements();
+  if (thenStatements.length !== 1) return null;
+
+  const thenStmt = thenStatements[0];
+  const pushText = thenStmt?.getText().trim() ?? "";
+  const pushMatch = pushText.match(/^(\w+)\.push\((.+)\);?$/s);
+  if (!pushMatch) return null;
+
+  const arrayName = pushMatch[1]!;
+  const mappedExpr = pushMatch[2]!;
+  const condText = ifStmt.getExpression().getText();
+
+  if (mappedExpr.trim() === varName) {
+    return `const ${arrayName} = ${expression}.filter((${varName}) => ${condText});`;
+  }
+  return `const ${arrayName} = ${expression}.filter((${varName}) => ${condText}).map((${varName}) => ${mappedExpr});`;
+}
+
 function buildPipelineReplacement(expression: string, varName: string, statements: Node[]): string {
+  const filterReplacement = tryBuildFilterReplacement(expression, varName, statements);
+  if (filterReplacement) return filterReplacement;
+
   const statementsText = statements.map((s) => s.getText());
   const isPush = (text: string): boolean => /\w+\.push\(/.test(text);
   const pushCount = statementsText.filter(isPush).length;
@@ -41,6 +77,51 @@ function buildPipelineReplacement(expression: string, varName: string, statement
   }
 
   return fallback;
+}
+
+function hasBreakOrContinue(body: Node): boolean {
+  return (
+    body.getDescendantsOfKind(SyntaxKind.BreakStatement).length > 0 ||
+    body.getDescendantsOfKind(SyntaxKind.ContinueStatement).length > 0
+  );
+}
+
+function findPrecedingEmptyArrayDecl(
+  loop: Node,
+  arrayName: string,
+): VariableStatement | undefined {
+  const parent = loop.getParent();
+  if (!parent) return undefined;
+
+  let statements: Statement[];
+  if (parent.getKind() === SyntaxKind.Block) {
+    statements = parent.asKindOrThrow(SyntaxKind.Block).getStatements();
+  } else if (parent.getKind() === SyntaxKind.SourceFile) {
+    statements = parent.asKindOrThrow(SyntaxKind.SourceFile).getStatements();
+  } else {
+    return undefined;
+  }
+
+  const loopIndex = statements.indexOf(loop as Statement);
+  if (loopIndex <= 0) return undefined;
+
+  const preceding = statements[loopIndex - 1];
+  if (!preceding || preceding.getKind() !== SyntaxKind.VariableStatement) return undefined;
+
+  const varStmt = preceding as VariableStatement;
+  const decls = varStmt.getDeclarations();
+  if (decls.length !== 1) return undefined;
+
+  const decl = decls[0];
+  if (!decl || decl.getName() !== arrayName) return undefined;
+
+  const init = decl.getInitializer();
+  if (!init || init.getKind() !== SyntaxKind.ArrayLiteralExpression) return undefined;
+
+  const arrayLit = init.asKindOrThrow(SyntaxKind.ArrayLiteralExpression);
+  if (arrayLit.getElements().length !== 0) return undefined;
+
+  return varStmt;
 }
 
 export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
@@ -84,6 +165,12 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
       errors.push(`Loop at line ${lineNum} has an empty body`);
     }
 
+    if (hasBreakOrContinue(body)) {
+      errors.push(
+        `Loop at line ${lineNum} contains break or continue — cannot safely convert to pipeline`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
@@ -114,7 +201,18 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
       .replace(/^(const|let|var)\s+/, "");
     const replacement = buildPipelineReplacement(expression, varName, body.getStatements());
 
+    // When generating a const declaration (map/filter/spread), remove the preceding
+    // empty array declaration to avoid a redeclaration conflict.
+    let precedingDecl: VariableStatement | undefined;
+    if (replacement.startsWith("const ")) {
+      const nameMatch = replacement.match(/^const\s+(\w+)\s*=/);
+      if (nameMatch) {
+        precedingDecl = findPrecedingEmptyArrayDecl(loop, nameMatch[1]!);
+      }
+    }
+
     loop.replaceWithText(replacement);
+    precedingDecl?.remove();
 
     return {
       success: true,

@@ -106,7 +106,7 @@
 
 ## 7. Replace Loop With Pipeline (TDD)
 
-- [ ] 7.1 Write fixtures:
+- [x] 7.1 Write fixtures:
   - `map-expression.fixture.ts` — non-trivial mapping expression
   - `foreach-multiple-statements.fixture.ts` — multi-statement body → `.forEach()`
   - `destructuring-loop-var.fixture.ts` — `for (const { a, b } of ...)`
@@ -116,9 +116,9 @@
   - `indexed-for-rejection.fixture.ts` — traditional for → precondition error
   - `nested-loop.fixture.ts` — target inner loop specifically
   - `loop-with-break-rejection.fixture.ts` — break in body → precondition error
-- [ ] 7.2 Fix: detect filter pattern → generate `.filter()`
-- [ ] 7.3 Fix: detect `break`/`continue` in body → refuse
-- [ ] 7.4 All fixtures pass; commit
+- [x] 7.2 Fix: detect filter pattern → generate `.filter()`
+- [x] 7.3 Fix: detect `break`/`continue` in body → refuse
+- [x] 7.4 All fixtures pass; commit
 
 ## 8. Move Function (TDD)
 
