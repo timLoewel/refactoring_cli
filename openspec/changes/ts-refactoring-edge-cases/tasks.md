@@ -35,7 +35,7 @@
 
 ## 3. Extract Variable (TDD)
 
-- [ ] 3.1 Write fixtures:
+- [x] 3.1 Write fixtures:
   - `repeated-expression.fixture.ts` — extract `items.length` used twice
   - `function-call-expression.fixture.ts` — extract `Math.max(a, b)`
   - `nested-scope.fixture.ts` — expression only in inner scope
@@ -44,8 +44,8 @@
   - `conditional-expression.fixture.ts` — extract ternary
   - `template-literal.fixture.ts` — extract template expression
   - `partial-match.fixture.ts` — `a + b` inside `a + b + c` (ambiguity test)
-- [ ] 3.2 Run tests, fix any failures
-- [ ] 3.3 Commit
+- [x] 3.2 Run tests, fix any failures
+- [x] 3.3 Commit
 
 ## 4. Inline Function (TDD)
 
