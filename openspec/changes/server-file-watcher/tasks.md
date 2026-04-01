@@ -18,16 +18,16 @@
 
 ## 4. Daemon Integration
 
-- [ ] 4.1 Wire `FileWatcher` into `startDaemon`: create after server is listening, pass project + PyrightClient reference, start watching
-- [ ] 4.2 Close the watcher on server `close` event (shutdown, idle timeout, signals)
-- [ ] 4.3 Handle watcher errors: log to stderr, continue operating without watcher
-- [ ] 4.4 After `handleApply` refreshes changed files, call `watcher.skipPaths(result.filesChanged)` to prevent double-refresh
-- [ ] 4.5 Store watcher reference and PyrightClient in `DaemonState`
+- [x] 4.1 Wire `FileWatcher` into `startDaemon`: create after server is listening, pass project + PyrightClient reference, start watching
+- [x] 4.2 Close the watcher on server `close` event (shutdown, idle timeout, signals)
+- [x] 4.3 Handle watcher errors: log to stderr, continue operating without watcher
+- [x] 4.4 After `handleApply` refreshes changed files, call `watcher.skipPaths(result.filesChanged)` to prevent double-refresh
+- [x] 4.5 Store watcher reference and PyrightClient in `DaemonState`
 
 ## 5. Status RPC Method
 
-- [ ] 5.1 Add `status` method handler in `handleMessage` that returns `{ watching, pendingRefresh, pendingFiles }` from the watcher state
-- [ ] 5.2 Handle the case where watcher is null (not started or failed)
+- [x] 5.1 Add `status` method handler in `handleMessage` that returns `{ watching, pendingRefresh, pendingFiles }` from the watcher state
+- [x] 5.2 Handle the case where watcher is null (not started or failed)
 
 ## 6. Testing
 

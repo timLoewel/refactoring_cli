@@ -30,7 +30,7 @@ export class FileWatcher {
 
   private readonly project: Project;
   private readonly projectRoot: string;
-  private readonly pyrightClient: PyrightClient | null;
+  pyrightClient: PyrightClient | null;
 
   constructor(private readonly options: FileWatcherOptions) {
     this.project = options.project;
@@ -174,9 +174,9 @@ export class FileWatcher {
   }
 
   private notifyPython(change: PendingChange): void {
-    if (change.kind === "delete") return;
+    if (change.kind === "delete" || !this.pyrightClient) return;
 
     const uri = `file://${change.absPath}`;
-    this.pyrightClient!.notifyFileSaved(uri);
+    this.pyrightClient.notifyFileSaved(uri);
   }
 }

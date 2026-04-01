@@ -5,8 +5,10 @@ import * as portfile from "./portfile.js";
 import { loadProject } from "../project-model.js";
 import { applyRefactoring } from "../apply.js";
 import { registry } from "../refactoring-registry.js";
+import { FileWatcher } from "./file-watcher.js";
 import "../../refactorings/register-all.js"; // side-effect: populates registry
 import type { Project } from "ts-morph";
+import type { PyrightClient } from "../../python/pyright-client.js";
 import type { ApplyResult } from "../refactoring.types.js";
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -16,6 +18,8 @@ interface DaemonState {
   projectRoot: string;
   token: string;
   server: Server;
+  watcher: FileWatcher | null;
+  pyrightClient: PyrightClient | null;
 }
 
 interface JsonRpcRequest {
@@ -123,6 +127,9 @@ function handleApply(
         state.project.addSourceFileAtPath(filePath);
       }
     }
+    if (state.watcher) {
+      state.watcher.skipPaths(result.filesChanged);
+    }
   }
 
   return result;
@@ -189,6 +196,20 @@ function handleMessage(
     return true;
   }
 
+  if (req.method === "status") {
+    const w = state.watcher;
+    socket.write(
+      frameMessage(
+        jsonRpcResult(req.id, {
+          watching: w?.watching ?? false,
+          pendingRefresh: w?.pendingRefresh ?? false,
+          pendingFiles: w?.pendingFiles ?? 0,
+        }),
+      ),
+    );
+    return true;
+  }
+
   if (req.method === "shutdown") {
     socket.write(frameMessage(jsonRpcResult(req.id, null)));
     state.server.close();
@@ -199,18 +220,20 @@ function handleMessage(
   return true;
 }
 
-async function setupPythonIfAvailable(projectRoot: string): Promise<void> {
+async function setupPythonIfAvailable(projectRoot: string): Promise<PyrightClient | null> {
   try {
-    const { PyrightClient } = await import("../../python/pyright-client.js");
+    const { PyrightClient: PC } = await import("../../python/pyright-client.js");
     const { createPythonParser } = await import("../../python/tree-sitter-parser.js");
     const { setPythonContext } = await import("../../python/python-refactoring-builder.js");
 
-    const pyright = new PyrightClient(projectRoot);
+    const pyright = new PC(projectRoot);
     await pyright.ensureReady();
     const parser = createPythonParser();
     setPythonContext({ pyright, parser, projectRoot });
+    return pyright;
   } catch {
     // Python dependencies not available — Python refactorings will fail with a clear error
+    return null;
   }
 }
 
@@ -224,13 +247,6 @@ export function startDaemon(projectRoot: string): Promise<void> {
       return;
     }
 
-    // Set up Python context (non-blocking, optional)
-    setupPythonIfAvailable(model.projectRoot).catch((err: unknown) => {
-      process.stderr.write(
-        `Python setup failed: ${err instanceof Error ? err.message : String(err)}\n`,
-      );
-    });
-
     const token = randomBytes(16).toString("hex");
     const server = createServer();
 
@@ -239,7 +255,23 @@ export function startDaemon(projectRoot: string): Promise<void> {
       projectRoot: model.projectRoot,
       token,
       server,
+      watcher: null,
+      pyrightClient: null,
     };
+
+    // Set up Python context (non-blocking, optional)
+    setupPythonIfAvailable(model.projectRoot)
+      .then((client) => {
+        state.pyrightClient = client;
+        if (state.watcher && client) {
+          state.watcher.pyrightClient = client;
+        }
+      })
+      .catch((err: unknown) => {
+        process.stderr.write(
+          `Python setup failed: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      });
 
     server.on("connection", (socket: Socket) => {
       const parser = new FramingParser();
@@ -283,12 +315,30 @@ export function startDaemon(projectRoot: string): Promise<void> {
       portfile.write(state.projectRoot, addr.port, token);
       resetIdleTimer(server);
 
+      // Start file watcher
+      try {
+        state.watcher = new FileWatcher({
+          project: state.project,
+          projectRoot: state.projectRoot,
+          sourceFiles: model.sourceFiles,
+          pyrightClient: state.pyrightClient,
+        });
+        state.watcher.start();
+      } catch (err: unknown) {
+        process.stderr.write(
+          `File watcher failed to start: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      }
+
       process.on("exit", () => portfile.unlink(state.projectRoot));
       process.on("SIGTERM", () => server.close());
       process.on("SIGINT", () => server.close());
 
       server.on("close", () => {
         clearTimeout(idleTimer);
+        if (state.watcher) {
+          state.watcher.close();
+        }
         portfile.unlink(state.projectRoot);
       });
 
