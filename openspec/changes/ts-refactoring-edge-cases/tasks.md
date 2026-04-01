@@ -141,13 +141,13 @@
 
 ## 9. Change Function Declaration (TDD)
 
-- [ ] 9.1 Write fixtures:
+- [x] 9.1 Write fixtures:
   - `multiple-call-sites.fixture.ts` — function called in multiple expressions
   - `exported-function.fixture.ts` — `export function foo()`
   - `arrow-function-reject.fixture.ts` — `const fn = () => {}` → precondition error or support
   - `recursive-function.fixture.ts` — function calls itself, recursive call updated
   - `shadowed-name.fixture.ts` — another function/variable has same name in inner scope
-- [ ] 9.2 Fix or document: arrow function support
+- [x] 9.2 Fix or document: arrow function support
 - [ ] 9.3 Commit
 
 ## 10. Slide Statements (TDD)
