@@ -27,6 +27,8 @@ export class FileWatcher {
   private pending = new Map<string, PendingChange>();
   private debounceTimer: NodeJS.Timeout | null = null;
   private sourceFileSet: Set<string>;
+  private recentlyRefreshed = new Set<string>();
+  private recentlyRefreshedTimer: NodeJS.Timeout | null = null;
 
   private readonly project: Project;
   private readonly projectRoot: string;
@@ -70,17 +72,35 @@ export class FileWatcher {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    if (this.recentlyRefreshedTimer) {
+      clearTimeout(this.recentlyRefreshedTimer);
+      this.recentlyRefreshedTimer = null;
+    }
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
     }
     this.pending.clear();
+    this.recentlyRefreshed.clear();
   }
 
+  /**
+   * Mark paths as already refreshed by apply. These will be ignored by the
+   * watcher for a short window to avoid double-refresh race conditions.
+   */
   skipPaths(paths: string[]): void {
     for (const p of paths) {
       this.pending.delete(p);
+      this.recentlyRefreshed.add(p);
     }
+    // Clear the recently-refreshed set after the debounce window + buffer
+    if (this.recentlyRefreshedTimer) {
+      clearTimeout(this.recentlyRefreshedTimer);
+    }
+    this.recentlyRefreshedTimer = setTimeout(() => {
+      this.recentlyRefreshed.clear();
+      this.recentlyRefreshedTimer = null;
+    }, DEBOUNCE_MS * 3);
   }
 
   private handleEvent(_eventType: string, filename: string): void {
@@ -89,18 +109,18 @@ export class FileWatcher {
 
     const absPath = resolve(this.projectRoot, filename);
 
+    // Skip files recently refreshed by apply
+    if (this.recentlyRefreshed.has(absPath)) return;
+
     // Skip files in always-excluded directories
     const rel = relative(this.projectRoot, absPath);
-    if (
-      rel.startsWith("node_modules/") ||
-      rel.startsWith("dist/") ||
-      rel.startsWith("build/")
-    ) {
+    if (rel.startsWith("node_modules/") || rel.startsWith("dist/") || rel.startsWith("build/")) {
       return;
     }
 
     const exists = existsSync(absPath);
-    const wasKnown = this.sourceFileSet.has(absPath) || this.project.getSourceFile(absPath) !== undefined;
+    const wasKnown =
+      this.sourceFileSet.has(absPath) || this.project.getSourceFile(absPath) !== undefined;
 
     let kind: ChangeKind;
     if (!exists) {
