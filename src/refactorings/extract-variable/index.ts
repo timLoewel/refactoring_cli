@@ -1,4 +1,4 @@
-import { SyntaxKind, Node } from "ts-morph";
+import { SyntaxKind, Node, ts } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -42,6 +42,55 @@ const EXPRESSION_KINDS = new Set<SyntaxKind>([
   SyntaxKind.NewExpression,
 ]);
 
+/**
+ * Returns true if this identifier is the name of a declaration (class, function,
+ * variable, parameter, method, etc.) rather than a reference expression.
+ * Replacing a binding identifier breaks the declaration.
+ */
+function isBindingIdentifier(node: Node): boolean {
+  if (node.getKind() !== SyntaxKind.Identifier) return false;
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+
+  // Use ts-morph's getNameNode() for all named declarations — works correctly
+  // regardless of decorators, modifiers, or accessor keywords.
+  switch (parentKind) {
+    case ts.SyntaxKind.ClassDeclaration:
+    case ts.SyntaxKind.ClassExpression:
+    case ts.SyntaxKind.FunctionDeclaration:
+    case ts.SyntaxKind.FunctionExpression:
+    case ts.SyntaxKind.MethodDeclaration:
+    case ts.SyntaxKind.PropertyDeclaration:
+    case ts.SyntaxKind.GetAccessor:
+    case ts.SyntaxKind.SetAccessor:
+    case ts.SyntaxKind.Parameter: {
+      const named = parent as unknown as { getNameNode?: () => Node | undefined };
+      return named.getNameNode?.() === node;
+    }
+    case ts.SyntaxKind.VariableDeclaration: {
+      const varDecl = parent.asKindOrThrow(ts.SyntaxKind.VariableDeclaration);
+      return varDecl.getNameNode() === node;
+    }
+    // Shorthand property assignment `{ foo }` and destructuring `const { foo } = ...`
+    case ts.SyntaxKind.ShorthandPropertyAssignment:
+    case ts.SyntaxKind.BindingElement:
+      return true;
+    // Property access name: `obj.foo` — `foo` after the dot is a property name, not a reference
+    case ts.SyntaxKind.PropertyAccessExpression: {
+      const pae = parent as unknown as { getNameNode?: () => Node | undefined };
+      return pae.getNameNode?.() === node;
+    }
+    // Object literal key: `{ foo: 1 }` — `foo` is a property key, not a reference
+    case ts.SyntaxKind.PropertyAssignment: {
+      const pa = parent as unknown as { getNameNode?: () => Node | undefined };
+      return pa.getNameNode?.() === node;
+    }
+    default:
+      return false;
+  }
+}
+
 export const extractVariable = defineRefactoring<SourceFileContext>({
   name: "Extract Variable",
   kebabName: "extract-variable",
@@ -69,10 +118,12 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     const targetText = (params["target"] as string).trim();
     const varName = (params["name"] as string).trim();
 
-    // Collect all descendant nodes matching the target expression text
+    // Collect all descendant nodes matching the target expression text.
+    // Exclude binding identifiers (declaration names) — replacing them breaks the declaration.
     const matchingNodes = sf
       .getDescendants()
-      .filter((n) => EXPRESSION_KINDS.has(n.getKind()) && n.getText().trim() === targetText);
+      .filter((n) => EXPRESSION_KINDS.has(n.getKind()) && n.getText().trim() === targetText)
+      .filter((n) => !isBindingIdentifier(n));
 
     if (matchingNodes.length === 0) {
       return {

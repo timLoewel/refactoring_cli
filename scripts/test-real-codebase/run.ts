@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Project } from "ts-morph";
@@ -18,15 +18,33 @@ const CACHE_DIR = join(ROOT, "tmp", "real-codebase", `typeorm-${TYPEORM_REF}`);
 const scriptArgs = process.argv.slice(2);
 const isDryRun = scriptArgs.includes("--dry-run");
 const isJson = scriptArgs.includes("--json");
+// --verbose: print each candidate attempt including skips (default: only print targets + failures)
+const isVerbose = scriptArgs.includes("--verbose");
 const refactoringFilter = ((): string | undefined => {
   const idx = scriptArgs.indexOf("--refactoring");
   return idx >= 0 ? scriptArgs[idx + 1] : undefined;
 })();
 
+// --max-candidates N: stop after N valid (applied) candidates per refactoring
 const maxCandidates = ((): number | undefined => {
   const idx = scriptArgs.indexOf("--max-candidates");
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : undefined;
 })();
+
+// --- Seeded shuffle (Fisher-Yates with a simple LCG) ---
+function seededShuffle<T>(arr: T[], seed = 42): T[] {
+  const out = [...arr];
+  let s = seed;
+  const next = (): number => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0x100000000;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
+  }
+  return out;
+}
 
 // --- Helpers ---
 function runShell(cmd: string, cwd?: string): { stdout: string; stderr: string; code: number } {
@@ -167,6 +185,7 @@ interface Candidate {
 interface EnumerationResult {
   candidates: Candidate[];
   reverseImportMap: Map<string, Set<string>>;
+  project: Project;
 }
 
 function enumerateCandidates(projectDir: string): EnumerationResult {
@@ -215,23 +234,7 @@ function enumerateCandidates(projectDir: string): EnumerationResult {
     }
   }
 
-  return { candidates, reverseImportMap };
-}
-
-// --- Transitive scope computation ---
-function computeScope(file: string, reverseImportMap: Map<string, Set<string>>): Set<string> {
-  const scope = new Set<string>([file]);
-  const queue: string[] = [file];
-  while (queue.length > 0) {
-    const current = queue.shift() as string;
-    for (const importer of reverseImportMap.get(current) ?? []) {
-      if (!scope.has(importer)) {
-        scope.add(importer);
-        queue.push(importer);
-      }
-    }
-  }
-  return scope;
+  return { candidates, reverseImportMap, project };
 }
 
 // --- Build apply params ---
@@ -263,6 +266,15 @@ interface CandidateResult {
   applied: boolean;
   passed: boolean;
   error: string | null;
+  /** reason the candidate was skipped (only set when isTarget=false) */
+  skipReason: string | null;
+  /** unified diff of the change (only set when applied) */
+  diff: string | null;
+  params: Record<string, unknown>;
+  applyMs: number;
+  tscMs: number;
+  rollbackMs: number;
+  scopeFileCount: number;
 }
 
 interface ApplyResult {
@@ -275,6 +287,10 @@ function gitRollback(cwd: string): void {
   runShell("git checkout .", cwd);
 }
 
+function gitDiff(cwd: string): string {
+  return runShell("git diff", cwd).stdout;
+}
+
 async function applyAndCheck(
   client: {
     apply(name: string, params: Record<string, unknown>): Promise<ApplyResult>;
@@ -283,9 +299,19 @@ async function applyAndCheck(
   refactoring: RefactoringInfo,
   candidate: Candidate,
   reverseImportMap: Map<string, Set<string>>,
+  tsProject: Project,
 ): Promise<CandidateResult> {
   const params = buildApplyParams(refactoring, candidate.file, candidate.target);
+  const noResult = (skipReason: string | null): CandidateResult => ({
+    isTarget: false, applied: false, passed: false, error: null, skipReason, diff: null,
+    params, applyMs: 0, tscMs: 0, rollbackMs: 0, scopeFileCount: 0,
+  });
+  const failResult = (error: string | null, applyMs = 0): CandidateResult => ({
+    isTarget: true, applied: false, passed: false, error, skipReason: null, diff: null,
+    params, applyMs, tscMs: 0, rollbackMs: 0, scopeFileCount: 0,
+  });
 
+  const t0 = Date.now();
   let result: ApplyResult;
   try {
     result = await client.apply(refactoring.kebabName, params);
@@ -293,50 +319,93 @@ async function applyAndCheck(
     const msg = err instanceof Error ? err.message : String(err);
     const isPreconditionFailure =
       msg.includes("Precondition failed") || msg.includes("not found") || msg.includes("param '");
-    if (isPreconditionFailure) {
-      return { isTarget: false, applied: false, passed: false, error: null };
-    }
-    return { isTarget: true, applied: false, passed: false, error: msg };
+    if (isPreconditionFailure) return noResult(msg);
+    return failResult(msg, Date.now() - t0);
   }
+  const applyMs = Date.now() - t0;
 
   if (!result.success) {
     const isPreconditionFailure =
       result.description.includes("Precondition failed") ||
       result.description.includes("not found") ||
       result.description.includes("param '");
-    if (isPreconditionFailure) {
-      return { isTarget: false, applied: false, passed: false, error: null };
+    if (isPreconditionFailure) return noResult(result.description);
+    return failResult(result.description, applyMs);
+  }
+
+  // Capture diff before rollback
+  const diff = gitDiff(CACHE_DIR);
+
+  // Compile check using in-process ts-morph (avoids per-check tsc process spawn overhead)
+  const t1 = Date.now();
+  // Refresh only the files that were changed. refreshFromFileSystemSync can throw when the
+  // AST shape changes too drastically; fall back to remove+re-add in that case.
+  for (const changedFile of result.filesChanged) {
+    const sf = tsProject.getSourceFile(changedFile);
+    if (!sf) continue;
+    try {
+      sf.refreshFromFileSystemSync();
+    } catch {
+      tsProject.removeSourceFile(sf);
+      tsProject.addSourceFileAtPath(changedFile);
     }
-    return { isTarget: true, applied: false, passed: false, error: result.description };
   }
-
-  // Compile check using TypeORM's own tsc
-  const tsc = join(CACHE_DIR, "node_modules/.bin/tsc");
-
-  // Use scoped tsconfig when possible (file ∪ transitive importers only)
-  const inMap = reverseImportMap.has(candidate.file);
-  let tscResult: { stdout: string; stderr: string; code: number };
-  if (inMap) {
-    const scope = computeScope(candidate.file, reverseImportMap);
-    const scopedPaths = Array.from(scope);
-    const scopedTsconfig = JSON.stringify({ extends: "./tsconfig.json", include: scopedPaths });
-    writeFileSync(join(CACHE_DIR, "tsconfig.scoped.json"), scopedTsconfig);
-    tscResult = runShell(`"${tsc}" --noEmit --project tsconfig.scoped.json`, CACHE_DIR);
-  } else {
-    tscResult = runShell(`"${tsc}" --noEmit`, CACHE_DIR);
+  // Scope: changed files + their direct importers (not transitive — avoids project-wide explosion)
+  const scopeSet = new Set<string>(result.filesChanged);
+  for (const changedFile of result.filesChanged) {
+    for (const importer of reverseImportMap.get(changedFile) ?? []) {
+      scopeSet.add(importer);
+    }
   }
+  const scopedFiles = Array.from(scopeSet)
+    .map((p) => tsProject.getSourceFile(p))
+    .filter((sf): sf is NonNullable<typeof sf> => sf !== undefined);
+  const diagnostics = scopedFiles.flatMap((sf) => sf.getPreEmitDiagnostics());
+  const tscMs = Date.now() - t1;
 
-  const passed = tscResult.code === 0;
+  const passed = diagnostics.length === 0;
+  const errorText = passed
+    ? null
+    : diagnostics
+        .slice(0, 10)
+        .map((d) => {
+          const file = d.getSourceFile();
+          const pos = d.getStart();
+          const lineCol = file && pos !== undefined
+            ? (() => { const lc = file.getLineAndColumnAtPos(pos); return ` (${file.getBaseName()}:${lc.line}:${lc.column})`; })()
+            : "";
+          return `${d.getMessageText().toString()}${lineCol}`;
+        })
+        .join("\n");
 
-  // Rollback changes and refresh daemon's AST
+  // Rollback changes and refresh daemon's AST + in-process project
+  const t2 = Date.now();
   gitRollback(CACHE_DIR);
+  for (const changedFile of result.filesChanged) {
+    const sf = tsProject.getSourceFile(changedFile);
+    if (!sf) continue;
+    try {
+      sf.refreshFromFileSystemSync();
+    } catch {
+      tsProject.removeSourceFile(sf);
+      tsProject.addSourceFileAtPath(changedFile);
+    }
+  }
   await client.refresh(result.filesChanged);
+  const rollbackMs = Date.now() - t2;
 
   return {
     isTarget: true,
     applied: true,
     passed,
-    error: !passed ? tscResult.stdout.slice(0, 500) : null,
+    error: errorText,
+    skipReason: null,
+    diff,
+    params,
+    applyMs,
+    tscMs,
+    rollbackMs,
+    scopeFileCount: scopedFiles.length,
   };
 }
 
@@ -350,8 +419,23 @@ interface RefactoringStats {
   failures: { symbol: string; error: string }[];
 }
 
+// --- Cleanup stale test processes ---
+function killStaleTestProcesses(): void {
+  // Kill any leftover tsx run.ts processes from previous interrupted runs (excluding self)
+  const self = process.pid;
+  const result = spawnSync(
+    "bash",
+    ["-c", `pgrep -f 'tsx.*test-real-codebase/run.ts' | grep -v '^${self}$' | xargs -r kill -9`],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0 && result.stderr?.trim()) {
+    // Non-fatal — stale processes might already be gone
+  }
+}
+
 // --- Main ---
 async function main(): Promise<void> {
+  killStaleTestProcesses();
   ensureCloned();
   checkBaseline();
 
@@ -360,18 +444,18 @@ async function main(): Promise<void> {
   process.stderr.write(`${refactorings.length} TypeScript refactoring(s) loaded.\n`);
 
   process.stderr.write("Enumerating candidates...\n");
-  const { candidates: allCandidates, reverseImportMap } = enumerateCandidates(CACHE_DIR);
-  const candidates =
-    maxCandidates !== undefined ? allCandidates.slice(0, maxCandidates) : allCandidates;
+  const { candidates: allCandidates, reverseImportMap, project: tsProject } = enumerateCandidates(CACHE_DIR);
+  // Shuffle deterministically so candidates are spread across all files, not clustered by file
+  const shuffledCandidates = seededShuffle(allCandidates);
   process.stderr.write(
-    `${candidates.length} symbol candidates${maxCandidates !== undefined ? ` (capped from ${allCandidates.length})` : ""} found.\n`,
+    `${shuffledCandidates.length} symbol candidates found (shuffled, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
   );
 
   // Step 6.1: dry-run — report candidate counts and exit
   if (isDryRun) {
     const rows = refactorings.map((r) => ({
       refactoring: r.kebabName,
-      candidates: candidates.length,
+      candidates: shuffledCandidates.length,
     }));
     if (isJson) {
       process.stdout.write(JSON.stringify({ dryRun: true, refactorings: rows }, null, 2) + "\n");
@@ -403,30 +487,86 @@ async function main(): Promise<void> {
       failures: [],
     };
 
-    const total = candidates.length;
-    process.stderr.write(`\nTesting: ${refactoring.kebabName} (${total} symbols to check)\n`);
+    const limit = maxCandidates ?? shuffledCandidates.length;
+    process.stderr.write(`\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${shuffledCandidates.length} candidates)\n`);
+
+    // Track skip reasons for summary
+    const skipReasonCounts = new Map<string, number>();
+    // Sample of skipped candidates for LLM review (first occurrence per unique reason)
+    const skipSamples: { reason: string; candidate: Candidate; source: string }[] = [];
 
     let checked = 0;
-    for (const candidate of candidates) {
-      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap);
+    for (const candidate of shuffledCandidates) {
+      const shortFile = candidate.file.replace(CACHE_DIR + "/", "");
+
+      if (isVerbose) {
+        process.stderr.write(
+          `  → ${refactoring.kebabName}  target="${candidate.target}"  file=${shortFile}\n`,
+        );
+      }
+
+      // Capture file content before applying (used for context on failures)
+      let beforeContent = "";
+      try {
+        beforeContent = readFileSync(candidate.file, "utf8");
+      } catch { /* ignore */ }
+
+      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap, tsProject);
       checked++;
 
-      if (!result.isTarget) continue;
+      if (!result.isTarget) {
+        // Normalize skip reason to a category key for aggregation
+        const rawReason = result.skipReason ?? "precondition failed";
+        const reasonKey = rawReason
+          .replace(/'[^']+'/g, "'<name>'")  // normalize symbol names
+          .replace(/\d+/g, "N");            // normalize numbers
+        const prev = skipReasonCounts.get(reasonKey) ?? 0;
+        skipReasonCounts.set(reasonKey, prev + 1);
+        // Keep first occurrence per reason category for sample review
+        if (prev === 0) {
+          skipSamples.push({ reason: rawReason, candidate, source: beforeContent });
+        }
+        if (isVerbose) {
+          process.stderr.write(`    (skip: ${rawReason})\n`);
+        }
+        continue;
+      }
 
       stat.targets++;
+      const label = `[${stat.targets}/${limit}]`;
+
       if (result.applied) {
         stat.applied++;
+        const timing = `apply=${result.applyMs}ms  typecheck=${result.tscMs}ms (${result.scopeFileCount} files)  rollback=${result.rollbackMs}ms`;
         if (result.passed) {
           stat.passed++;
-          process.stderr.write(
-            `  [${checked}/${total}] ✓ ${candidate.target} (${candidate.file.split("/").pop()}) — tsc passed\n`,
-          );
+          process.stderr.write(`  ${label} ✓ ${candidate.target} (${shortFile}) — tsc passed  [${timing}]\n`);
         } else {
           stat.failed++;
-          process.stderr.write(
-            `  [${checked}/${total}] ✗ ${candidate.target} (${candidate.file.split("/").pop()}) — tsc failed\n`,
-          );
+          process.stderr.write(`  ${label} ✗ ${candidate.target} (${shortFile}) — tsc failed  [${timing}]\n`);
+          process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
+          // Source context around target
+          const lines = beforeContent.split("\n");
+          const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
+          if (targetLineIdx >= 0) {
+            const start = Math.max(0, targetLineIdx - 3);
+            const end = Math.min(lines.length, targetLineIdx + 8);
+            process.stderr.write(`    source before (${shortFile} lines ${start + 1}-${end}):\n`);
+            for (let i = start; i < end; i++) {
+              process.stderr.write(`      ${i + 1}: ${lines[i]}\n`);
+            }
+          }
+          if (result.diff) {
+            process.stderr.write(`    diff:\n`);
+            for (const line of result.diff.split("\n").slice(0, 100)) {
+              process.stderr.write(`      ${line}\n`);
+            }
+          }
           if (result.error) {
+            process.stderr.write(`    compiler errors:\n`);
+            for (const line of result.error.split("\n")) {
+              process.stderr.write(`      ${line}\n`);
+            }
             stat.failures.push({
               symbol: `${candidate.file}::${candidate.target}`,
               error: result.error,
@@ -437,20 +577,63 @@ async function main(): Promise<void> {
         // Daemon error or non-precondition apply failure
         stat.failed++;
         process.stderr.write(
-          `  [${checked}/${total}] ✗ ${candidate.target} (${candidate.file.split("/").pop()}) — apply failed: ${result.error}\n`,
+          `  ${label} ✗ ${candidate.target} (${shortFile}) — apply failed\n`,
         );
         if (result.error) {
+          process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
+          process.stderr.write(`    error: ${result.error}\n`);
+          // Show the relevant section of the source file for context
+          const lines = beforeContent.split("\n");
+          const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
+          if (targetLineIdx >= 0) {
+            const start = Math.max(0, targetLineIdx - 3);
+            const end = Math.min(lines.length, targetLineIdx + 8);
+            process.stderr.write(`    source (lines ${start + 1}-${end}):\n`);
+            for (let i = start; i < end; i++) {
+              process.stderr.write(`      ${i + 1}: ${lines[i]}\n`);
+            }
+          }
           stat.failures.push({
             symbol: `${candidate.file}::${candidate.target}`,
             error: result.error,
           });
         }
       }
+
+      // Stop once we've collected enough valid targets, or after a reasonable scan budget
+      // (20× the target limit) to avoid iterating the entire corpus for rare refactorings.
+      if (stat.targets >= limit) break;
+      if (maxCandidates !== undefined && checked >= limit * 20) break;
     }
 
     process.stderr.write(
-      `\n  Summary: checked ${total}, targets found ${stat.targets}, passed ${stat.passed}, failed ${stat.failed}\n`,
+      `  Summary: checked=${checked}, targets=${stat.targets}, passed=${stat.passed}, failed=${stat.failed}\n`,
     );
+
+    // Print skip reason breakdown
+    if (skipReasonCounts.size > 0) {
+      const sortedReasons = [...skipReasonCounts.entries()].sort((a, b) => b[1] - a[1]);
+      process.stderr.write(`  Skip reasons (${checked - stat.targets} skipped):\n`);
+      for (const [reason, count] of sortedReasons.slice(0, 5)) {
+        process.stderr.write(`    ${count}x  ${reason}\n`);
+      }
+      // Print samples for LLM review
+      process.stderr.write(`  Sample skipped candidates (for review):\n`);
+      for (const sample of skipSamples.slice(0, 5)) {
+        const shortFile = sample.candidate.file.replace(CACHE_DIR + "/", "");
+        process.stderr.write(`    [${sample.candidate.target} in ${shortFile}] reason: ${sample.reason}\n`);
+        const lines = sample.source.split("\n");
+        const targetLineIdx = lines.findIndex((l) => l.includes(sample.candidate.target));
+        if (targetLineIdx >= 0) {
+          const start = Math.max(0, targetLineIdx - 2);
+          const end = Math.min(lines.length, targetLineIdx + 5);
+          for (let i = start; i < end; i++) {
+            process.stderr.write(`      ${i + 1}: ${lines[i]}\n`);
+          }
+        }
+      }
+    }
+
     stats.push(stat);
   }
 

@@ -1,7 +1,25 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, type Identifier } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+/**
+ * Returns true if the identifier is a genuine value reference — i.e. it refers to
+ * the variable in expression context. Returns false for positions where an identifier
+ * happens to share the name but is not a reference: property access names (`obj.x`),
+ * object-literal keys (`{ x: 1 }`), and shorthand property keys (`{ x }`).
+ */
+function isValueReference(id: Identifier): boolean {
+  const parent = id.getParent();
+  if (!parent) return true;
+  // `obj.x` — the right-hand side of a property access is a name, not a reference
+  if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) return false;
+  // `{ x: 1 }` — the key of a PropertyAssignment is a name, not a reference
+  if (Node.isPropertyAssignment(parent) && parent.getNameNode() === id) return false;
+  // `{ x }` — shorthand property name
+  if (Node.isShorthandPropertyAssignment(parent)) return false;
+  return true;
+}
 
 export const inlineVariable = defineRefactoring<SourceFileContext>({
   name: "Inline Variable",
@@ -38,7 +56,9 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       const refCount = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
         if (id.getText() !== target) return false;
         const parent = id.getParent();
-        return parent && !(Node.isVariableDeclaration(parent) && parent.getNameNode() === id);
+        if (!parent) return false;
+        if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+        return isValueReference(id);
       }).length;
       if (refCount > 1) {
         errors.push(
@@ -85,7 +105,8 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       Node.isBinaryExpression(initializer) || Node.isConditionalExpression(initializer);
     const inlineText = needsParens ? `(${initText})` : initText;
 
-    // Find all identifier references to this variable (excluding the declaration itself)
+    // Find all identifier references to this variable (excluding the declaration itself and
+    // non-reference positions like property access names and object-literal keys).
     const refPositions = sf
       .getDescendantsOfKind(SyntaxKind.Identifier)
       .filter((id) => {
@@ -94,7 +115,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
         if (!parent) return false;
         // Exclude the declaration name itself
         if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
-        return true;
+        return isValueReference(id);
       })
       .map((id) => id.getStart())
       .sort((a, b) => b - a); // reverse order so later replacements don't shift earlier positions
@@ -118,6 +139,27 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
         if (stmt && Node.isVariableStatement(stmt)) {
           stmt.remove();
         }
+      }
+    }
+
+    // Remove named imports that are now unused (e.g. a type annotation import that was
+    // only referenced in the removed declaration).
+    const stillUsedNames = new Set(
+      sf.getDescendantsOfKind(SyntaxKind.Identifier).map((id) => id.getText()),
+    );
+    for (const importDecl of [...sf.getImportDeclarations()]) {
+      for (const specifier of [...importDecl.getNamedImports()]) {
+        const localName = specifier.getAliasNode()?.getText() ?? specifier.getNameNode().getText();
+        if (!stillUsedNames.has(localName)) {
+          specifier.remove();
+        }
+      }
+      if (
+        importDecl.getNamedImports().length === 0 &&
+        !importDecl.getDefaultImport() &&
+        !importDecl.getNamespaceImport()
+      ) {
+        importDecl.remove();
       }
     }
 
