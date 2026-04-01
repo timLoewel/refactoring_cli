@@ -180,7 +180,7 @@
   - `private-modifier.fixture.ts` — renaming a private field
   - `inherited-field.fixture.ts` — field is in a parent class
 - [x] 12.2 Run and fix
-- [ ] 12.3 Commit
+- [x] 12.3 Commit
 
 ## 13. Remaining Refactorings — Fixture Coverage Pass
 
