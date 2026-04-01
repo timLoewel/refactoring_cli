@@ -38,7 +38,24 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       errors.push(`Variable '${target}' must be declared with 'let' to be split`);
     }
 
-    // Count assignments (excluding the initial declaration)
+    // Reject compound assignments (+=, -=, etc.) — they depend on the previous value
+    const compoundAssignments = sf
+      .getDescendantsOfKind(SyntaxKind.BinaryExpression)
+      .filter((bin) => {
+        const left = bin.getLeft();
+        const op = bin.getOperatorToken().getText();
+        return (
+          Node.isIdentifier(left) && left.getText() === target && op !== "=" && op.endsWith("=")
+        );
+      });
+
+    if (compoundAssignments.length > 0) {
+      errors.push(
+        `Variable '${target}' has compound assignments (${compoundAssignments.map((a) => a.getOperatorToken().getText()).join(", ")}); cannot split`,
+      );
+    }
+
+    // Count simple assignments (excluding the initial declaration)
     const assignments = sf.getDescendantsOfKind(SyntaxKind.BinaryExpression).filter((bin) => {
       const left = bin.getLeft();
       return (
@@ -71,7 +88,7 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Collect all assignment expressions to this variable (excluding declaration)
+    // Collect all simple assignments to this variable (excluding declaration)
     const assignments = sf.getDescendantsOfKind(SyntaxKind.BinaryExpression).filter((bin) => {
       const left = bin.getLeft();
       return (
@@ -89,53 +106,94 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Process in reverse order of source position so mutations don't shift positions
-    const sortedAssignments = [...assignments].sort((a, b) => b.getStart() - a.getStart());
+    // Sort assignments by source position (ascending)
+    const sortedAssignments = [...assignments].sort((a, b) => a.getStart() - b.getStart());
 
-    let splitIndex = assignments.length;
-    for (const assignment of sortedAssignments) {
-      const rhs = assignment.getRight().getText();
-      const newName = `${target}${splitIndex}`;
-      splitIndex--;
+    // Segment breakpoints (ascending): segment N starts at segmentStarts[N-1]
+    // Segment 1 = initial declaration, segment 2 = first assignment, etc.
+    const segmentStarts = [decl.getStart(), ...sortedAssignments.map((a) => a.getStart())];
 
-      // The assignment is typically inside an ExpressionStatement
-      const exprStmt = assignment.getParent();
-      if (exprStmt && Node.isExpressionStatement(exprStmt)) {
-        // Replace the ExpressionStatement with a const declaration
-        exprStmt.replaceWithText(`const ${newName} = ${rhs};`);
-
-        // Now rename subsequent references to target between this point and next assignment
-        // We do a targeted rename: find identifiers after this position that still say `target`
-        // and rename them to newName until the next assignment.
+    // Determine which segment (1-based) a position belongs to.
+    // A reference at position P belongs to segment S if segmentStarts[S-1] <= P < segmentStarts[S].
+    const getSegment = (pos: number): number => {
+      let seg = 1;
+      for (let i = 1; i < segmentStarts.length; i++) {
+        if (pos > segmentStarts[i]) {
+          seg = i + 1;
+        }
       }
-    }
+      return seg;
+    };
 
-    // After splitting out reassignments, replace remaining references to `target` with `${target}1`
-    // (the first assignment), and change the original `let` declaration to `const`
-    const initializer = decl.getInitializer();
-    const initText = initializer ? initializer.getText() : "undefined";
-    const firstNewName = `${target}1`;
-
-    // Replace all remaining identifier references to the original target with firstNewName
-    const remainingRefs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
+    // Collect identifier references (not the declaration name, not the LHS of assignments)
+    const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
       const parent = id.getParent();
       if (!parent) return false;
+      // Skip the variable declaration name
       if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+      // Skip LHS of simple assignment expressions (those become the new const declaration name)
+      if (
+        Node.isBinaryExpression(parent) &&
+        parent.getLeft() === id &&
+        parent.getOperatorToken().getText() === "="
+      )
+        return false;
       return true;
     });
 
-    const sortedRefs = [...remainingRefs].sort((a, b) => b.getStart() - a.getStart());
-    for (const ref of sortedRefs) {
-      ref.replaceWithText(firstNewName);
-    }
+    // Pre-compute segment for each ref before any mutations
+    const refSegments = refs.map((ref) => ({ ref, seg: getSegment(ref.getStart()) }));
 
-    // Replace the original `let target = ...` declaration with `const firstNewName = ...`
-    const declStatement = decl.getParent();
-    if (declStatement && Node.isVariableDeclarationList(declStatement)) {
-      const stmt = declStatement.getParent();
-      if (stmt && Node.isVariableStatement(stmt)) {
-        stmt.replaceWithText(`const ${firstNewName} = ${initText};`);
+    // Pre-compute segment index (1-based, starting at 2) for each assignment
+    const assignmentSegments = sortedAssignments.map((a, i) => ({ assignment: a, seg: i + 2 }));
+
+    // Build a flat list of all changes, sorted by descending start position
+    type Change =
+      | { kind: "ref"; pos: number; ref: (typeof refs)[number]; seg: number }
+      | { kind: "assignment"; pos: number; assignment: (typeof assignments)[number]; seg: number }
+      | { kind: "decl"; pos: number };
+
+    const changes: Change[] = [
+      ...refSegments.map(({ ref, seg }) => ({
+        kind: "ref" as const,
+        pos: ref.getStart(),
+        ref,
+        seg,
+      })),
+      ...assignmentSegments.map(({ assignment, seg }) => ({
+        kind: "assignment" as const,
+        pos: assignment.getStart(),
+        assignment,
+        seg,
+      })),
+      { kind: "decl" as const, pos: decl.getStart() },
+    ];
+
+    // Sort by descending position so each mutation doesn't invalidate later positions
+    changes.sort((a, b) => b.pos - a.pos);
+
+    const initializer = decl.getInitializer();
+    const initText = initializer ? initializer.getText() : "undefined";
+
+    for (const change of changes) {
+      if (change.kind === "ref") {
+        change.ref.replaceWithText(`${target}${change.seg}`);
+      } else if (change.kind === "assignment") {
+        const rhs = change.assignment.getRight().getText();
+        const exprStmt = change.assignment.getParent();
+        if (exprStmt && Node.isExpressionStatement(exprStmt)) {
+          exprStmt.replaceWithText(`const ${target}${change.seg} = ${rhs};`);
+        }
+      } else {
+        // Replace original `let target = ...` with `const target1 = ...`
+        const declStatement = decl.getParent();
+        if (declStatement && Node.isVariableDeclarationList(declStatement)) {
+          const stmt = declStatement.getParent();
+          if (stmt && Node.isVariableStatement(stmt)) {
+            stmt.replaceWithText(`const ${target}1 = ${initText};`);
+          }
+        }
       }
     }
 

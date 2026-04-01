@@ -158,18 +158,18 @@
   - `inside-function-body.fixture.ts` — move within function body (not top-level)
   - `dependency-violation.fixture.ts` — move past a dependency (document behavior)
 - [x] 10.2 Fix: `findStatementAtLine` should work inside function bodies, not just top-level
-- [ ] 10.3 Commit
+- [x] 10.3 Commit
 
 ## 11. Split Variable (TDD)
 
-- [ ] 11.1 Write fixtures:
+- [x] 11.1 Write fixtures:
   - `two-purposes.fixture.ts` — variable used for two different roles
   - `three-assignments.fixture.ts` — variable reassigned twice (3 segments)
   - `const-reject.fixture.ts` — `const` variable → precondition error
   - `compound-assignment.fixture.ts` — `temp += x` pattern
   - `segment-references.fixture.ts` — verify each segment's references are renamed correctly
-- [ ] 11.2 Fix: reference-per-segment tracking (current impl renames all to `target1`)
-- [ ] 11.3 Commit
+- [x] 11.2 Fix: reference-per-segment tracking (current impl renames all to `target1`)
+- [x] 11.3 Commit
 
 ## 12. Rename Field (TDD)
 
