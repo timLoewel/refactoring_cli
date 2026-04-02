@@ -26,6 +26,14 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    const varStmt = decl.getParent()?.getParent();
+    if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) {
+      errors.push(
+        `Variable '${target}' is exported and may be imported by other files. Inlining would remove this export.`,
+      );
+      return { ok: false, errors };
+    }
+
     const initializer = decl.getInitializer();
     if (!initializer) {
       errors.push(`Variable '${target}' has no initializer and cannot be inlined`);
