@@ -300,6 +300,7 @@ async function applyAndCheck(
   candidate: Candidate,
   reverseImportMap: Map<string, Set<string>>,
   tsProject: Project,
+  baselineCache: { baselined: Set<string>; keys: Set<string> },
 ): Promise<CandidateResult> {
   const params = buildApplyParams(refactoring, candidate.file, candidate.target);
   const noResult = (skipReason: string | null): CandidateResult => ({
@@ -338,6 +339,28 @@ async function applyAndCheck(
 
   // Compile check using in-process ts-morph (avoids per-check tsc process spawn overhead)
   const t1 = Date.now();
+
+  // Scope: changed files + their direct importers (not transitive — avoids project-wide explosion)
+  const changedFileSet = new Set(result.filesChanged);
+  const scopeSet = new Set<string>(result.filesChanged);
+  for (const changedFile of result.filesChanged) {
+    for (const importer of reverseImportMap.get(changedFile) ?? []) {
+      scopeSet.add(importer);
+    }
+  }
+
+  // Baseline pre-existing diagnostics for importer files (BEFORE refreshing changed files,
+  // so the type checker still has the original versions). Only done once per file.
+  for (const filePath of scopeSet) {
+    if (changedFileSet.has(filePath) || baselineCache.baselined.has(filePath)) continue;
+    baselineCache.baselined.add(filePath);
+    const sf = tsProject.getSourceFile(filePath);
+    if (!sf) continue;
+    for (const d of sf.getPreEmitDiagnostics()) {
+      baselineCache.keys.add(`${filePath}:${d.getStart() ?? -1}:${d.getCode()}`);
+    }
+  }
+
   // Refresh only the files that were changed. refreshFromFileSystemSync can throw when the
   // AST shape changes too drastically; fall back to remove+re-add in that case.
   for (const changedFile of result.filesChanged) {
@@ -350,17 +373,21 @@ async function applyAndCheck(
       tsProject.addSourceFileAtPath(changedFile);
     }
   }
-  // Scope: changed files + their direct importers (not transitive — avoids project-wide explosion)
-  const scopeSet = new Set<string>(result.filesChanged);
-  for (const changedFile of result.filesChanged) {
-    for (const importer of reverseImportMap.get(changedFile) ?? []) {
-      scopeSet.add(importer);
-    }
-  }
+
   const scopedFiles = Array.from(scopeSet)
     .map((p) => tsProject.getSourceFile(p))
     .filter((sf): sf is NonNullable<typeof sf> => sf !== undefined);
-  const diagnostics = scopedFiles.flatMap((sf) => sf.getPreEmitDiagnostics());
+  // Only count diagnostics that are NEW — filter out pre-existing errors to avoid
+  // false failures from pre-existing TypeORM issues in importer files.
+  const allDiagnostics = scopedFiles.flatMap((sf) => sf.getPreEmitDiagnostics());
+  const diagnostics = allDiagnostics.filter((d) => {
+    const diagFile = d.getSourceFile()?.getFilePath();
+    if (!diagFile) return true; // keep if no file info
+    if (changedFileSet.has(diagFile)) return true; // always keep errors from changed files
+    // For importer files: keep only if NOT pre-existing
+    const key = `${diagFile}:${d.getStart() ?? -1}:${d.getCode()}`;
+    return !baselineCache.keys.has(key);
+  });
   const tscMs = Date.now() - t1;
 
   const passed = diagnostics.length === 0;
@@ -374,7 +401,9 @@ async function applyAndCheck(
           const lineCol = file && pos !== undefined
             ? (() => { const lc = file.getLineAndColumnAtPos(pos); return ` (${file.getBaseName()}:${lc.line}:${lc.column})`; })()
             : "";
-          return `${d.getMessageText().toString()}${lineCol}`;
+          const msg = d.getMessageText();
+          const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
+          return `${msgStr}${lineCol}`;
         })
         .join("\n");
 
@@ -475,6 +504,9 @@ async function main(): Promise<void> {
   const client = await RefactorClient.connect(CACHE_DIR);
   process.stderr.write("Daemon ready.\n");
 
+  // Cache pre-existing diagnostics for importer files to filter out false positives
+  const baselineCache = { baselined: new Set<string>(), keys: new Set<string>() };
+
   const stats: RefactoringStats[] = [];
 
   for (const refactoring of refactorings) {
@@ -511,7 +543,7 @@ async function main(): Promise<void> {
         beforeContent = readFileSync(candidate.file, "utf8");
       } catch { /* ignore */ }
 
-      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap, tsProject);
+      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap, tsProject, baselineCache);
       checked++;
 
       if (!result.isTarget) {
