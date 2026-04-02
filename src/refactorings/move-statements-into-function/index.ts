@@ -21,6 +21,11 @@ export const moveStatementsIntoFunction = defineRefactoring<FunctionContext>({
     const startLine = params["startLine"] as number;
     const endLine = params["endLine"] as number;
 
+    if (startLine <= 0 || endLine <= 0) {
+      errors.push("param 'startLine' and 'endLine' must be >= 1 (1-based line numbers)");
+      return { ok: false, errors };
+    }
+
     if (endLine < startLine) {
       errors.push("param 'endLine' must be >= 'startLine'");
     }

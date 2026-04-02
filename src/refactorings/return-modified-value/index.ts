@@ -55,7 +55,41 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
     const paramList = ctx.fn.getParameters();
     if (paramList.length === 0) {
       errors.push(`Function '${ctx.fn.getName()}' has no parameters to return`);
+      return { ok: false, errors };
     }
+
+    // Skip rest parameters: `return values` when the param is `...values` returns an array,
+    // which typically doesn't match the declared return type.
+    const firstParam = paramList[0]!;
+    if (firstParam.isRestParameter()) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' first parameter is a rest parameter; cannot safely return it`,
+      );
+      return { ok: false, errors };
+    }
+
+    // Skip functions that already return a value — this refactoring is for void/mutating
+    // functions only. Adding another return at the end would either be unreachable or cause
+    // a type mismatch.
+    const existingReturns = ctx.body
+      .getDescendantsOfKind(SyntaxKind.ReturnStatement)
+      .filter((r) => r.getExpression() !== undefined);
+    if (existingReturns.length > 0) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' already returns a value; this refactoring is for void/mutating functions`,
+      );
+      return { ok: false, errors };
+    }
+
+    // Skip type predicate return types (e.g. `v is SomeType`): `return v` won't satisfy it.
+    const returnTypeNode = ctx.fn.getReturnTypeNode();
+    if (returnTypeNode && Node.isTypePredicate(returnTypeNode)) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' has a type predicate return type; cannot add a plain parameter return`,
+      );
+      return { ok: false, errors };
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {

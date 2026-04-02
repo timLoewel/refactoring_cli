@@ -22,7 +22,19 @@ export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
     const stmts = Node.isBlock(ctx.body) ? ctx.body.getStatements() : [];
     if (stmts.length === 0) {
       errors.push(`Function '${ctx.fn.getName()}' body is empty — nothing to move`);
+      return { ok: false, errors };
     }
+
+    // Moving a return-with-value statement out of the function would remove the function's
+    // return, leaving it without a required return value.
+    const lastStmt = stmts[stmts.length - 1]!;
+    if (Node.isReturnStatement(lastStmt) && lastStmt.getExpression() !== undefined) {
+      errors.push(
+        `Last statement of '${ctx.fn.getName()}' is a return statement with a value; moving it would break the function's return`,
+      );
+      return { ok: false, errors };
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {

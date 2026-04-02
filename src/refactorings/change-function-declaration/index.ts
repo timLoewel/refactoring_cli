@@ -25,6 +25,14 @@ export const changeFunctionDeclaration = defineRefactoring<SourceFileContext>({
       .find((f) => f.getName() === target);
     if (!fn) {
       errors.push(`Function '${target}' not found in file`);
+      return { ok: false, errors };
+    }
+
+    if (fn.isExported()) {
+      errors.push(
+        `Function '${target}' is exported and may be imported by other files. Renaming it would break those imports.`,
+      );
+      return { ok: false, errors };
     }
 
     const conflict = sf

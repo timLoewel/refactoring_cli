@@ -25,6 +25,31 @@ export const splitPhase = defineRefactoring<FunctionContext>({
     const firstPhaseName = params["firstPhaseName"] as string;
     const secondPhaseName = params["secondPhaseName"] as string;
 
+    if (firstPhaseName === secondPhaseName) {
+      errors.push(
+        `'firstPhaseName' and 'secondPhaseName' must be different (both are '${firstPhaseName}')`,
+      );
+      return { ok: false, errors };
+    }
+
+    // Skip functions that already return a value — splitting would leave the wrapper without
+    // a return statement, violating the declared return type.
+    const returnTypeNode = ctx.fn.getReturnTypeNode();
+    const returnTypeText = returnTypeNode?.getText() ?? "";
+    if (returnTypeText && returnTypeText !== "void" && returnTypeText !== "undefined") {
+      const hasValueReturn =
+        Node.isBlock(body) &&
+        body
+          .getDescendantsOfKind(SyntaxKind.ReturnStatement)
+          .some((r) => r.getExpression() !== undefined);
+      if (hasValueReturn) {
+        errors.push(
+          `Function '${ctx.fn.getName()}' returns a value; split-phase would lose the return. Only void/mutating functions are supported.`,
+        );
+        return { ok: false, errors };
+      }
+    }
+
     const bodyStmtCount = Node.isBlock(body) ? body.getStatements().length : 0;
     if (bodyStmtCount < 2) {
       errors.push(
