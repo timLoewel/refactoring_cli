@@ -1,5 +1,6 @@
 import { SyntaxKind, Node, ts } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type { EnumerateCandidate, PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
@@ -18,6 +19,20 @@ function getContainingStatement(node: Node): Node | undefined {
     current = parent;
   }
   return undefined;
+}
+
+/**
+ * Walk up the AST to find the direct child of `scopeParent` that contains `node`.
+ * Returns undefined if `node` is not inside `scopeParent`.
+ */
+function getContainingStatementAtScope(node: Node, scopeParent: Node): Node | undefined {
+  let current: Node = node;
+  while (true) {
+    const parent = current.getParent();
+    if (!parent) return undefined;
+    if (parent === scopeParent) return current;
+    current = parent;
+  }
 }
 
 /**
@@ -58,6 +73,89 @@ function isInJSDocContext(node: Node): boolean {
     current = current.getParent();
   }
   return false;
+}
+
+/**
+ * Returns true if this StringLiteral (or TemplateExpression/NoSubstitutionTemplateLiteral)
+ * is the module specifier in an import/export declaration.
+ * Extracting such nodes would break the import/require.
+ */
+function isModuleSpecifier(node: Node): boolean {
+  const kind = node.getKind();
+  if (kind !== SyntaxKind.StringLiteral) return false;
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+  return (
+    parentKind === ts.SyntaxKind.ImportDeclaration ||
+    parentKind === ts.SyntaxKind.ExportDeclaration ||
+    parentKind === ts.SyntaxKind.ExternalModuleReference || // require("...")
+    parentKind === ts.SyntaxKind.ImportType
+  );
+}
+
+/**
+ * Returns true if this node is on the left-hand side of an assignment expression.
+ * Extracting the LHS into a const would break the assignment (assigning to a const).
+ */
+function isAssignmentLHS(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent) return false;
+  if (parent.getKind() !== ts.SyntaxKind.BinaryExpression) return false;
+  const binary = parent as unknown as { getLeft?: () => Node; getOperatorToken?: () => Node };
+  const op = binary.getOperatorToken?.();
+  if (!op) return false;
+  const opKind = op.getKind();
+  const isAssign =
+    opKind === ts.SyntaxKind.EqualsToken ||
+    opKind === ts.SyntaxKind.PlusEqualsToken ||
+    opKind === ts.SyntaxKind.MinusEqualsToken ||
+    opKind === ts.SyntaxKind.AsteriskEqualsToken ||
+    opKind === ts.SyntaxKind.SlashEqualsToken ||
+    opKind === ts.SyntaxKind.PercentEqualsToken ||
+    opKind === ts.SyntaxKind.AmpersandEqualsToken ||
+    opKind === ts.SyntaxKind.BarEqualsToken ||
+    opKind === ts.SyntaxKind.CaretEqualsToken ||
+    opKind === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+    opKind === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+    opKind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+    opKind === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
+    opKind === ts.SyntaxKind.BarBarEqualsToken ||
+    opKind === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+    opKind === ts.SyntaxKind.QuestionQuestionEqualsToken;
+  if (!isAssign) return false;
+  return binary.getLeft?.() === node;
+}
+
+/**
+ * Returns true if this ArrowFunction or FunctionExpression is used as a call argument.
+ * Extracting it removes the contextual typing from the call site, causing `any` inference.
+ */
+function isArrowFunctionInCallArgument(node: Node): boolean {
+  const kind = node.getKind();
+  if (kind !== SyntaxKind.ArrowFunction && kind !== SyntaxKind.FunctionExpression) return false;
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+  return (
+    parentKind === ts.SyntaxKind.CallExpression ||
+    parentKind === ts.SyntaxKind.NewExpression
+  );
+}
+
+/**
+ * Returns true if this expression is used as an argument inside a decorator call.
+ * Decorator overloads rely on contextual typing; extracting the argument breaks overload resolution.
+ */
+function isArgumentInDecorator(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+  if (parentKind !== ts.SyntaxKind.CallExpression && parentKind !== ts.SyntaxKind.NewExpression)
+    return false;
+  const grandParent = parent.getParent();
+  if (!grandParent) return false;
+  return grandParent.getKind() === ts.SyntaxKind.Decorator;
 }
 
 /**
@@ -168,6 +266,31 @@ function isBindingIdentifier(node: Node): boolean {
 }
 
 /**
+ * Returns true if `node` is inside `scopeParent` but not separated from it by a
+ * function boundary (FunctionDeclaration, FunctionExpression, ArrowFunction,
+ * MethodDeclaration, GetAccessor, SetAccessor, Constructor).
+ * Nested `if`/`for`/`while` blocks are fine — they share the same scope.
+ */
+function isInsideScopeWithoutFunctionBoundary(node: Node, scopeParent: Node): boolean {
+  const FUNCTION_KINDS = new Set([
+    ts.SyntaxKind.FunctionDeclaration,
+    ts.SyntaxKind.FunctionExpression,
+    ts.SyntaxKind.ArrowFunction,
+    ts.SyntaxKind.MethodDeclaration,
+    ts.SyntaxKind.GetAccessor,
+    ts.SyntaxKind.SetAccessor,
+    ts.SyntaxKind.Constructor,
+  ]);
+  let current: Node | undefined = node.getParent();
+  while (current) {
+    if (current === scopeParent) return true;
+    if (FUNCTION_KINDS.has(current.getKind())) return false;
+    current = current.getParent();
+  }
+  return false;
+}
+
+/**
  * Returns true if this identifier node references a symbol (parameter or local variable)
  * that is only accessible inside a nested function/arrow function within scopeParent —
  * meaning extracting it to scopeParent would leave the new `const` referencing an undefined name.
@@ -230,7 +353,11 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isBindingIdentifier(n))
       .filter((n) => !isInTypeContext(n))
       .filter((n) => !isStringLiteralPropertyName(n))
-      .filter((n) => !isInJSDocContext(n));
+      .filter((n) => !isInJSDocContext(n))
+      .filter((n) => !isModuleSpecifier(n))
+      .filter((n) => !isAssignmentLHS(n))
+      .filter((n) => !isArrowFunctionInCallArgument(n))
+      .filter((n) => !isArgumentInDecorator(n));
 
     if (matchingNodes.length === 0) {
       return {
@@ -267,13 +394,11 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Keep only matches within the same scope that don't reference a parameter
-    // only accessible inside a nested function (would be undefined at the extraction point).
+    // Keep only matches within the same scope (including nested blocks, but not nested
+    // function bodies) that don't reference a parameter only accessible inside a nested function.
     const scopedMatches = matchingNodes.filter((node) => {
-      const stmt = getContainingStatement(node);
       return (
-        stmt !== undefined &&
-        stmt.getParent() === scopeParent &&
+        isInsideScopeWithoutFunctionBoundary(node, scopeParent) &&
         !referencesParameterNotAccessibleAtScope(node, scopeParent)
       );
     });
@@ -286,7 +411,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Record the position of the first statement before any AST mutations
+    // Record the position of the first statement (at scopeParent level) before any AST mutations.
+    // Use getContainingStatementAtScope so nested-block matches resolve to the correct top-level slot.
     const firstScopedMatch = scopedMatches[0];
     if (!firstScopedMatch) {
       return {
@@ -295,7 +421,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         description: `Expression '${targetText}' not found in file`,
       };
     }
-    const firstScopedStatement = getContainingStatement(firstScopedMatch);
+    const firstScopedStatement = getContainingStatementAtScope(firstScopedMatch, scopeParent);
     if (!firstScopedStatement) {
       return {
         success: false,
@@ -306,7 +432,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     const insertionPos = firstScopedStatement.getStart();
 
     // Reject if any matched identifier's declaration appears AFTER the insertion point
-    // in the same scope (block-scoped TDZ forward reference).
+    // in the same scope (block-scoped TDZ forward reference), or is uninitialized (let/var
+    // without initializer) which would be used-before-assigned after extraction.
     for (const matchNode of scopedMatches) {
       if (matchNode.getKind() !== SyntaxKind.Identifier) continue;
       const identifier = matchNode.asKind(SyntaxKind.Identifier);
@@ -314,8 +441,20 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       const symbol = identifier.getSymbol();
       if (!symbol) continue;
       for (const decl of symbol.getDeclarations()) {
-        const declStmt = getContainingStatement(decl);
-        if (!declStmt || declStmt.getParent() !== scopeParent) continue;
+        const declStmt = getContainingStatementAtScope(decl, scopeParent);
+        if (!declStmt) continue;
+        // Uninitialized let/var: `let x: T` with no initializer — extracting `x` would
+        // produce `const __v = x` before x is assigned, causing "used before assigned".
+        if (decl.getKind() === ts.SyntaxKind.VariableDeclaration) {
+          const varDecl = decl.asKind(ts.SyntaxKind.VariableDeclaration);
+          if (varDecl && varDecl.getInitializer() === undefined) {
+            return {
+              success: false,
+              filesChanged: [],
+              description: `Precondition failed: '${targetText}' is an uninitialized variable that may not be assigned at the extraction point`,
+            };
+          }
+        }
         if (declStmt.getStart() >= insertionPos) {
           return {
             success: false,
@@ -360,5 +499,32 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Extracted '${targetText}' into variable '${varName}'`,
     };
+  },
+
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      // Collect expression-kind nodes that are not bindings, not type contexts,
+      // not JSDoc, and not string-literal property names.
+      // Deduplicate by text so we emit at most one candidate per (file, expression).
+      const seen = new Set<string>();
+      for (const node of sf.getDescendants()) {
+        if (!EXPRESSION_KINDS.has(node.getKind())) continue;
+        if (isBindingIdentifier(node)) continue;
+        if (isInTypeContext(node)) continue;
+        if (isStringLiteralPropertyName(node)) continue;
+        if (isInJSDocContext(node)) continue;
+        if (isModuleSpecifier(node)) continue;
+        if (isAssignmentLHS(node)) continue;
+        if (isArrowFunctionInCallArgument(node)) continue;
+        if (isArgumentInDecorator(node)) continue;
+        const text = node.getText().trim();
+        if (!text || seen.has(text)) continue;
+        seen.add(text);
+        candidates.push({ file, target: text });
+      }
+    }
+    return candidates;
   },
 });

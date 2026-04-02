@@ -195,6 +195,7 @@ export interface DefineRefactoringConfig<TContext = Project> {
   resolve?: (project: Project, params: Record<string, unknown>) => ResolveResult<TContext>;
   preconditions?: (context: TContext, params: Record<string, unknown>) => PreconditionResult;
   apply: (context: TContext, params: Record<string, unknown>) => RefactoringResult;
+  enumerate?: (project: Project) => import("./refactoring.types.js").EnumerateCandidate[];
 }
 
 function buildParamSchema(helpers: ParamHelper[]): ParamSchema {
@@ -256,6 +257,8 @@ export function defineRefactoring<TContext = Project>(
 
       return config.apply(project as unknown as TContext, validated);
     },
+
+    ...(config.enumerate ? { enumerate: config.enumerate } : {}),
   };
 
   registry.register(definition);

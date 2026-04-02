@@ -513,19 +513,20 @@ async function main(): Promise<void> {
     reverseImportMap,
     project: tsProject,
   } = enumerateCandidates(CACHE_DIR);
-  // Weighted shuffle: bias toward candidates whose file has many importers (large change sets).
-  // Weight = (importerCount + 1)^2 — quadratic skew so large-scope files dominate the front.
+  // Weighted shuffle: bias toward candidates whose file has FEW importers (small change sets).
+  // Most draws come from fast, small-scope files; large-scope files appear occasionally.
+  // Weight = 1 / (importerCount + 1)^2 — quadratic inverse skew.
   // Uses the exponential-key trick (weighted random permutation without replacement).
   const shuffledCandidates = weightedShuffle(
     allCandidates,
     (c) => {
       const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
-      return (importerCount + 1) ** 2;
+      return 1 / (importerCount + 1) ** 2;
     },
     42,
   );
   process.stderr.write(
-    `${shuffledCandidates.length} symbol candidates found (scope-biased shuffle, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
+    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
   );
 
   // Step 6.1: dry-run — report candidate counts and exit
@@ -548,6 +549,9 @@ async function main(): Promise<void> {
   process.stderr.write("Starting refactoring daemon...\n");
   const { RefactorClient } = await import("../../src/core/refactor-client.js");
   const { startDaemon } = await import("../../src/core/server/daemon.js");
+  // Import registry after all refactoring modules have been loaded (side-effects register them)
+  await import("../../src/refactorings/register-all.js");
+  const { registry } = await import("../../src/core/refactoring-registry.js");
   await startDaemon(CACHE_DIR);
   const client = await RefactorClient.connect(CACHE_DIR);
   process.stderr.write("Daemon ready.\n");
@@ -568,8 +572,22 @@ async function main(): Promise<void> {
     };
 
     const limit = maxCandidates ?? shuffledCandidates.length;
+
+    // Use refactoring-specific enumerate when available; fall back to generic symbol list.
+    const definition = registry.lookup(refactoring.kebabName);
+    const candidateList: Candidate[] = definition?.enumerate
+      ? weightedShuffle(
+          definition.enumerate(tsProject),
+          (c) => {
+            const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
+            return 1 / (importerCount + 1) ** 2;
+          },
+          42,
+        )
+      : shuffledCandidates;
+    const source = definition?.enumerate ? "enumerate" : "generic";
     process.stderr.write(
-      `\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${shuffledCandidates.length} candidates)\n`,
+      `\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${candidateList.length} candidates [${source}])\n`,
     );
 
     // Track skip reasons for summary
@@ -578,7 +596,7 @@ async function main(): Promise<void> {
     const skipSamples: { reason: string; candidate: Candidate; source: string }[] = [];
 
     let checked = 0;
-    for (const candidate of shuffledCandidates) {
+    for (const candidate of candidateList) {
       const shortFile = candidate.file.replace(CACHE_DIR + "/", "");
 
       if (isVerbose) {

@@ -48,6 +48,11 @@ export interface ClassContext {
   cls: ClassDeclaration;
 }
 
+export interface EnumerateCandidate {
+  file: string;
+  target: string;
+}
+
 export interface RefactoringDefinition {
   name: string;
   kebabName: string;
@@ -57,4 +62,8 @@ export interface RefactoringDefinition {
   params: ParamSchema;
   preconditions: (project: Project, params: unknown) => PreconditionResult;
   apply: (project: Project, params: unknown) => RefactoringResult;
+  /** Optional: enumerate valid (file, target) candidates directly from the AST.
+   *  When present the test runner uses this instead of the generic symbol list,
+   *  eliminating candidates that would trivially fail preconditions. */
+  enumerate?: (project: Project) => EnumerateCandidate[];
 }
