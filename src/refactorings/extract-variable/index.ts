@@ -288,7 +288,23 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     }
 
     // Record the position of the first statement before any AST mutations
-    const insertionPos = getContainingStatement(scopedMatches[0]!)!.getPos();
+    const firstScopedMatch = scopedMatches[0];
+    if (!firstScopedMatch) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Expression '${targetText}' not found in file`,
+      };
+    }
+    const firstScopedStatement = getContainingStatement(firstScopedMatch);
+    if (!firstScopedStatement) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Could not determine statement context for expression '${targetText}'`,
+      };
+    }
+    const insertionPos = firstScopedStatement.getPos();
 
     // Reject if any matched identifier's declaration appears AFTER the insertion point
     // in the same scope (block-scoped TDZ forward reference).
