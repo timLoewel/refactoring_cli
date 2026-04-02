@@ -170,6 +170,15 @@ export const inlineFunction = defineRefactoring<SourceFileContext>({
         .map((c) => c.getExpression().getStart()),
     );
 
+    // Require at least one call site in the same file; otherwise inlining would
+    // just delete the function while leaving cross-file callers broken.
+    if (directCallPositions.size === 0) {
+      errors.push(
+        `Function '${target}' has no call sites in this file and cannot be inlined here`,
+      );
+      return { ok: false, errors };
+    }
+
     // Check for non-direct-call usages (method calls, passed as value, etc.)
     const allUsages = sf
       .getDescendantsOfKind(SyntaxKind.Identifier)
@@ -257,6 +266,41 @@ export const inlineFunction = defineRefactoring<SourceFileContext>({
     // Re-find the function after mutations (original closure may be stale)
     const freshInfo = findFunction(sf, target);
     if (freshInfo) freshInfo.remove();
+
+    // Remove named imports that are now unused after the function was deleted.
+    const stillUsed = new Set<string>();
+    for (const id of sf.getDescendantsOfKind(SyntaxKind.Identifier)) {
+      let insideImport = false;
+      let anc: ReturnType<typeof id.getParent> = id.getParent();
+      while (anc) {
+        if (Node.isImportDeclaration(anc)) {
+          insideImport = true;
+          break;
+        }
+        const next = anc.getParent();
+        if (!next) break;
+        anc = next;
+      }
+      if (!insideImport) stillUsed.add(id.getText());
+    }
+    for (const importDecl of [...sf.getImportDeclarations()]) {
+      let removedAny = false;
+      for (const spec of [...importDecl.getNamedImports()]) {
+        const local = spec.getAliasNode()?.getText() ?? spec.getNameNode().getText();
+        if (!stillUsed.has(local)) {
+          spec.remove();
+          removedAny = true;
+        }
+      }
+      if (
+        removedAny &&
+        importDecl.getNamedImports().length === 0 &&
+        !importDecl.getDefaultImport() &&
+        !importDecl.getNamespaceImport()
+      ) {
+        importDecl.remove();
+      }
+    }
 
     return {
       success: true,

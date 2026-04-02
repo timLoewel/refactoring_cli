@@ -25,6 +25,13 @@ export const parameterizeFunction = defineRefactoring<FunctionContext>({
       errors.push(`Function '${ctx.fn.getName()}' already has a parameter named '${paramName}'`);
     }
 
+    const hasRestParam = ctx.fn.getParameters().some((p) => p.isRestParameter());
+    if (hasRestParam) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' has a rest parameter. Cannot add a parameter after it.`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {

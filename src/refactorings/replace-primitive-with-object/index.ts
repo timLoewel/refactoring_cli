@@ -43,6 +43,17 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
     const varDecl = sf.getVariableDeclaration(target);
     if (!varDecl) {
       errors.push(`Variable '${target}' not found at module level in file: ${file}`);
+      return { ok: false, errors };
+    }
+
+    // Only meaningful for primitive types; reject complex object/interface types
+    const explicitType = varDecl.getTypeNode()?.getText();
+    const primitiveTypes = new Set(["string", "number", "boolean", "bigint", "unknown", "any"]);
+    if (explicitType && !primitiveTypes.has(explicitType)) {
+      errors.push(
+        `Variable '${target}' has type '${explicitType}' which is not a primitive. ` +
+          `This refactoring is intended for string, number, boolean, or bigint variables.`,
+      );
     }
 
     return { ok: errors.length === 0, errors };
@@ -65,10 +76,22 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
     const primitiveType = varDecl.getTypeNode()?.getText() ?? "unknown";
     const initializerText = varDecl.getInitializer()?.getText() ?? "undefined";
 
-    sf.addStatements(buildWrapperClass(className, primitiveType));
+    // Insert wrapper class BEFORE the variable statement so the class is declared
+    // before it is used (class declarations are not hoisted like function declarations).
+    const varStmt = varDecl.getParent()?.getParent();
+    const stmts = sf.getStatements();
+    const stmtIdx = stmts.findIndex((s) => s === varStmt);
+    const insertIdx = stmtIdx >= 0 ? stmtIdx : stmts.length;
+    sf.insertStatements(insertIdx, buildWrapperClass(className, primitiveType));
 
-    varDecl.setType(className);
-    varDecl.setInitializer(`new ${className}(${initializerText})`);
+    // Re-find the declaration after the insertion (positions shifted)
+    const freshDecl = sf.getVariableDeclaration(target);
+    if (!freshDecl) {
+      return { success: false, filesChanged: [], description: `Variable '${target}' not found after insertion` };
+    }
+
+    freshDecl.setType(className);
+    freshDecl.setInitializer(`new ${className}(${initializerText})`);
 
     return {
       success: true,

@@ -94,6 +94,19 @@ export const removeDeadCode = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    // Skip exported symbols — they may be imported by other files.
+    if (funcDecl && funcDecl.isExported()) {
+      errors.push(`Symbol '${target}' is exported and may be used in other files`);
+      return { ok: false, errors };
+    }
+    if (varDecl) {
+      const varStmt = varDecl.getParent()?.getParent();
+      if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) {
+        errors.push(`Symbol '${target}' is exported and may be used in other files`);
+        return { ok: false, errors };
+      }
+    }
+
     const usageCount = countUsages(sf, target);
     if (usageCount > 0) {
       errors.push(`Symbol '${target}' has ${usageCount} usage(s) and is not dead code`);

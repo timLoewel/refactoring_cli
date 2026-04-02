@@ -32,6 +32,17 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
     const varDecl = sf.getVariableDeclaration(target);
     if (!varDecl) {
       errors.push(`Variable '${target}' not found at module level in file: ${file}`);
+      return { ok: false, errors };
+    }
+
+    // If the variable is exported it may be imported by other files under its original name.
+    // Renaming it to a getter breaks those callers, so skip exported variables.
+    const varStmt = varDecl.getParent()?.getParent();
+    if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) {
+      errors.push(
+        `Variable '${target}' is exported and may be imported by other files. ` +
+          `Encapsulating it would break those imports.`,
+      );
     }
 
     return { ok: errors.length === 0, errors };
@@ -70,15 +81,34 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
     const getterName = "get" + target.charAt(0).toUpperCase() + target.slice(1) + "()";
     const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
-      // Skip the private backing field `_target` (different name — already renamed)
       const parent = id.getParent();
       if (!parent) return false;
-      // Skip declaration names
+      // Skip declaration names (including the new backing field `_target`)
       if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
       // Skip function/method definition names
       if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) return false;
-      // Skip property access names (obj.foo — foo is not a ref)
+      // Skip property access right-hand side names (obj.foo)
       if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) return false;
+      // Skip parameter bindings (e.g. the `(target) =>` in a callback)
+      if (Node.isParameterDeclaration(parent) && parent.getNameNode() === id) return false;
+      // Skip identifiers shadowed by a closer parameter of the same name
+      let anc: ReturnType<typeof id.getParent> = id.getParent();
+      while (anc) {
+        if (
+          Node.isArrowFunction(anc) ||
+          Node.isFunctionDeclaration(anc) ||
+          Node.isFunctionExpression(anc) ||
+          Node.isMethodDeclaration(anc)
+        ) {
+          if (anc.getParameters().some((p) => {
+            const n = p.getNameNode();
+            return Node.isIdentifier(n) && n.getText() === target;
+          })) return false;
+        }
+        const next = anc.getParent();
+        if (!next) break;
+        anc = next;
+      }
       return true;
     });
     const sorted = [...refs].sort((a, b) => b.getStart() - a.getStart());

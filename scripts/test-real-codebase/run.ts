@@ -265,6 +265,9 @@ function buildApplyParams(
       params["target"] = target;
     } else if (p.type === "number") {
       params[p.name] = 0;
+    } else if (p.name.toLowerCase().endsWith("type") || p.name.toLowerCase() === "typename") {
+      // Use a valid TS type so refactorings that insert type annotations pass tsc
+      params[p.name] = "unknown";
     } else {
       params[p.name] = "__reftest__";
     }
