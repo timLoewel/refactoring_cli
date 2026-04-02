@@ -21,6 +21,73 @@ function getContainingStatement(node: Node): Node | undefined {
 }
 
 /**
+ * Returns true if this node is in a type-annotation context (TypeReference, ArrayType, etc.)
+ * rather than a value/expression context. Such nodes should not be extracted as variables.
+ */
+function isInTypeContext(node: Node): boolean {
+  let current: Node | undefined = node.getParent();
+  while (current) {
+    if (Node.isTypeNode(current)) return true;
+    // Stop searching once we reach an expression or statement boundary
+    if (Node.isExpression(current) || Node.isStatement(current)) return false;
+    current = current.getParent();
+  }
+  return false;
+}
+
+/**
+ * Returns true if this node is inside a JSDoc comment (JSDocLink, JSDocText, etc.).
+ * JSDoc nodes are not value expressions and should not be extracted.
+ */
+function isInJSDocContext(node: Node): boolean {
+  let current: Node | undefined = node.getParent();
+  while (current) {
+    const kind = current.getKind();
+    if (
+      kind === ts.SyntaxKind.JSDoc ||
+      kind === ts.SyntaxKind.JSDocComment ||
+      kind === ts.SyntaxKind.JSDocLink ||
+      kind === ts.SyntaxKind.JSDocLinkCode ||
+      kind === ts.SyntaxKind.JSDocLinkPlain ||
+      kind === ts.SyntaxKind.JSDocTag ||
+      kind === ts.SyntaxKind.JSDocNamepathType ||
+      kind === ts.SyntaxKind.JSDocText
+    ) {
+      return true;
+    }
+    if (Node.isExpression(current) || Node.isStatement(current)) return false;
+    current = current.getParent();
+  }
+  return false;
+}
+
+/**
+ * Returns true if this StringLiteral node is used as a property name in a declaration
+ * (class property, method, index signature, etc.) rather than as a value expression.
+ */
+function isStringLiteralPropertyName(node: Node): boolean {
+  if (node.getKind() !== SyntaxKind.StringLiteral) return false;
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+  switch (parentKind) {
+    case ts.SyntaxKind.PropertyDeclaration:
+    case ts.SyntaxKind.MethodDeclaration:
+    case ts.SyntaxKind.GetAccessor:
+    case ts.SyntaxKind.SetAccessor:
+    case ts.SyntaxKind.PropertySignature:
+    case ts.SyntaxKind.MethodSignature:
+    case ts.SyntaxKind.PropertyAssignment:
+    case ts.SyntaxKind.ShorthandPropertyAssignment: {
+      const named = parent as unknown as { getNameNode?: () => Node | undefined };
+      return named.getNameNode?.() === node;
+    }
+    default:
+      return false;
+  }
+}
+
+/**
  * Expression node kinds that can be matched as a target expression.
  */
 const EXPRESSION_KINDS = new Set<SyntaxKind>([
@@ -86,9 +153,46 @@ function isBindingIdentifier(node: Node): boolean {
       const pa = parent as unknown as { getNameNode?: () => Node | undefined };
       return pa.getNameNode?.() === node;
     }
+    // Type literal property name: `{ readonly primary: "primary" }` — type-level binding
+    case ts.SyntaxKind.PropertySignature: {
+      const ps = parent as unknown as { getNameNode?: () => Node | undefined };
+      return ps.getNameNode?.() === node;
+    }
+    // Enum member name: `enum Foo { Bar = 1 }` — `Bar` is a binding, not a reference
+    case ts.SyntaxKind.EnumMember: {
+      const em = parent as unknown as { getNameNode?: () => Node | undefined };
+      return em.getNameNode?.() === node;
+    }
     default:
       return false;
   }
+}
+
+/**
+ * Returns true if this identifier node references a symbol (parameter or local variable)
+ * that is only accessible inside a nested function/arrow function within scopeParent —
+ * meaning extracting it to scopeParent would leave the new `const` referencing an undefined name.
+ */
+function referencesParameterNotAccessibleAtScope(node: Node, scopeParent: Node): boolean {
+  if (node.getKind() !== SyntaxKind.Identifier) return false;
+  const identifier = node.asKind(SyntaxKind.Identifier);
+  if (!identifier) return false;
+
+  const symbol = identifier.getSymbol();
+  if (!symbol) return false;
+
+  for (const decl of symbol.getDeclarations()) {
+    if (decl.getKind() !== ts.SyntaxKind.Parameter) continue;
+    // Walk up from the parameter declaration to see if scopeParent is an ancestor.
+    // If it is, the parameter is declared inside a nested scope under scopeParent,
+    // so it's not accessible at scopeParent level.
+    let ancestor: Node | undefined = decl.getParent();
+    while (ancestor) {
+      if (ancestor === scopeParent) return true;
+      ancestor = ancestor.getParent();
+    }
+  }
+  return false;
 }
 
 export const extractVariable = defineRefactoring<SourceFileContext>({
@@ -120,10 +224,14 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
 
     // Collect all descendant nodes matching the target expression text.
     // Exclude binding identifiers (declaration names) — replacing them breaks the declaration.
+    // Also exclude nodes in type contexts and string literal property names.
     const matchingNodes = sf
       .getDescendants()
       .filter((n) => EXPRESSION_KINDS.has(n.getKind()) && n.getText().trim() === targetText)
-      .filter((n) => !isBindingIdentifier(n));
+      .filter((n) => !isBindingIdentifier(n))
+      .filter((n) => !isInTypeContext(n))
+      .filter((n) => !isStringLiteralPropertyName(n))
+      .filter((n) => !isInJSDocContext(n));
 
     if (matchingNodes.length === 0) {
       return {
@@ -160,14 +268,48 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Keep only matches within the same scope
+    // Keep only matches within the same scope that don't reference a parameter
+    // only accessible inside a nested function (would be undefined at the extraction point).
     const scopedMatches = matchingNodes.filter((node) => {
       const stmt = getContainingStatement(node);
-      return stmt !== undefined && stmt.getParent() === scopeParent;
+      return (
+        stmt !== undefined &&
+        stmt.getParent() === scopeParent &&
+        !referencesParameterNotAccessibleAtScope(node, scopeParent)
+      );
     });
 
+    if (scopedMatches.length === 0) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Precondition failed: '${targetText}' only occurs as a reference to a locally-scoped parameter not accessible at the extraction scope`,
+      };
+    }
+
     // Record the position of the first statement before any AST mutations
-    const insertionPos = firstStatement.getPos();
+    const insertionPos = getContainingStatement(scopedMatches[0]!)!.getPos();
+
+    // Reject if any matched identifier's declaration appears AFTER the insertion point
+    // in the same scope (block-scoped TDZ forward reference).
+    for (const matchNode of scopedMatches) {
+      if (matchNode.getKind() !== SyntaxKind.Identifier) continue;
+      const identifier = matchNode.asKind(SyntaxKind.Identifier);
+      if (!identifier) continue;
+      const symbol = identifier.getSymbol();
+      if (!symbol) continue;
+      for (const decl of symbol.getDeclarations()) {
+        const declStmt = getContainingStatement(decl);
+        if (!declStmt || declStmt.getParent() !== scopeParent) continue;
+        if (declStmt.getPos() > insertionPos) {
+          return {
+            success: false,
+            filesChanged: [],
+            description: `Precondition failed: declaration of '${targetText}' appears after the extraction insertion point (forward reference)`,
+          };
+        }
+      }
+    }
 
     // Replace all occurrences in reverse order to avoid position shifts
     const sortedMatches = [...scopedMatches].sort((a, b) => b.getStart() - a.getStart());
