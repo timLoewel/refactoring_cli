@@ -304,7 +304,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         description: `Could not determine statement context for expression '${targetText}'`,
       };
     }
-    const insertionPos = firstScopedStatement.getPos();
+    const insertionPos = firstScopedStatement.getStart();
 
     // Reject if any matched identifier's declaration appears AFTER the insertion point
     // in the same scope (block-scoped TDZ forward reference).
@@ -317,7 +317,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       for (const decl of symbol.getDeclarations()) {
         const declStmt = getContainingStatement(decl);
         if (!declStmt || declStmt.getParent() !== scopeParent) continue;
-        if (declStmt.getPos() > insertionPos) {
+        if (declStmt.getStart() >= insertionPos) {
           return {
             success: false,
             filesChanged: [],
@@ -337,13 +337,15 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     const newDeclaration = `const ${varName} = ${targetText};`;
 
     if (Node.isBlock(scopeParent)) {
-      const statements = scopeParent.getStatements();
-      let insertIndex = statements.findIndex((s) => s.getPos() >= insertionPos);
+      // insertStatements counts comment nodes (SingleLineCommentTrivia etc.) as entries,
+      // so we must use getStatementsWithComments() to get indices that match.
+      const statements = scopeParent.getStatementsWithComments();
+      let insertIndex = statements.findIndex((s) => s.getStart() >= insertionPos);
       if (insertIndex === -1) insertIndex = statements.length;
       scopeParent.insertStatements(insertIndex, newDeclaration);
     } else if (Node.isSourceFile(scopeParent)) {
-      const statements = scopeParent.getStatements();
-      let insertIndex = statements.findIndex((s) => s.getPos() >= insertionPos);
+      const statements = scopeParent.getStatementsWithComments();
+      let insertIndex = statements.findIndex((s) => s.getStart() >= insertionPos);
       if (insertIndex === -1) insertIndex = statements.length;
       scopeParent.insertStatements(insertIndex, newDeclaration);
     } else {
