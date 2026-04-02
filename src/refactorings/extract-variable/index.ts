@@ -1,6 +1,10 @@
 import { SyntaxKind, Node, ts } from "ts-morph";
 import type { Project } from "ts-morph";
-import type { EnumerateCandidate, PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
@@ -128,19 +132,39 @@ function isAssignmentLHS(node: Node): boolean {
 }
 
 /**
- * Returns true if this ArrowFunction or FunctionExpression is used as a call argument.
- * Extracting it removes the contextual typing from the call site, causing `any` inference.
+ * Returns true if this expression is a direct call argument that relies on contextual typing:
+ *   - ArrowFunction / FunctionExpression: TypeScript infers parameter types from the call signature.
+ *   - ObjectLiteralExpression / ArrayLiteralExpression: string/numeric literal fields are widened
+ *     when extracted, breaking overload resolution and discriminated unions.
+ * Extracting any of these breaks the contextual type supplied by the callee.
  */
-function isArrowFunctionInCallArgument(node: Node): boolean {
+function isContextuallyTypedCallArgument(node: Node): boolean {
   const kind = node.getKind();
-  if (kind !== SyntaxKind.ArrowFunction && kind !== SyntaxKind.FunctionExpression) return false;
+  if (
+    kind !== SyntaxKind.ArrowFunction &&
+    kind !== SyntaxKind.FunctionExpression &&
+    kind !== SyntaxKind.ObjectLiteralExpression &&
+    kind !== SyntaxKind.ArrayLiteralExpression
+  )
+    return false;
   const parent = node.getParent();
   if (!parent) return false;
   const parentKind = parent.getKind();
-  return (
-    parentKind === ts.SyntaxKind.CallExpression ||
-    parentKind === ts.SyntaxKind.NewExpression
-  );
+  return parentKind === ts.SyntaxKind.CallExpression || parentKind === ts.SyntaxKind.NewExpression;
+}
+
+/**
+ * Returns true if this expression is the initializer of a variable declaration that has an
+ * explicit type annotation. In that case the type annotation provides contextual typing
+ * (e.g. `const xs: Foo[] = []` gives `[]` type `Foo[]`). Extracting it loses that context,
+ * causing TypeScript to fall back to `never[]` / `{}` etc.
+ */
+function isInitializerOfTypedDeclaration(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.VariableDeclaration) return false;
+  const varDecl = parent.asKind(ts.SyntaxKind.VariableDeclaration);
+  if (!varDecl) return false;
+  return varDecl.getInitializer() === node && varDecl.getTypeNode() !== undefined;
 }
 
 /**
@@ -356,8 +380,9 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isInJSDocContext(n))
       .filter((n) => !isModuleSpecifier(n))
       .filter((n) => !isAssignmentLHS(n))
-      .filter((n) => !isArrowFunctionInCallArgument(n))
-      .filter((n) => !isArgumentInDecorator(n));
+      .filter((n) => !isContextuallyTypedCallArgument(n))
+      .filter((n) => !isArgumentInDecorator(n))
+      .filter((n) => !isInitializerOfTypedDeclaration(n));
 
     if (matchingNodes.length === 0) {
       return {
@@ -517,8 +542,9 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isInJSDocContext(node)) continue;
         if (isModuleSpecifier(node)) continue;
         if (isAssignmentLHS(node)) continue;
-        if (isArrowFunctionInCallArgument(node)) continue;
+        if (isContextuallyTypedCallArgument(node)) continue;
         if (isArgumentInDecorator(node)) continue;
+        if (isInitializerOfTypedDeclaration(node)) continue;
         const text = node.getText().trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
