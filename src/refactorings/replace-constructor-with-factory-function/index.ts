@@ -28,6 +28,19 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
     errors.push(`Function '${factoryName}' already exists in file`);
   }
 
+  // Require at least one new ClassName() call in the file — otherwise the factory function
+  // would be created but never called, producing an unused-variable compiler error.
+  if (targetClass) {
+    const hasNewCalls = sf
+      .getDescendantsOfKind(SyntaxKind.NewExpression)
+      .some((expr) => expr.getExpression().getText() === target);
+    if (!hasNewCalls) {
+      errors.push(
+        `Precondition failed: no 'new ${target}()' calls found in file — factory function would be unused`,
+      );
+    }
+  }
+
   return { ok: errors.length === 0, errors };
 }
 

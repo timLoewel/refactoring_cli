@@ -1,8 +1,49 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { SourceFile } from "ts-morph";
+import type { Identifier, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+/**
+ * Remove named imports that are now unused after a declaration was removed.
+ * Builds the used-name set from identifiers OUTSIDE import declarations to avoid
+ * counting the import specifier itself as a usage.
+ */
+function removeUnusedImports(sf: SourceFile): void {
+  const stillUsed = new Set<string>();
+  for (const id of sf.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    let insideImport = false;
+    let anc: ReturnType<typeof id.getParent> = id.getParent();
+    while (anc) {
+      if (Node.isImportDeclaration(anc)) {
+        insideImport = true;
+        break;
+      }
+      const next = anc.getParent();
+      if (!next) break;
+      anc = next;
+    }
+    if (!insideImport) stillUsed.add((id as Identifier).getText());
+  }
+  for (const importDecl of [...sf.getImportDeclarations()]) {
+    let removedAny = false;
+    for (const spec of [...importDecl.getNamedImports()]) {
+      const local = spec.getAliasNode()?.getText() ?? spec.getNameNode().getText();
+      if (!stillUsed.has(local)) {
+        spec.remove();
+        removedAny = true;
+      }
+    }
+    if (
+      removedAny &&
+      importDecl.getNamedImports().length === 0 &&
+      !importDecl.getDefaultImport() &&
+      !importDecl.getNamespaceImport()
+    ) {
+      importDecl.remove();
+    }
+  }
+}
 
 /**
  * Count the number of references to `name` that are not the declaration itself.
@@ -72,6 +113,7 @@ export const removeDeadCode = defineRefactoring<SourceFileContext>({
 
     if (funcDecl) {
       funcDecl.remove();
+      removeUnusedImports(sf);
       return {
         success: true,
         filesChanged: [file],
@@ -105,6 +147,7 @@ export const removeDeadCode = defineRefactoring<SourceFileContext>({
       varDecl.remove();
     }
 
+    removeUnusedImports(sf);
     return {
       success: true,
       filesChanged: [file],

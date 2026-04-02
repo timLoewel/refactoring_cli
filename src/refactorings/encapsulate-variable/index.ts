@@ -1,4 +1,4 @@
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -63,6 +63,27 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
         filesChanged: [],
         description: `Could not locate the variable statement for '${target}'`,
       };
+    }
+
+    // Replace all remaining references to the original variable name with a call to the getter.
+    // Build getter name: get + capitalized first letter + rest.
+    const getterName = "get" + target.charAt(0).toUpperCase() + target.slice(1) + "()";
+    const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
+      if (id.getText() !== target) return false;
+      // Skip the private backing field `_target` (different name — already renamed)
+      const parent = id.getParent();
+      if (!parent) return false;
+      // Skip declaration names
+      if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+      // Skip function/method definition names
+      if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) return false;
+      // Skip property access names (obj.foo — foo is not a ref)
+      if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) return false;
+      return true;
+    });
+    const sorted = [...refs].sort((a, b) => b.getStart() - a.getStart());
+    for (const ref of sorted) {
+      ref.replaceWithText(getterName);
     }
 
     return {

@@ -13,6 +13,8 @@ function isValueReference(id: Identifier): boolean {
   if (Node.isBindingElement(parent) && parent.getNameNode() === id) return false;
   if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) return false;
   if (Node.isMethodDeclaration(parent) && parent.getNameNode() === id) return false;
+  // Parameter declarations: `(foo) => {}` — `foo` is a binding, not a reference
+  if (Node.isParameterDeclaration(parent) && parent.getNameNode() === id) return false;
   return true;
 }
 
@@ -171,10 +173,7 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     // Replace all identifier references to the temp variable with a call
     const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
-      const parent = id.getParent();
-      if (!parent) return false;
-      if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
-      return true;
+      return isValueReference(id);
     });
 
     const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());

@@ -1,3 +1,4 @@
+import { Node } from "ts-morph";
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param } from "../../core/refactoring-builder.js";
@@ -60,11 +61,34 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   const parentName = extendsClause.getExpression().getText();
   const parentClass = sf.getClass(parentName);
 
+  if (parentClass?.isAbstract()) {
+    return {
+      success: false,
+      filesChanged: [],
+      description: `Precondition failed: cannot instantiate abstract superclass '${parentName}'`,
+    };
+  }
+
   // Collect superclass method names for forwarding
   const superclassMethodNames = parentClass ? parentClass.getMethods().map((m) => m.getName()) : [];
 
   // Remove the extends clause via the class API
   targetClass.removeExtends();
+
+  // Remove super() calls in constructors — they are invalid once extends is removed
+  const refreshedForSuper = sf.getClass(target);
+  if (refreshedForSuper) {
+    for (const ctor of refreshedForSuper.getConstructors()) {
+      const body = ctor.getBody();
+      if (!body || !Node.isBlock(body)) continue;
+      for (const stmt of [...body.getStatements()]) {
+        const text = stmt.getText().trim();
+        if (text === "super()" || text.startsWith("super(")) {
+          stmt.remove();
+        }
+      }
+    }
+  }
 
   // Add a delegate field pointing to an instance of the former superclass
   const refreshedClass = sf.getClass(target);

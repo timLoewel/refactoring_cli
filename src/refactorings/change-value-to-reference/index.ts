@@ -25,7 +25,17 @@ export const changeValueToReference = defineRefactoring<ClassContext>({
     param.identifier("target", "Name of the class to convert to reference semantics"),
   ],
   resolve: (project, params) => resolve.class(project, params as { file: string; target: string }),
-  preconditions(): PreconditionResult {
+  preconditions(ctx: ClassContext): PreconditionResult {
+    const ctor = ctx.cls.getConstructors()[0];
+    const firstParam = ctor?.getParameters()[0];
+    if (!firstParam) {
+      return {
+        ok: false,
+        errors: [
+          `Precondition failed: class '${ctx.cls.getName() ?? ""}' has no constructor parameter to use as registry key`,
+        ],
+      };
+    }
     return { ok: true, errors: [] };
   },
   apply(ctx: ClassContext, params: Record<string, unknown>): RefactoringResult {

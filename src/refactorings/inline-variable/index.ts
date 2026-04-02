@@ -144,17 +144,37 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
 
     // Remove named imports that are now unused (e.g. a type annotation import that was
     // only referenced in the removed declaration).
-    const stillUsedNames = new Set(
-      sf.getDescendantsOfKind(SyntaxKind.Identifier).map((id) => id.getText()),
-    );
+    // Build the set of names still used OUTSIDE of import declarations — identifiers
+    // inside import specifiers must not count as "still used".
+    const stillUsedNames = new Set<string>();
+    for (const id of sf.getDescendantsOfKind(SyntaxKind.Identifier)) {
+      let insideImport = false;
+      let ancestor: ReturnType<typeof id.getParent> = id.getParent();
+      while (ancestor) {
+        if (Node.isImportDeclaration(ancestor)) {
+          insideImport = true;
+          break;
+        }
+        const next = ancestor.getParent();
+        if (!next) break;
+        ancestor = next;
+      }
+      if (!insideImport) stillUsedNames.add(id.getText());
+    }
+
     for (const importDecl of [...sf.getImportDeclarations()]) {
+      let removedAny = false;
       for (const specifier of [...importDecl.getNamedImports()]) {
         const localName = specifier.getAliasNode()?.getText() ?? specifier.getNameNode().getText();
         if (!stillUsedNames.has(localName)) {
           specifier.remove();
+          removedAny = true;
         }
       }
+      // Only remove the entire import declaration if we actually removed specifiers from it
+      // AND none remain — never remove side-effect imports (import "x") that we never touched.
       if (
+        removedAny &&
         importDecl.getNamedImports().length === 0 &&
         !importDecl.getDefaultImport() &&
         !importDecl.getNamespaceImport()
