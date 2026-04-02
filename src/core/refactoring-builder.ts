@@ -2,6 +2,7 @@ import { SyntaxKind } from "ts-morph";
 import type { Block, Project } from "ts-morph";
 import type {
   ClassContext,
+  EnumerateCandidate,
   FunctionContext,
   ParamDefinition,
   ParamSchema,
@@ -195,7 +196,7 @@ export interface DefineRefactoringConfig<TContext = Project> {
   resolve?: (project: Project, params: Record<string, unknown>) => ResolveResult<TContext>;
   preconditions?: (context: TContext, params: Record<string, unknown>) => PreconditionResult;
   apply: (context: TContext, params: Record<string, unknown>) => RefactoringResult;
-  enumerate?: (project: Project) => import("./refactoring.types.js").EnumerateCandidate[];
+  enumerate?: (project: Project) => EnumerateCandidate[];
 }
 
 function buildParamSchema(helpers: ParamHelper[]): ParamSchema {
