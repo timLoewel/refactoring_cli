@@ -44,7 +44,6 @@ function isInJSDocContext(node: Node): boolean {
   while (current) {
     const kind = current.getKind();
     if (
-      kind === ts.SyntaxKind.JSDoc ||
       kind === ts.SyntaxKind.JSDocComment ||
       kind === ts.SyntaxKind.JSDocLink ||
       kind === ts.SyntaxKind.JSDocLinkCode ||

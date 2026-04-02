@@ -1,10 +1,10 @@
-import type { SourceFile } from "ts-morph";
+import type { Identifier, SourceFile } from "ts-morph";
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
-function findNameNode(sf: SourceFile, target: string): Node | undefined {
+function findNameNode(sf: SourceFile, target: string): Identifier | undefined {
   const varDecl = sf
     .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
     .find((d) => d.getName() === target);

@@ -115,7 +115,7 @@ function substituteParams(
 ): string {
   let result = text;
   for (let i = 0; i < paramNames.length; i++) {
-    const argText = i < args.length ? args[i] : (defaults[i] ?? "undefined");
+    const argText = i < args.length ? (args[i] ?? "undefined") : (defaults[i] ?? "undefined");
     result = result.replace(new RegExp(`\\b${paramNames[i]}\\b`, "g"), argText);
   }
   return result;

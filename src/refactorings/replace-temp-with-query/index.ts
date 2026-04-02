@@ -86,7 +86,7 @@ function findParamsForInitializer(
     let typeStr = "unknown";
     if (Node.isVariableDeclaration(firstDecl)) {
       typeStr = getWidenedType(firstDecl);
-    } else if (Node.isParameter(firstDecl)) {
+    } else if (Node.isParameterDeclaration(firstDecl)) {
       typeStr = getWidenedType(firstDecl);
     }
 

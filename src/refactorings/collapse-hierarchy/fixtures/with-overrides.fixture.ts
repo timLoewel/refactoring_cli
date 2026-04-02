@@ -8,7 +8,7 @@ class Service {
 }
 
 class PremiumService extends Service {
-  describe(): string {
+  override describe(): string {
     return "premium service";
   }
   price(): number {

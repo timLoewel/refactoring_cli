@@ -1,4 +1,4 @@
-import { formatCurrency } from "./utils";
+import { formatCurrency } from "./utils.js";
 
 export function formatPrice(price: number): string {
   return formatCurrency(price);

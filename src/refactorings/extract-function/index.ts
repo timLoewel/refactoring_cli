@@ -124,7 +124,7 @@ function findOuterScopeParams(
       let typeStr: string;
       if (Node.isVariableDeclaration(firstDecl)) {
         typeStr = getParamType(firstDecl);
-      } else if (Node.isParameter(firstDecl)) {
+      } else if (Node.isParameterDeclaration(firstDecl)) {
         typeStr = getParamType(firstDecl);
       } else {
         typeStr = firstDecl.getType().getText();

@@ -8,7 +8,7 @@ class Shipping {
 }
 
 class ExpressShipping extends Shipping {
-  label(): string {
+  override label(): string {
     return "express";
   }
 }

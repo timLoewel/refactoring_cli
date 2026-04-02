@@ -1,6 +1,6 @@
 export const params = { file: "source.ts", target: "convert", destination: "dest.ts" };
 
-import { convert } from "./source";
+import { convert } from "./source.js";
 
 export function main(): string {
   const a = convert(42);

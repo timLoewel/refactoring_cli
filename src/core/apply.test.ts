@@ -16,6 +16,7 @@ function makeDefinition(overrides: Partial<RefactoringDefinition> = {}): Refacto
     kebabName: "test",
     description: "test",
     tier: 1 as const,
+    language: "typescript" as const,
     params: {
       definitions: [],
       validate: (raw: unknown) => raw as Record<string, unknown>,

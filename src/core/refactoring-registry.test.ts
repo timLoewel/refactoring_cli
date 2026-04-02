@@ -7,6 +7,7 @@ function makeDef(overrides: Partial<RefactoringDefinition> = {}): RefactoringDef
     kebabName: "test-refactoring",
     description: "A test refactoring",
     tier: 1,
+    language: "typescript" as const,
     params: { definitions: [], validate: (raw) => raw as Record<string, unknown> },
     preconditions: () => ({ ok: true, errors: [] }),
     apply: () => ({ success: true, filesChanged: [], description: "done" }),

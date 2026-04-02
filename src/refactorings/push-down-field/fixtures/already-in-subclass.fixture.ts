@@ -5,7 +5,7 @@ class Shape {
 }
 
 class Circle extends Shape {
-  color: string = "blue";
+  override color: string = "blue";
   radius: number = 5;
 }
 

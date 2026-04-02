@@ -31,19 +31,32 @@ const maxCandidates = ((): number | undefined => {
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : undefined;
 })();
 
-// --- Seeded shuffle (Fisher-Yates with a simple LCG) ---
-function seededShuffle<T>(arr: T[], seed = 42): T[] {
-  const out = [...arr];
+// --- Seeded LCG ---
+function makeLCG(seed = 42): () => number {
   let s = seed;
-  const next = (): number => {
+  return (): number => {
     s = (s * 1664525 + 1013904223) & 0xffffffff;
     return (s >>> 0) / 0x100000000;
   };
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1));
-    [out[i], out[j]] = [out[j] as T, out[i] as T];
-  }
-  return out;
+}
+
+/**
+ * Weighted shuffle using the exponential-key trick:
+ *   key[i] = U[i]^(1/weight[i])   (U uniform in (0,1))
+ * Sort descending → items with higher weight appear earlier on average.
+ * Produces a proper weighted random permutation (no double-draws).
+ * weightFn returns a positive number; items with weight 0 are treated as 1.
+ */
+function weightedShuffle<T>(arr: T[], weightFn: (item: T) => number, seed = 42): T[] {
+  const rng = makeLCG(seed);
+  return arr
+    .map((item) => {
+      const w = Math.max(weightFn(item), 1e-10);
+      const u = Math.max(rng(), 1e-300);
+      return { item, key: Math.pow(u, 1 / w) };
+    })
+    .sort((a, b) => b.key - a.key)
+    .map(({ item }) => item);
 }
 
 // --- Helpers ---
@@ -474,10 +487,19 @@ async function main(): Promise<void> {
 
   process.stderr.write("Enumerating candidates...\n");
   const { candidates: allCandidates, reverseImportMap, project: tsProject } = enumerateCandidates(CACHE_DIR);
-  // Shuffle deterministically so candidates are spread across all files, not clustered by file
-  const shuffledCandidates = seededShuffle(allCandidates);
+  // Weighted shuffle: bias toward candidates whose file has many importers (large change sets).
+  // Weight = (importerCount + 1)^2 — quadratic skew so large-scope files dominate the front.
+  // Uses the exponential-key trick (weighted random permutation without replacement).
+  const shuffledCandidates = weightedShuffle(
+    allCandidates,
+    (c) => {
+      const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
+      return (importerCount + 1) ** 2;
+    },
+    42,
+  );
   process.stderr.write(
-    `${shuffledCandidates.length} symbol candidates found (shuffled, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
+    `${shuffledCandidates.length} symbol candidates found (scope-biased shuffle, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
   );
 
   // Step 6.1: dry-run — report candidate counts and exit
