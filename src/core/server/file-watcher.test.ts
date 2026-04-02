@@ -40,7 +40,10 @@ function connectAndInit(
       socket.once("data", (data: Buffer) => {
         const messages = parser.feed(data.toString("utf-8"));
         expect(messages.length).toBeGreaterThanOrEqual(1);
-        const response = JSON.parse(messages[0]!) as { id: number; result: { rootUri: string } };
+        const response = JSON.parse(messages[0] as string) as {
+          id: number;
+          result: { rootUri: string };
+        };
         expect(response.id).toBe(initId);
         resolve({ socket, parser, sendRequest });
       });
@@ -58,7 +61,7 @@ function readResponse(
       const messages = parser.feed(data.toString("utf-8"));
       if (messages.length > 0) {
         socket.removeListener("data", handler);
-        resolve(JSON.parse(messages[0]!) as Record<string, unknown>);
+        resolve(JSON.parse(messages[0] as string) as Record<string, unknown>);
       }
     };
     socket.on("data", handler);

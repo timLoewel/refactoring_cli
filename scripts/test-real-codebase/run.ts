@@ -317,12 +317,30 @@ async function applyAndCheck(
 ): Promise<CandidateResult> {
   const params = buildApplyParams(refactoring, candidate.file, candidate.target);
   const noResult = (skipReason: string | null): CandidateResult => ({
-    isTarget: false, applied: false, passed: false, error: null, skipReason, diff: null,
-    params, applyMs: 0, tscMs: 0, rollbackMs: 0, scopeFileCount: 0,
+    isTarget: false,
+    applied: false,
+    passed: false,
+    error: null,
+    skipReason,
+    diff: null,
+    params,
+    applyMs: 0,
+    tscMs: 0,
+    rollbackMs: 0,
+    scopeFileCount: 0,
   });
   const failResult = (error: string | null, applyMs = 0): CandidateResult => ({
-    isTarget: true, applied: false, passed: false, error, skipReason: null, diff: null,
-    params, applyMs, tscMs: 0, rollbackMs: 0, scopeFileCount: 0,
+    isTarget: true,
+    applied: false,
+    passed: false,
+    error,
+    skipReason: null,
+    diff: null,
+    params,
+    applyMs,
+    tscMs: 0,
+    rollbackMs: 0,
+    scopeFileCount: 0,
   });
 
   const t0 = Date.now();
@@ -411,9 +429,13 @@ async function applyAndCheck(
         .map((d) => {
           const file = d.getSourceFile();
           const pos = d.getStart();
-          const lineCol = file && pos !== undefined
-            ? (() => { const lc = file.getLineAndColumnAtPos(pos); return ` (${file.getBaseName()}:${lc.line}:${lc.column})`; })()
-            : "";
+          const lineCol =
+            file && pos !== undefined
+              ? ((): string => {
+                  const lc = file.getLineAndColumnAtPos(pos);
+                  return ` (${file.getBaseName()}:${lc.line}:${lc.column})`;
+                })()
+              : "";
           const msg = d.getMessageText();
           const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
           return `${msgStr}${lineCol}`;
@@ -486,7 +508,11 @@ async function main(): Promise<void> {
   process.stderr.write(`${refactorings.length} TypeScript refactoring(s) loaded.\n`);
 
   process.stderr.write("Enumerating candidates...\n");
-  const { candidates: allCandidates, reverseImportMap, project: tsProject } = enumerateCandidates(CACHE_DIR);
+  const {
+    candidates: allCandidates,
+    reverseImportMap,
+    project: tsProject,
+  } = enumerateCandidates(CACHE_DIR);
   // Weighted shuffle: bias toward candidates whose file has many importers (large change sets).
   // Weight = (importerCount + 1)^2 — quadratic skew so large-scope files dominate the front.
   // Uses the exponential-key trick (weighted random permutation without replacement).
@@ -542,7 +568,9 @@ async function main(): Promise<void> {
     };
 
     const limit = maxCandidates ?? shuffledCandidates.length;
-    process.stderr.write(`\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${shuffledCandidates.length} candidates)\n`);
+    process.stderr.write(
+      `\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${shuffledCandidates.length} candidates)\n`,
+    );
 
     // Track skip reasons for summary
     const skipReasonCounts = new Map<string, number>();
@@ -563,17 +591,26 @@ async function main(): Promise<void> {
       let beforeContent = "";
       try {
         beforeContent = readFileSync(candidate.file, "utf8");
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
-      const result = await applyAndCheck(client, refactoring, candidate, reverseImportMap, tsProject, baselineCache);
+      const result = await applyAndCheck(
+        client,
+        refactoring,
+        candidate,
+        reverseImportMap,
+        tsProject,
+        baselineCache,
+      );
       checked++;
 
       if (!result.isTarget) {
         // Normalize skip reason to a category key for aggregation
         const rawReason = result.skipReason ?? "precondition failed";
         const reasonKey = rawReason
-          .replace(/'[^']+'/g, "'<name>'")  // normalize symbol names
-          .replace(/\d+/g, "N");            // normalize numbers
+          .replace(/'[^']+'/g, "'<name>'") // normalize symbol names
+          .replace(/\d+/g, "N"); // normalize numbers
         const prev = skipReasonCounts.get(reasonKey) ?? 0;
         skipReasonCounts.set(reasonKey, prev + 1);
         // Keep first occurrence per reason category for sample review
@@ -594,10 +631,14 @@ async function main(): Promise<void> {
         const timing = `apply=${result.applyMs}ms  typecheck=${result.tscMs}ms (${result.scopeFileCount} files)  rollback=${result.rollbackMs}ms`;
         if (result.passed) {
           stat.passed++;
-          process.stderr.write(`  ${label} ✓ ${candidate.target} (${shortFile}) — tsc passed  [${timing}]\n`);
+          process.stderr.write(
+            `  ${label} ✓ ${candidate.target} (${shortFile}) — tsc passed  [${timing}]\n`,
+          );
         } else {
           stat.failed++;
-          process.stderr.write(`  ${label} ✗ ${candidate.target} (${shortFile}) — tsc failed  [${timing}]\n`);
+          process.stderr.write(
+            `  ${label} ✗ ${candidate.target} (${shortFile}) — tsc failed  [${timing}]\n`,
+          );
           process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
           // Source context around target
           const lines = beforeContent.split("\n");
@@ -630,9 +671,7 @@ async function main(): Promise<void> {
       } else {
         // Daemon error or non-precondition apply failure
         stat.failed++;
-        process.stderr.write(
-          `  ${label} ✗ ${candidate.target} (${shortFile}) — apply failed\n`,
-        );
+        process.stderr.write(`  ${label} ✗ ${candidate.target} (${shortFile}) — apply failed\n`);
         if (result.error) {
           process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
           process.stderr.write(`    error: ${result.error}\n`);
@@ -675,7 +714,9 @@ async function main(): Promise<void> {
       process.stderr.write(`  Sample skipped candidates (for review):\n`);
       for (const sample of skipSamples.slice(0, 5)) {
         const shortFile = sample.candidate.file.replace(CACHE_DIR + "/", "");
-        process.stderr.write(`    [${sample.candidate.target} in ${shortFile}] reason: ${sample.reason}\n`);
+        process.stderr.write(
+          `    [${sample.candidate.target} in ${shortFile}] reason: ${sample.reason}\n`,
+        );
         const lines = sample.source.split("\n");
         const targetLineIdx = lines.findIndex((l) => l.includes(sample.candidate.target));
         if (targetLineIdx >= 0) {

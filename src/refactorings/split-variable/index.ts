@@ -118,7 +118,7 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
     const getSegment = (pos: number): number => {
       let seg = 1;
       for (let i = 1; i < segmentStarts.length; i++) {
-        if (pos > segmentStarts[i]!) {
+        if (pos > (segmentStarts[i] as number)) {
           seg = i + 1;
         }
       }

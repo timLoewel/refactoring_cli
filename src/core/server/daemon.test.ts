@@ -43,7 +43,10 @@ function connectAndInit(
       socket.once("data", (data: Buffer) => {
         const messages = parser.feed(data.toString("utf-8"));
         expect(messages.length).toBeGreaterThanOrEqual(1);
-        const response = JSON.parse(messages[0]!) as { id: number; result: { rootUri: string } };
+        const response = JSON.parse(messages[0] as string) as {
+          id: number;
+          result: { rootUri: string };
+        };
         expect(response.id).toBe(initId);
         expect(response.result.rootUri).toBeDefined();
         resolve({ socket, parser, sendRequest });
@@ -59,7 +62,7 @@ function readResponse(socket: Socket, parser: FramingParser): Promise<Record<str
       const messages = parser.feed(data.toString("utf-8"));
       if (messages.length > 0) {
         socket.removeListener("data", handler);
-        resolve(JSON.parse(messages[0]!) as Record<string, unknown>);
+        resolve(JSON.parse(messages[0] as string) as Record<string, unknown>);
       }
     };
     socket.on("data", handler);
@@ -107,7 +110,7 @@ describe("daemon", () => {
         socket.write(frameMessage(body));
         socket.on("data", (chunk: Buffer) => {
           const msgs = parser.feed(chunk.toString("utf-8"));
-          if (msgs.length > 0) resolve(JSON.parse(msgs[0]!) as Record<string, unknown>);
+          if (msgs.length > 0) resolve(JSON.parse(msgs[0] as string) as Record<string, unknown>);
         });
       });
       socket.on("error", reject);

@@ -23,7 +23,7 @@ export function read(projectRoot: string): PortfileData | null {
   if (parts.length !== 2) return null;
   const port = Number(parts[0]);
   if (!Number.isInteger(port) || port <= 0) return null;
-  return { port, token: parts[1]! };
+  return { port, token: parts[1] as string };
 }
 
 export function unlink(projectRoot: string): void {
