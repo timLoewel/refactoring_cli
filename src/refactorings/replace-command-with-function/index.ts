@@ -1,6 +1,7 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
   name: "Replace Command With Function",
@@ -90,6 +91,8 @@ export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
     // Remove the class and add the function
     cls.remove();
     sf.addStatements(`\n${fnText}\n`);
+
+    cleanupUnused(sf);
 
     return {
       success: true,

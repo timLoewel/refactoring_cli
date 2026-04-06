@@ -7,6 +7,7 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 export const splitLoop = defineRefactoring<SourceFileContext>({
   name: "Split Loop",
@@ -129,6 +130,8 @@ export const splitLoop = defineRefactoring<SourceFileContext>({
     const secondLoop = `${headerText} {\n${secondBody}\n}`;
 
     loop.replaceWithText(`${firstLoop}\n${secondLoop}`);
+
+    cleanupUnused(sf);
 
     return {
       success: true,

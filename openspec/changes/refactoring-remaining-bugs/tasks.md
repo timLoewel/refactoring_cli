@@ -2,14 +2,14 @@
 
 Build a shared post-transformation utility that removes unused imports and variables after a refactoring modifies code. Many refactorings (guard clauses, delegate replacement, subclass removal, split-variable) leave behind unused declarations that cause `strict` mode compile errors.
 
-- [ ] 1.1 Design cleanup API: `cleanupUnusedDeclarations(sourceFile)` that removes unused imports and variable declarations
-- [ ] 1.2 Implement using ts-morph diagnostics (TS6133 "declared but never read") to identify candidates
-- [ ] 1.3 Add fixture tests for cleanup pass (import removal, variable removal, preserving used symbols)
-- [ ] 1.4 Integrate into replace-nested-conditional-with-guard-clauses (19 unused declaration failures)
-- [ ] 1.5 Integrate into replace-subclass-with-delegate (40 unused declaration failures)
-- [ ] 1.6 Integrate into split-variable (47 unused declaration failures)
-- [ ] 1.7 Integrate into replace-command-with-function (4 unused declaration failures)
-- [ ] 1.8 Integrate into split-loop (8 unused declaration failures)
+- [x] 1.1 Design cleanup API: `cleanupUnusedDeclarations(sourceFile)` that removes unused imports and variable declarations
+- [x] 1.2 Implement using ts-morph diagnostics (TS6133 "declared but never read") to identify candidates
+- [x] 1.3 Add fixture tests for cleanup pass (import removal, variable removal, preserving used symbols)
+- [x] 1.4 Integrate into replace-nested-conditional-with-guard-clauses (19 unused declaration failures)
+- [x] 1.5 Integrate into replace-subclass-with-delegate (40 unused declaration failures)
+- [x] 1.6 Integrate into split-variable (47 unused declaration failures)
+- [x] 1.7 Integrate into replace-command-with-function (4 unused declaration failures)
+- [x] 1.8 Integrate into split-loop (8 unused declaration failures)
 - [ ] 1.9 Integrate into remaining refactorings that leave unused declarations
 - [ ] 1.10 Run real-codebase tests to verify reduction in unused-declaration failures
 

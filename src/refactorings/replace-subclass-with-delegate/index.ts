@@ -1,6 +1,7 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -90,6 +91,8 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
       refreshedClass.addMember(buildForwardingMethod(methodName, delegateField));
     }
   }
+
+  cleanupUnused(sf);
 
   return {
     success: true,

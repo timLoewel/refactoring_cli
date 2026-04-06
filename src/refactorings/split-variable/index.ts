@@ -2,6 +2,7 @@ import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 export const splitVariable = defineRefactoring<SourceFileContext>({
   name: "Split Variable",
@@ -218,6 +219,8 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
         }
       }
     }
+
+    cleanupUnused(sf);
 
     return {
       success: true,

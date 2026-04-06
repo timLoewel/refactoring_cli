@@ -2,6 +2,7 @@ import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 interface GuardClauseResult {
   guardClauses: string[];
@@ -88,6 +89,8 @@ export const replaceNestedConditionalWithGuardClauses = defineRefactoring<Functi
 
     const newBodyText = allLines.map((s) => `  ${s}`).join("\n");
     body.replaceWithText(`{\n${newBodyText}\n}`);
+
+    cleanupUnused(ctx.sourceFile);
 
     return {
       success: true,
