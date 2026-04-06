@@ -1,7 +1,12 @@
 import { SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const splitLoop = defineRefactoring<SourceFileContext>({
   name: "Split Loop",
@@ -100,5 +105,24 @@ export const splitLoop = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Split loop at line ${lineNum} into two separate loops`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const loop of sf.getDescendantsOfKind(SyntaxKind.ForStatement)) {
+        candidates.push({ file, target: String(loop.getStartLineNumber()) });
+      }
+      for (const loop of sf.getDescendantsOfKind(SyntaxKind.ForOfStatement)) {
+        candidates.push({ file, target: String(loop.getStartLineNumber()) });
+      }
+      for (const loop of sf.getDescendantsOfKind(SyntaxKind.ForInStatement)) {
+        candidates.push({ file, target: String(loop.getStartLineNumber()) });
+      }
+      for (const loop of sf.getDescendantsOfKind(SyntaxKind.WhileStatement)) {
+        candidates.push({ file, target: String(loop.getStartLineNumber()) });
+      }
+    }
+    return candidates;
   },
 });

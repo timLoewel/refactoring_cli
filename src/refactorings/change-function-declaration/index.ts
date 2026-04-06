@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const changeFunctionDeclaration = defineRefactoring<SourceFileContext>({
@@ -76,4 +76,5 @@ export const changeFunctionDeclaration = defineRefactoring<SourceFileContext>({
       description: `Renamed function '${target}' to '${name}' and updated ${sorted.length} reference(s)`,
     };
   },
+  enumerate: enumerate.functions,
 });

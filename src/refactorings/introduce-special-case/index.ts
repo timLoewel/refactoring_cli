@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 export const introduceSpecialCase = defineRefactoring<ClassContext>({
@@ -106,4 +106,5 @@ export const introduceSpecialCase = defineRefactoring<ClassContext>({
       description: `Introduced special case class '${specialClassName}' for '${target}' with value '${specialValue}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

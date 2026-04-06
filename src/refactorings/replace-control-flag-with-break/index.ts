@@ -1,6 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 const LOOP_KINDS = new Set([
@@ -159,4 +159,5 @@ export const replaceControlFlagWithBreak = defineRefactoring<SourceFileContext>(
       description: `Replaced control flag '${target}' with break statement`,
     };
   },
+  enumerate: enumerate.variables,
 });

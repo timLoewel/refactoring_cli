@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
 
 function buildSuperclassText(superclassName: string, methodTexts: string[]): string {
   const body = methodTexts.map((m) => `  ${m}`).join("\n\n");
@@ -103,4 +103,5 @@ export const extractSuperclass = defineRefactoring({
   ],
   preconditions,
   apply,
+  enumerate: enumerate.classes,
 });

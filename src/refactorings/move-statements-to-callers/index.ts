@@ -1,6 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
@@ -27,8 +27,8 @@ export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
 
     // Moving a return-with-value statement out of the function would remove the function's
     // return, leaving it without a required return value.
-    const lastStmt = stmts[stmts.length - 1]!;
-    if (Node.isReturnStatement(lastStmt) && lastStmt.getExpression() !== undefined) {
+    const lastStmt = stmts[stmts.length - 1];
+    if (lastStmt && Node.isReturnStatement(lastStmt) && lastStmt.getExpression() !== undefined) {
       errors.push(
         `Last statement of '${ctx.fn.getName()}' is a return statement with a value; moving it would break the function's return`,
       );
@@ -92,4 +92,5 @@ export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
       description: `Moved last statement of '${target}' to ${sorted.length} call site(s)`,
     };
   },
+  enumerate: enumerate.functions,
 });

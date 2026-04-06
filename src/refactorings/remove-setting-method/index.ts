@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 export const removeSettingMethod = defineRefactoring<ClassContext>({
@@ -55,4 +55,5 @@ export const removeSettingMethod = defineRefactoring<ClassContext>({
       description: `Removed setter for '${field}' in class '${target}' and marked field as readonly`,
     };
   },
+  enumerate: enumerate.classes,
 });

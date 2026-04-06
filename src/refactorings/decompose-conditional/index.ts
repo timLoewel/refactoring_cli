@@ -1,7 +1,12 @@
 import { SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const decomposeConditional = defineRefactoring<SourceFileContext>({
   name: "Decompose Conditional",
@@ -106,5 +111,15 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Decomposed conditional at line ${lineNum} into named functions`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const ifStmt of sf.getDescendantsOfKind(SyntaxKind.IfStatement)) {
+        candidates.push({ file, target: String(ifStmt.getStartLineNumber()) });
+      }
+    }
+    return candidates;
   },
 });

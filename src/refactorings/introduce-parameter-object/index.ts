@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const introduceParameterObject = defineRefactoring<FunctionContext>({
@@ -89,4 +89,5 @@ export const introduceParameterObject = defineRefactoring<FunctionContext>({
       description: `Grouped parameters [${paramNames.join(", ")}] of '${target}' into object '${objectName}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

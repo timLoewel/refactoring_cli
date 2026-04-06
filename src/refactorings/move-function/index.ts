@@ -1,6 +1,6 @@
 import type { FunctionDeclaration, ImportDeclaration, Project, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
 
 export const moveFunction = defineRefactoring({
   name: "Move Function",
@@ -138,6 +138,7 @@ export const moveFunction = defineRefactoring({
       description: `Moved function '${target}' from '${file}' to '${destination}'`,
     };
   },
+  enumerate: enumerate.functions,
 });
 
 function findNeededImports(fns: FunctionDeclaration[], sf: SourceFile): ImportDeclaration[] {

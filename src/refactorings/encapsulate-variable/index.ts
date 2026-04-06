@@ -1,6 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function buildAccessorFunctions(varName: string, typeText: string, initializer: string): string {
@@ -100,10 +100,13 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
           Node.isFunctionExpression(anc) ||
           Node.isMethodDeclaration(anc)
         ) {
-          if (anc.getParameters().some((p) => {
-            const n = p.getNameNode();
-            return Node.isIdentifier(n) && n.getText() === target;
-          })) return false;
+          if (
+            anc.getParameters().some((p) => {
+              const n = p.getNameNode();
+              return Node.isIdentifier(n) && n.getText() === target;
+            })
+          )
+            return false;
         }
         const next = anc.getParent();
         if (!next) break;
@@ -122,4 +125,5 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
       description: `Encapsulated variable '${target}' with get/set accessor functions`,
     };
   },
+  enumerate: enumerate.variables,
 });

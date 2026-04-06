@@ -1,7 +1,12 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const replaceMagicLiteral = defineRefactoring<SourceFileContext>({
   name: "Replace Magic Literal",
@@ -87,5 +92,27 @@ export const replaceMagicLiteral = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Replaced magic literal '${target}' with named constant '${name}'`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      const seen = new Set<string>();
+      for (const lit of sf.getDescendantsOfKind(SyntaxKind.NumericLiteral)) {
+        const text = lit.getText();
+        if (!seen.has(text)) {
+          seen.add(text);
+          candidates.push({ file, target: text });
+        }
+      }
+      for (const lit of sf.getDescendantsOfKind(SyntaxKind.StringLiteral)) {
+        const text = lit.getText();
+        if (!seen.has(text)) {
+          seen.add(text);
+          candidates.push({ file, target: text });
+        }
+      }
+    }
+    return candidates;
   },
 });

@@ -1,6 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 interface GuardClauseResult {
@@ -95,4 +95,5 @@ export const replaceNestedConditionalWithGuardClauses = defineRefactoring<Functi
       description: `Replaced nested conditionals in '${target}' with guard clauses`,
     };
   },
+  enumerate: enumerate.functions,
 });

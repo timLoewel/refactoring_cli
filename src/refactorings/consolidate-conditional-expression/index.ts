@@ -1,8 +1,12 @@
 import { SyntaxKind, Node } from "ts-morph";
-import type { IfStatement, SourceFile } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { IfStatement, Project, SourceFile } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function findTargetIf(sf: SourceFile, lineNum: number): IfStatement | undefined {
   return sf
@@ -162,5 +166,15 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
       filesChanged: [file],
       description: `Consolidated ${conditions.length} if-return statements at line ${lineNum} into one`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const ifStmt of sf.getDescendantsOfKind(SyntaxKind.IfStatement)) {
+        candidates.push({ file, target: String(ifStmt.getStartLineNumber()) });
+      }
+    }
+    return candidates;
   },
 });

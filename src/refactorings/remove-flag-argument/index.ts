@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const removeFlagArgument = defineRefactoring<FunctionContext>({
@@ -86,4 +86,5 @@ export const removeFlagArgument = defineRefactoring<FunctionContext>({
       description: `Split function '${target}' on flag '${flag}' into '${trueName}' and '${falseName}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

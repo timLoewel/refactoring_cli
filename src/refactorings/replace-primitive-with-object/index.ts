@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function buildWrapperClass(className: string, primitiveType: string): string {
@@ -87,7 +87,11 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
     // Re-find the declaration after the insertion (positions shifted)
     const freshDecl = sf.getVariableDeclaration(target);
     if (!freshDecl) {
-      return { success: false, filesChanged: [], description: `Variable '${target}' not found after insertion` };
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Variable '${target}' not found after insertion`,
+      };
     }
 
     freshDecl.setType(className);
@@ -99,4 +103,5 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
       description: `Wrapped primitive variable '${target}' in new class '${className}'`,
     };
   },
+  enumerate: enumerate.variables,
 });

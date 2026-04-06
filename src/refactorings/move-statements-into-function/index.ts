@@ -1,6 +1,6 @@
 import { Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const moveStatementsIntoFunction = defineRefactoring<FunctionContext>({
@@ -88,4 +88,5 @@ export const moveStatementsIntoFunction = defineRefactoring<FunctionContext>({
       description: `Moved ${toMove.length} statement(s) from lines ${startLine}-${endLine} into function '${target}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

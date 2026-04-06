@@ -1,6 +1,6 @@
 import type { ClassDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function makeFieldsReadonly(targetClass: ClassDeclaration): string[] {
@@ -50,4 +50,5 @@ export const changeReferenceToValue = defineRefactoring<ClassContext>({
       description: `Converted class '${target}' to value object: made ${fieldNames.length} field(s) readonly and added equals()`,
     };
   },
+  enumerate: enumerate.classes,
 });

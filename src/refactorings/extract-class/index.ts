@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function buildNewClassText(fieldDeclarations: string[], newClassName: string): string {
@@ -84,4 +84,5 @@ export const extractClass = defineRefactoring<ClassContext>({
       description: `Extracted fields [${fieldNames.join(", ")}] from '${target}' into new class '${newClassName}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

@@ -1,6 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const splitVariable = defineRefactoring<SourceFileContext>({
@@ -203,4 +203,5 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       description: `Split variable '${target}' into separate const variables for each assignment`,
     };
   },
+  enumerate: enumerate.variables,
 });

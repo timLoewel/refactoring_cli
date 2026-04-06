@@ -1,7 +1,7 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const splitPhase = defineRefactoring<FunctionContext>({
@@ -128,4 +128,5 @@ export const splitPhase = defineRefactoring<FunctionContext>({
       description: `Split function '${target}' into '${firstPhaseName}' and '${secondPhaseName}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

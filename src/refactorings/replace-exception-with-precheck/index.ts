@@ -1,6 +1,6 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
@@ -62,4 +62,5 @@ export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
       description: `Added precheck '${condition}' to function '${target}' to avoid exception path`,
     };
   },
+  enumerate: enumerate.functions,
 });

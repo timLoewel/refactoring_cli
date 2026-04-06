@@ -1,8 +1,12 @@
 import { SyntaxKind } from "ts-morph";
-import type { Node, Statement, VariableStatement } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Node, Project, Statement, VariableStatement } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function buildForEachReplacement(
   expression: string,
@@ -220,5 +224,15 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Replaced for-of loop at line ${lineNum} with array pipeline`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const loop of sf.getDescendantsOfKind(SyntaxKind.ForOfStatement)) {
+        candidates.push({ file, target: String(loop.getStartLineNumber()) });
+      }
+    }
+    return candidates;
   },
 });

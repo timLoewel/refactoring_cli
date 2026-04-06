@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const moveField = defineRefactoring<SourceFileContext>({
@@ -91,4 +91,5 @@ export const moveField = defineRefactoring<SourceFileContext>({
       description: `Moved field '${field}' from class '${target}' to class '${destination}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

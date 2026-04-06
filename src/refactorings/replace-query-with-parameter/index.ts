@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
@@ -65,4 +65,5 @@ export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
       description: `Replaced query '${query}' in '${target}' with new parameter '${paramName}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const replaceDerivedVariableWithQuery = defineRefactoring<SourceFileContext>({
@@ -21,15 +21,17 @@ export const replaceDerivedVariableWithQuery = defineRefactoring<SourceFileConte
     const sf = ctx.sourceFile;
     const target = params["target"] as string;
 
-    // Look for the field in any class in the file
+    // Look for the field with an initializer in any class in the file
     const classes = sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration);
     const found = classes.some((cls) => {
       const prop = cls.getProperty(target);
-      return prop !== undefined;
+      return prop !== undefined && prop.getInitializer() !== undefined;
     });
 
     if (!found) {
-      errors.push(`No class property named '${target}' found in file`);
+      errors.push(
+        `No class property named '${target}' with an initializer found in file. Only fields with initializers can be converted to getters.`,
+      );
     }
 
     return { ok: errors.length === 0, errors };
@@ -81,4 +83,5 @@ export const replaceDerivedVariableWithQuery = defineRefactoring<SourceFileConte
       description: `Converted derived field '${target}' into a computed getter`,
     };
   },
+  enumerate: enumerate.variables,
 });

@@ -1,8 +1,12 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { SourceFile, Statement } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project, SourceFile, Statement } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function findStatementAtLine(sf: SourceFile, line: number): Statement | undefined {
   for (const s of sf.getStatements()) {
@@ -145,5 +149,15 @@ export const slideStatements = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Moved statement from line ${target} to line ${destination}`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const stmt of sf.getStatements()) {
+        candidates.push({ file, target: String(stmt.getStartLineNumber()) });
+      }
+    }
+    return candidates;
   },
 });

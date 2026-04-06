@@ -1,6 +1,6 @@
 import type { Project } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -91,4 +91,5 @@ export const pushDownField = defineRefactoring({
   ],
   preconditions,
   apply,
+  enumerate: enumerate.classes,
 });

@@ -1,7 +1,7 @@
 import { SyntaxKind, Node } from "ts-morph";
 import type { Statement } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
@@ -19,6 +19,15 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const { fn, body } = ctx;
+
+    // Skip generic functions: type parameters aren't copied to the generated query/modifier
+    // functions, causing "Cannot find name 'T'" errors in the generated code.
+    if (fn.getTypeParameters().length > 0) {
+      errors.push(
+        `Function '${fn.getName()}' has generic type parameters; cannot safely split into query and modifier`,
+      );
+      return { ok: false, errors };
+    }
 
     // Must return something (query part) and have side effects (modifier part)
     const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
@@ -104,4 +113,5 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       description: `Split '${target}' into query '${queryName}' and modifier '${modifierName}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

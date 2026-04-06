@@ -1,8 +1,12 @@
-import type { Identifier, SourceFile } from "ts-morph";
+import type { Identifier, Project, SourceFile } from "ts-morph";
 import { Node, SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function findNameNode(sf: SourceFile, target: string): Identifier | undefined {
   const varDecl = sf
@@ -76,5 +80,22 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Renamed variable '${target}' to '${name}' across all references`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        const name = decl.getName();
+        if (name) candidates.push({ file, target: name });
+      }
+      for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
+        const nameNode = p.getNameNode();
+        if (Node.isIdentifier(nameNode)) {
+          candidates.push({ file, target: nameNode.getText() });
+        }
+      }
+    }
+    return candidates;
   },
 });

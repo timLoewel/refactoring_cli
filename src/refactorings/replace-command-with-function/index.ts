@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
@@ -97,4 +97,5 @@ export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
       description: `Converted command class '${target}' into function '${functionName}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

@@ -1,7 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { ClassDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function buildGetterSetter(propName: string, propType: string): string {
@@ -93,4 +93,5 @@ export const encapsulateRecord = defineRefactoring<SourceFileContext>({
       description: `Target '${target}' is not a class; only class encapsulation is supported`,
     };
   },
+  enumerate: enumerate.variables,
 });

@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const replaceErrorCodeWithException = defineRefactoring<FunctionContext>({
@@ -78,4 +78,5 @@ export const replaceErrorCodeWithException = defineRefactoring<FunctionContext>(
       description: `Replaced ${replaced} error code return(s) with exceptions in function '${target}'`,
     };
   },
+  enumerate: enumerate.functions,
 });

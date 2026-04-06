@@ -1,8 +1,12 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
-
 
 export const inlineVariable = defineRefactoring<SourceFileContext>({
   name: "Inline Variable",
@@ -104,9 +108,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           .findReferencesAsNodes()
           .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
       : [];
-    const refPositions = refs
-      .map((ref) => ref.getStart())
-      .sort((a, b) => b - a); // reverse order so later replacements don't shift earlier positions
+    const refPositions = refs.map((ref) => ref.getStart()).sort((a, b) => b - a); // reverse order so later replacements don't shift earlier positions
 
     // Replace references by re-finding each by position (stable across mutations)
     for (const pos of refPositions) {
@@ -176,5 +178,19 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Inlined variable '${target}' with its initializer '${initText}'`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        if (!decl.getInitializer()) continue;
+        const varStmt = decl.getParent()?.getParent();
+        if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) continue;
+        const name = decl.getName();
+        if (name) candidates.push({ file, target: name });
+      }
+    }
+    return candidates;
   },
 });

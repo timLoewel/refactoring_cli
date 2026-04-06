@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function buildRegistryMethod(className: string, keyParam: string): string {
@@ -55,4 +55,5 @@ export const changeValueToReference = defineRefactoring<ClassContext>({
       description: `Added getInstance() factory with registry to class '${target}' for reference semantics`,
     };
   },
+  enumerate: enumerate.classes,
 });

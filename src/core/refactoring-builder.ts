@@ -1,4 +1,4 @@
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { Block, Project } from "ts-morph";
 import type {
   ClassContext,
@@ -181,6 +181,76 @@ export const resolve = {
   sourceFile: resolveSourceFile,
   function: resolveFunction,
   class: resolveClass,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Common enumerate helpers
+// ---------------------------------------------------------------------------
+
+function enumerateVariables(project: Project): EnumerateCandidate[] {
+  const candidates: EnumerateCandidate[] = [];
+  for (const sf of project.getSourceFiles()) {
+    const file = sf.getFilePath();
+    for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+      const name = decl.getName();
+      if (name) candidates.push({ file, target: name });
+    }
+  }
+  return candidates;
+}
+
+function enumerateFunctions(project: Project): EnumerateCandidate[] {
+  const candidates: EnumerateCandidate[] = [];
+  for (const sf of project.getSourceFiles()) {
+    const file = sf.getFilePath();
+    for (const fn of sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+      const name = fn.getName();
+      if (name) candidates.push({ file, target: name });
+    }
+    for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+      const init = decl.getInitializer();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+        const name = decl.getName();
+        if (name) candidates.push({ file, target: name });
+      }
+    }
+  }
+  return candidates;
+}
+
+function enumerateClasses(project: Project): EnumerateCandidate[] {
+  const candidates: EnumerateCandidate[] = [];
+  for (const sf of project.getSourceFiles()) {
+    const file = sf.getFilePath();
+    for (const cls of sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration)) {
+      const name = cls.getName();
+      if (name) candidates.push({ file, target: name });
+    }
+  }
+  return candidates;
+}
+
+function enumerateVariablesAndFunctions(project: Project): EnumerateCandidate[] {
+  const candidates: EnumerateCandidate[] = [];
+  for (const sf of project.getSourceFiles()) {
+    const file = sf.getFilePath();
+    for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+      const name = decl.getName();
+      if (name) candidates.push({ file, target: name });
+    }
+    for (const fn of sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+      const name = fn.getName();
+      if (name) candidates.push({ file, target: name });
+    }
+  }
+  return candidates;
+}
+
+export const enumerate = {
+  variables: enumerateVariables,
+  functions: enumerateFunctions,
+  classes: enumerateClasses,
+  variablesAndFunctions: enumerateVariablesAndFunctions,
 } as const;
 
 // ---------------------------------------------------------------------------

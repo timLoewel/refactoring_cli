@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function buildDelegatingMethod(delegate: string, method: string): string {
@@ -55,4 +55,5 @@ export const hideDelegate = defineRefactoring<ClassContext>({
       description: `Added delegating method '${method}()' to class '${target}' hiding delegate field '${delegate}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

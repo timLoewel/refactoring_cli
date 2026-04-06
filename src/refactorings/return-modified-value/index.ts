@@ -1,6 +1,6 @@
 import { Node, SyntaxKind, type ParameterDeclaration, type SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 function addReturnStatement(ctx: FunctionContext, firstParam: ParameterDeclaration): void {
@@ -60,8 +60,8 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
 
     // Skip rest parameters: `return values` when the param is `...values` returns an array,
     // which typically doesn't match the declared return type.
-    const firstParam = paramList[0]!;
-    if (firstParam.isRestParameter()) {
+    const firstParam = paramList[0];
+    if (firstParam?.isRestParameter()) {
       errors.push(
         `Function '${ctx.fn.getName()}' first parameter is a rest parameter; cannot safely return it`,
       );
@@ -114,4 +114,5 @@ export const returnModifiedValue = defineRefactoring<FunctionContext>({
       description: `Changed '${target}' to return its mutated parameter '${firstParam.getName()}' and updated call sites`,
     };
   },
+  enumerate: enumerate.functions,
 });

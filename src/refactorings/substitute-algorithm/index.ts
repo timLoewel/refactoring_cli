@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const substituteAlgorithm = defineRefactoring<FunctionContext>({
@@ -49,4 +49,5 @@ export const substituteAlgorithm = defineRefactoring<FunctionContext>({
       description: `Replaced body of function '${target}' with the new algorithm`,
     };
   },
+  enumerate: enumerate.functions,
 });

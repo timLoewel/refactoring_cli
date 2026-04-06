@@ -1,5 +1,5 @@
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function deriveElementType(collectionType: string): string {
@@ -90,4 +90,5 @@ export const encapsulateCollection = defineRefactoring<ClassContext>({
       description: `Encapsulated collection field '${field}' on '${target}' with add/remove/get methods`,
     };
   },
+  enumerate: enumerate.classes,
 });

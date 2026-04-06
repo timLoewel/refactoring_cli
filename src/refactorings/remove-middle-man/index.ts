@@ -1,6 +1,6 @@
 import type { MethodDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function isDelegatingMethod(method: MethodDeclaration, delegateName: string): boolean {
@@ -61,4 +61,5 @@ export const removeMiddleMan = defineRefactoring<ClassContext>({
       description: `Removed ${removedNames.length} delegating method(s) [${removedNames.join(", ")}] from '${target}', exposing delegate '${delegate}' directly`,
     };
   },
+  enumerate: enumerate.classes,
 });

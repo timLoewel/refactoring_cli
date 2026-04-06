@@ -1,7 +1,7 @@
 import type { ClassDeclaration, ConstructorDeclaration, Project } from "ts-morph";
 import { Node } from "ts-morph";
 import type { RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 interface PullUpContext extends ClassContext {
@@ -126,4 +126,5 @@ export const pullUpConstructorBody = defineRefactoring<PullUpContext>({
       description: `Pulled constructor body of '${target}' up to '${parentName}'`,
     };
   },
+  enumerate: enumerate.classes,
 });

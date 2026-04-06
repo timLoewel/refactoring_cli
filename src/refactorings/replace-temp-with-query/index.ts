@@ -1,8 +1,18 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { Identifier, ParameterDeclaration, SourceFile, VariableDeclaration } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type {
+  Identifier,
+  ParameterDeclaration,
+  Project,
+  SourceFile,
+  VariableDeclaration,
+} from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 /** True if the identifier is used as a value, not as a property/declaration name. */
 function isValueReference(id: Identifier): boolean {
@@ -205,5 +215,17 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Replaced temp variable '${target}' with query function '${funcName}()'`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        if (!decl.getInitializer()) continue;
+        const name = decl.getName();
+        if (name) candidates.push({ file, target: name });
+      }
+    }
+    return candidates;
   },
 });

@@ -4,11 +4,16 @@ import {
   type ArrowFunction,
   type FunctionDeclaration,
   type FunctionExpression,
+  type Project,
   type SourceFile,
 } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 type FunctionLike = FunctionDeclaration | ArrowFunction | FunctionExpression;
 
@@ -173,9 +178,7 @@ export const inlineFunction = defineRefactoring<SourceFileContext>({
     // Require at least one call site in the same file; otherwise inlining would
     // just delete the function while leaving cross-file callers broken.
     if (directCallPositions.size === 0) {
-      errors.push(
-        `Function '${target}' has no call sites in this file and cannot be inlined here`,
-      );
+      errors.push(`Function '${target}' has no call sites in this file and cannot be inlined here`);
       return { ok: false, errors };
     }
 
@@ -307,5 +310,23 @@ export const inlineFunction = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Inlined function '${target}' at ${callSites.length} call site(s)`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const fn of sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+        const name = fn.getName();
+        if (name) candidates.push({ file, target: name });
+      }
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        const init = decl.getInitializer();
+        if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+          const name = decl.getName();
+          if (name) candidates.push({ file, target: name });
+        }
+      }
+    }
+    return candidates;
   },
 });

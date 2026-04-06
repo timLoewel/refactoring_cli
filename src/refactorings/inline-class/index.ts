@@ -1,7 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { ClassDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 function copyMembersIntoClass(memberTexts: string[], intoClass: ClassDeclaration): void {
@@ -74,4 +74,5 @@ export const inlineClass = defineRefactoring<SourceFileContext>({
       description: `Inlined class '${target}' into '${into}' (${memberTexts.length} member(s) moved)`,
     };
   },
+  enumerate: enumerate.classes,
 });

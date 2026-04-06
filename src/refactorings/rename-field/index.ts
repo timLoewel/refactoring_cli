@@ -1,7 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 function renamePropertyReferences(
@@ -85,4 +85,5 @@ export const renameField = defineRefactoring<ClassContext>({
       description: `Renamed field '${field}' to '${name}' on class '${target}' (${referenceCount} external reference(s) updated)`,
     };
   },
+  enumerate: enumerate.classes,
 });

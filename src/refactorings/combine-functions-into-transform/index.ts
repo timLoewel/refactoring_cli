@@ -1,6 +1,6 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 export const combineFunctionsIntoTransform = defineRefactoring<SourceFileContext>({
@@ -103,4 +103,5 @@ export const combineFunctionsIntoTransform = defineRefactoring<SourceFileContext
       description: `Created transform function '${name}' that combines: ${names.join(", ")}`,
     };
   },
+  enumerate: enumerate.variablesAndFunctions,
 });
