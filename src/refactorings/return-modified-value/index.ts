@@ -8,9 +8,14 @@ function addReturnStatement(ctx: FunctionContext, firstParam: ParameterDeclarati
   ctx.body.addStatements(`return ${paramName};`);
 
   const existingReturnType = ctx.fn.getReturnTypeNode();
-  if (!existingReturnType || existingReturnType.getText() === "void") {
+  const existingReturnText = existingReturnType?.getText() ?? "";
+  const isVoidReturn =
+    !existingReturnType || existingReturnText === "void" || existingReturnText === "Promise<void>";
+  if (isVoidReturn) {
     const paramTypeNode = firstParam.getTypeNode();
-    ctx.fn.setReturnType(paramTypeNode ? paramTypeNode.getText() : "unknown");
+    const baseType = paramTypeNode ? paramTypeNode.getText() : "unknown";
+    const isAsync = ctx.fn.isAsync();
+    ctx.fn.setReturnType(isAsync ? `Promise<${baseType}>` : baseType);
   }
 }
 

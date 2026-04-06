@@ -31,8 +31,13 @@ function collectConsecutiveConditions(allStatements: Node[], startIdx: number): 
 function extractReturnExpression(node: Node): string {
   const ifStmt = node.asKind(SyntaxKind.IfStatement);
   if (!ifStmt) return "undefined";
-  const thenBlock = ifStmt.getThenStatement();
-  const returnStmt = thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
+  const thenStmt = ifStmt.getThenStatement();
+  // The then may be a direct return (no block), or a block containing a return
+  if (thenStmt.getKind() === SyntaxKind.ReturnStatement) {
+    const retStmt = thenStmt.asKindOrThrow(SyntaxKind.ReturnStatement);
+    return retStmt.getExpression()?.getText() ?? "undefined";
+  }
+  const returnStmt = thenStmt.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
   return returnStmt ? (returnStmt.getExpression()?.getText() ?? "undefined") : "undefined";
 }
 
@@ -44,18 +49,20 @@ function replaceWithConsolidated(
 ): boolean {
   const consolidated = `if (${conditions.map((c) => `(${c})`).join(" || ")}) return ${returnExpr};`;
 
-  const toRemove = allStatements.slice(startIdx, startIdx + conditions.length);
-  const sortedRemove = [...toRemove].sort((a, b) => b.getStart() - a.getStart());
-  for (let i = 1; i < sortedRemove.length; i++) {
-    const nodeToRemove = sortedRemove[i];
+  // 1. Remove the extra ifs first (reverse order to keep positions stable)
+  const toRemove = allStatements.slice(startIdx + 1, startIdx + conditions.length);
+  for (let i = toRemove.length - 1; i >= 0; i--) {
+    const nodeToRemove = toRemove[i];
     if (nodeToRemove && Node.isStatement(nodeToRemove)) {
       nodeToRemove.remove();
     }
   }
 
+  // 2. Replace the first if with the consolidated version
   const firstNode = allStatements[startIdx];
   if (!firstNode) return false;
   firstNode.replaceWithText(consolidated);
+
   return true;
 }
 

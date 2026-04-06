@@ -1,6 +1,4 @@
-// No params: the implementation has a node-ordering bug when removing
-// consecutive if-statements — it removes the first node before replacing it,
-// causing a "node was removed" error at runtime.
+export const params = { file: "fixture.ts", target: "4" };
 
 function getDiscount(tier: string): number {
   if (tier === "gold") return 20;

@@ -36,8 +36,8 @@ function getWidenedType(decl: VariableDeclaration | ParameterDeclaration): strin
   if (t.isStringLiteral()) return "string";
   if (t.isNumberLiteral()) return "number";
   if (t.isBooleanLiteral()) return "boolean";
-  const text = t.getText();
-  if (text.includes("import(") || text.startsWith("typeof ")) return "unknown";
+  const text = t.getText(decl);
+  if (text.includes("import(") || text.startsWith("typeof ") || text === "") return "unknown";
   return text;
 }
 
@@ -178,7 +178,13 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     const funcParams = findParamsForInitializer(initializer, sf);
     const paramList = funcParams.map((p) => `${p.name}: ${p.type}`).join(", ");
     const funcArgs = funcParams.map((p) => p.name).join(", ");
-    const callExpr = `${funcName}(${funcArgs})`;
+    // Check for await BEFORE mutations invalidate the initializer node
+    const hasAwait =
+      initializer.getKind() === SyntaxKind.AwaitExpression ||
+      initializer.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0;
+    const asyncPrefix = hasAwait ? "async " : "";
+    const wrappedRetType = hasAwait ? `Promise<${retType}>` : retType;
+    const callExpr = hasAwait ? `await ${funcName}(${funcArgs})` : `${funcName}(${funcArgs})`;
 
     // Replace all identifier references to the temp variable with a call
     const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
@@ -207,7 +213,7 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     // Insert query function at the top of the source file
     sf.insertStatements(
       0,
-      `function ${funcName}(${paramList}): ${retType} {\n  return ${initText};\n}\n`,
+      `${asyncPrefix}function ${funcName}(${paramList}): ${wrappedRetType} {\n  return ${initText};\n}\n`,
     );
 
     return {

@@ -114,12 +114,30 @@ export const replaceControlFlagWithBreak = defineRefactoring<SourceFileContext>(
     }
 
     const loops = ctx.sourceFile.getDescendants().filter((n) => LOOP_KINDS.has(n.getKind()));
-    const usedInLoop = loops.some((loop) => {
+    const targetLoop = loops.find((loop) => {
       return loop.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => id.getText() === target);
     });
 
-    if (!usedInLoop) {
+    if (!targetLoop) {
       errors.push(`Variable '${target}' is not used inside any loop`);
+      return { ok: false, errors };
+    }
+
+    // Check if the flag is read AFTER the loop — if so, we can't safely remove the declaration
+    const loopEnd = targetLoop.getEnd();
+    const allRefs = ctx.sourceFile
+      .getDescendantsOfKind(SyntaxKind.Identifier)
+      .filter((id) => id.getText() === target);
+    const refsAfterLoop = allRefs.filter((id) => {
+      const pos = id.getStart();
+      if (pos <= loopEnd) return false;
+      // Skip the declaration itself
+      const parent = id.getParent();
+      if (parent && Node.isVariableDeclaration(parent) && parent.getNameNode() === id) return false;
+      return true;
+    });
+    if (refsAfterLoop.length > 0) {
+      errors.push(`Variable '${target}' is read after the loop — cannot safely remove the flag`);
     }
 
     return { ok: errors.length === 0, errors };

@@ -173,6 +173,10 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
       );
     }
 
+    if (body.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0) {
+      errors.push(`Loop at line ${lineNum} contains await — forEach callback cannot be async`);
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {

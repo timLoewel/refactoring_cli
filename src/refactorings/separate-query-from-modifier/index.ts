@@ -33,12 +33,52 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
     if (returnStmts.length === 0) {
       errors.push(`Function '${fn.getName()}' has no return statement; cannot separate query`);
+      return { ok: false, errors };
     }
 
     const returnTypeNode = fn.getReturnTypeNode();
     const returnType = returnTypeNode ? returnTypeNode.getText() : null;
     if (returnType === "void") {
       errors.push(`Function '${fn.getName()}' returns void; it is already a pure modifier`);
+      return { ok: false, errors };
+    }
+
+    // Check if the return expression references local variables declared in non-return statements.
+    // If so, the query can't be separated because it depends on modifier state.
+    if (Node.isBlock(body)) {
+      const statements = body.getStatements();
+      const sideEffectStmts = statements.filter((s) => s.getKind() !== SyntaxKind.ReturnStatement);
+      const localNames = new Set<string>();
+      for (const stmt of sideEffectStmts) {
+        for (const d of stmt.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+          localNames.add(d.getName());
+        }
+      }
+
+      if (localNames.size > 0) {
+        const returnStmt = returnStmts[0];
+        const returnExpr = returnStmt?.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+        if (returnExpr) {
+          for (const id of returnExpr.getDescendantsOfKind(SyntaxKind.Identifier)) {
+            if (localNames.has(id.getText())) {
+              errors.push(
+                `Return expression references local variable '${id.getText()}' declared in side-effect statements; cannot separate query from modifier`,
+              );
+              return { ok: false, errors };
+            }
+          }
+          // Also check the return expression itself if it's an identifier
+          if (
+            returnExpr.getKind() === SyntaxKind.Identifier &&
+            localNames.has(returnExpr.getText())
+          ) {
+            errors.push(
+              `Return expression references local variable '${returnExpr.getText()}' declared in side-effect statements; cannot separate query from modifier`,
+            );
+            return { ok: false, errors };
+          }
+        }
+      }
     }
 
     return { ok: errors.length === 0, errors };

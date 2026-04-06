@@ -1,4 +1,4 @@
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { Project } from "ts-morph";
 import type {
   EnumerateCandidate,
@@ -45,6 +45,36 @@ export const splitLoop = defineRefactoring<SourceFileContext>({
     const statements = body.getStatements();
     if (statements.length < 2) {
       errors.push(`Loop at line ${lineNum} must have at least 2 statements to split`);
+      return { ok: false, errors };
+    }
+
+    // Check that splitting won't break variable scope: variables declared in the first
+    // half must not be referenced in the second half (block-scoped vars are per-iteration).
+    const mid = Math.ceil(statements.length / 2);
+    const firstHalf = statements.slice(0, mid);
+    const secondHalf = statements.slice(mid);
+
+    const declaredInFirst = new Set<string>();
+    for (const stmt of firstHalf) {
+      for (const decl of stmt.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        declaredInFirst.add(decl.getName());
+      }
+    }
+
+    if (declaredInFirst.size > 0) {
+      for (const stmt of secondHalf) {
+        for (const id of stmt.getDescendantsOfKind(SyntaxKind.Identifier)) {
+          if (declaredInFirst.has(id.getText())) {
+            const parent = id.getParent();
+            if (parent && Node.isVariableDeclaration(parent) && parent.getNameNode() === id)
+              continue;
+            errors.push(
+              `Loop at line ${lineNum} cannot be split: second half references '${id.getText()}' declared in first half`,
+            );
+            return { ok: false, errors };
+          }
+        }
+      }
     }
 
     return { ok: errors.length === 0, errors };

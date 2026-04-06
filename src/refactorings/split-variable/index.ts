@@ -88,14 +88,33 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
+    // Find the scope (nearest enclosing block/function) of the declaration
+    const declScope = decl
+      .getAncestors()
+      .find(
+        (a) =>
+          Node.isBlock(a) ||
+          Node.isSourceFile(a) ||
+          Node.isFunctionDeclaration(a) ||
+          Node.isArrowFunction(a) ||
+          Node.isFunctionExpression(a) ||
+          Node.isMethodDeclaration(a),
+      );
+    const scopeStart = declScope ? declScope.getStart() : 0;
+    const scopeEnd = declScope ? declScope.getEnd() : Infinity;
+
     // Collect all simple assignments to this variable (excluding declaration)
+    // Only consider assignments within the same scope as the declaration
     const assignments = sf.getDescendantsOfKind(SyntaxKind.BinaryExpression).filter((bin) => {
       const left = bin.getLeft();
-      return (
-        Node.isIdentifier(left) &&
-        left.getText() === target &&
-        bin.getOperatorToken().getText() === "="
-      );
+      if (
+        !Node.isIdentifier(left) ||
+        left.getText() !== target ||
+        bin.getOperatorToken().getText() !== "="
+      )
+        return false;
+      const pos = bin.getStart();
+      return pos >= scopeStart && pos <= scopeEnd;
     });
 
     if (assignments.length === 0) {
@@ -126,8 +145,11 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
     };
 
     // Collect identifier references (not the declaration name, not the LHS of assignments)
+    // Only consider references within the same scope as the declaration
     const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
+      const pos = id.getStart();
+      if (pos < scopeStart || pos > scopeEnd) return false;
       const parent = id.getParent();
       if (!parent) return false;
       // Skip the variable declaration name
