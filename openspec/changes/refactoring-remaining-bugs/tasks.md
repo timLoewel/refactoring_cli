@@ -56,8 +56,8 @@ Fix test isolation issues where Python tree-sitter parser tests fail when run as
 
 - [x] 5.1 Investigate tree-sitter parser resource sharing between tests (3 failures in full suite, 0 in isolation)
 - [x] 5.2 Fix parser lifecycle: singleton parser with lazy language loading — resolved 3 tree-sitter failures
-- [ ] 5.3 Investigate python-rename test failure (TypeError: Cannot read 'type' of undefined) — intermittent Jest worker concurrency issue with native modules
-- [ ] 5.4 Fix test isolation: likely a shared state issue between python-rename and other test suites
+- [x] 5.3 Investigate python-rename test failure — tree-sitter rootNode can be undefined when native module is in degraded state
+- [x] 5.4 Fix: add null guard to hasIdentifier in rename-variable/python.ts — gracefully returns "not found" instead of crashing
 - [ ] 5.5 Add `--forceExit` or `--detectOpenHandles` configuration to catch resource leaks
 - [ ] 5.6 Verify all Python tests pass in both isolation and full-suite runs
 

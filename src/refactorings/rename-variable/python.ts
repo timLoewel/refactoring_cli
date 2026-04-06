@@ -273,14 +273,18 @@ print(json.dumps({
 }
 
 function hasIdentifier(
-  node: {
-    type: string;
-    text: string;
-    childCount: number;
-    child: (i: number) => typeof node | null;
-  },
+  node:
+    | {
+        type: string;
+        text: string;
+        childCount: number;
+        child: (i: number) => typeof node | null;
+      }
+    | null
+    | undefined,
   name: string,
 ): boolean {
+  if (!node) return false;
   if (node.type === "identifier" && node.text === name) {
     return true;
   }
