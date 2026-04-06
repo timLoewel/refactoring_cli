@@ -6,9 +6,14 @@ import type {
   Statement,
   VariableDeclaration,
 } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
+import type { Project } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+  SourceFileContext,
+} from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
-import type { SourceFileContext } from "../../core/refactoring.types.js";
 
 interface StatementsContainer {
   getStatements(): Statement[];
@@ -330,5 +335,28 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
       filesChanged: [file],
       description: `Extracted lines ${startLine}-${endLine} into function '${name}'`,
     };
+  },
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      // Find function bodies with 2+ statements — extract the first half
+      for (const fn of sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+        const body = fn.getBody();
+        if (!body || !Node.isBlock(body)) continue;
+        const stmts = body.getStatements();
+        if (stmts.length < 2) continue;
+        const mid = Math.ceil(stmts.length / 2);
+        const firstStmt = stmts[0];
+        const lastStmt = stmts[mid - 1];
+        if (!firstStmt || !lastStmt) continue;
+        // Encode as "startLine-endLine" for buildApplyParams
+        candidates.push({
+          file,
+          target: `${firstStmt.getStartLineNumber()}-${lastStmt.getEndLineNumber()}`,
+        });
+      }
+    }
+    return candidates;
   },
 });

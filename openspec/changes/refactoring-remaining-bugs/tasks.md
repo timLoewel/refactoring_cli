@@ -65,10 +65,10 @@ Fix test isolation issues where Python tree-sitter parser tests fail when run as
 
 Fix extract-function enumerate to provide valid line ranges instead of defaulting to 0.
 
-- [ ] 6.1 Update extract-function enumerate to provide startLine/endLine for function bodies
-- [ ] 6.2 Update buildApplyParams in test harness to handle refactorings with line-number params more intelligently
-- [ ] 6.3 Add enumerate to consolidate-conditional-expression (30 "need 2 consecutive ifs" — candidates aren't pre-filtered)
-- [ ] 6.4 Improve enumerate for separate-query-from-modifier (pre-filter functions that have both return and side-effects)
+- [x] 6.1 Update extract-function enumerate to provide startLine/endLine for function bodies
+- [x] 6.2 Update buildApplyParams in test harness to handle refactorings with line-number params more intelligently
+- [x] 6.3 Add enumerate to consolidate-conditional-expression (30 "need 2 consecutive ifs" — candidates aren't pre-filtered)
+- [x] 6.4 Improve enumerate for separate-query-from-modifier (pre-filter functions that have both return and side-effects)
 - [ ] 6.5 Run real-codebase tests to verify improved candidate hit rates
 
 ## 7. Separate-Query-From-Modifier Scope Fix

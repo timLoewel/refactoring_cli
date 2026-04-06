@@ -182,7 +182,14 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
     for (const sf of project.getSourceFiles()) {
       const file = sf.getFilePath();
       for (const ifStmt of sf.getDescendantsOfKind(SyntaxKind.IfStatement)) {
-        candidates.push({ file, target: String(ifStmt.getStartLineNumber()) });
+        // Pre-filter: only include if statements that have a consecutive sibling if
+        const parent = ifStmt.getParent();
+        if (!parent || parent.getKind() !== SyntaxKind.Block) continue;
+        const siblings = parent.getChildrenOfKind(SyntaxKind.IfStatement);
+        const lineNum = ifStmt.getStartLineNumber();
+        const adjacentIfs = siblings.filter((s) => s.getStartLineNumber() >= lineNum);
+        if (adjacentIfs.length < 2) continue;
+        candidates.push({ file, target: String(lineNum) });
       }
     }
     return candidates;

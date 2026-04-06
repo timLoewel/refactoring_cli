@@ -1,8 +1,12 @@
 import { SyntaxKind, Node } from "ts-morph";
-import type { Statement } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
-import type { FunctionContext } from "../../core/refactoring.types.js";
+import type { Project, Statement } from "ts-morph";
+import type {
+  EnumerateCandidate,
+  FunctionContext,
+  PreconditionResult,
+  RefactoringResult,
+} from "../../core/refactoring.types.js";
+import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 
 export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
   name: "Separate Query From Modifier",
@@ -132,15 +136,33 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     const returnExpr =
       returnStmt.asKind(SyntaxKind.ReturnStatement)?.getExpression()?.getText() ?? "undefined";
 
+    // Detect if the function is async (need to propagate to generated functions)
+    const isAsync = fn.isAsync();
+    const asyncPrefix = isAsync ? "async " : "";
+    const awaitPrefix = isAsync ? "await " : "";
+
+    // Check if modifier body uses await
+    const modifierHasAwait = sideEffectStmts.some(
+      (s) => s.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0,
+    );
+    const modifierAsync = modifierHasAwait ? "async " : "";
+    const modifierAwait = modifierHasAwait ? "await " : "";
+
+    // Check if return expression uses await
+    const queryHasAwait =
+      returnStmt.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0;
+    const queryAsync = queryHasAwait ? "async " : "";
+
     const queryBody = `  return ${returnExpr};`;
-    const queryFn = `function ${queryName}(${paramList}): ${returnType} {\n${queryBody}\n}`;
+    const queryFn = `${queryAsync}function ${queryName}(${paramList}): ${returnType} {\n${queryBody}\n}`;
 
     // Build modifier function (side effects only, returns void)
     const modifierBody = sideEffectStmts.map((s: Statement) => `  ${s.getText()}`).join("\n");
-    const modifierFn = `function ${modifierName}(${paramList}): void {\n${modifierBody}\n}`;
+    const modifierVoidType = modifierHasAwait ? "Promise<void>" : "void";
+    const modifierFn = `${modifierAsync}function ${modifierName}(${paramList}): ${modifierVoidType} {\n${modifierBody}\n}`;
 
     // Replace the original function body to call both
-    const newBody = `{\n  ${modifierName}(${paramNames});\n  return ${queryName}(${paramNames});\n}`;
+    const newBody = `{\n  ${modifierAwait}${modifierName}(${paramNames});\n  return ${awaitPrefix}${queryName}(${paramNames});\n}`;
 
     body.replaceWithText(newBody);
 
@@ -153,5 +175,28 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       description: `Split '${target}' into query '${queryName}' and modifier '${modifierName}'`,
     };
   },
-  enumerate: enumerate.functions,
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const fn of sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+        const name = fn.getName();
+        if (!name) continue;
+        const body = fn.getBody();
+        if (!body || !Node.isBlock(body)) continue;
+        const stmts = body.getStatements();
+        // Must have both return statements AND side-effect statements
+        const hasReturn = stmts.some((s) => s.getKind() === SyntaxKind.ReturnStatement);
+        const hasSideEffects = stmts.some((s) => s.getKind() !== SyntaxKind.ReturnStatement);
+        if (!hasReturn || !hasSideEffects) continue;
+        // Skip void return type
+        const retType = fn.getReturnTypeNode();
+        if (retType && retType.getText() === "void") continue;
+        // Skip generic functions
+        if (fn.getTypeParameters().length > 0) continue;
+        candidates.push({ file, target: name });
+      }
+    }
+    return candidates;
+  },
 });

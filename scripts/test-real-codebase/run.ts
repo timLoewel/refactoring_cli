@@ -257,12 +257,20 @@ function buildApplyParams(
   target: string,
 ): Record<string, unknown> {
   const params: Record<string, unknown> = {};
+
+  // Parse structured target: "startLine-endLine" for line-range refactorings
+  const rangeMatch = target.match(/^(\d+)-(\d+)$/);
+
   for (const p of refactoring.params) {
     if (!p.required) continue;
     if (p.name === "file") {
       params["file"] = file;
     } else if (p.name === "target") {
       params["target"] = target;
+    } else if (p.name === "startLine" && rangeMatch) {
+      params["startLine"] = parseInt(rangeMatch[1] as string, 10);
+    } else if (p.name === "endLine" && rangeMatch) {
+      params["endLine"] = parseInt(rangeMatch[2] as string, 10);
     } else if (p.type === "number") {
       params[p.name] = 0;
     } else if (p.name.toLowerCase().endsWith("type") || p.name.toLowerCase() === "typename") {
