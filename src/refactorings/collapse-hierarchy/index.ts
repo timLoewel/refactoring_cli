@@ -29,6 +29,24 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
     errors.push(`Parent class '${parentName}' not found in file — cannot collapse across files`);
   }
 
+  // Refuse if the subclass is exported — removing it would break importers
+  if (subclass.isExported()) {
+    const subName = subclass.getName() ?? target;
+    // Check if any other file imports this class
+    for (const otherSf of project.getSourceFiles()) {
+      if (otherSf === sf) continue;
+      for (const imp of otherSf.getImportDeclarations()) {
+        const namedImports = imp.getNamedImports();
+        if (namedImports.some((n) => n.getName() === subName)) {
+          errors.push(
+            `Class '${subName}' is imported by ${otherSf.getBaseName()} — collapsing would break importers`,
+          );
+          return { ok: false, errors };
+        }
+      }
+    }
+  }
+
   return { ok: errors.length === 0, errors };
 }
 

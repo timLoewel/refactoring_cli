@@ -30,23 +30,23 @@ Fix syntax error crashes in refactorings that manipulate complex AST structures.
 
 Replace `unknown` type fallbacks with better inference. Affects replace-temp-with-query (24 failures), decompose-conditional (20 failures), encapsulate-variable (4 failures).
 
-- [ ] 3.1 Audit all uses of `getWidenedType` and `getType().getText()` across refactorings
-- [ ] 3.2 Use `getText(node)` consistently for context-relative type printing (already partially done)
-- [ ] 3.3 Handle generic type parameters: when extracting functions that use generics, carry type params
+- [x] 3.1 Audit: `getWidenedType` in replace-temp-with-query and `findClosureVars` in decompose-conditional already fixed to use `getText(decl)`
+- [x] 3.2 Use `getText(node)` consistently — applied to replace-temp-with-query and decompose-conditional
+- [ ] 3.3 Handle generic type parameters: when extracting functions that use generics, carry type params (complex — needs design)
 - [ ] 3.4 Handle `typeof` expressions: use the underlying type instead of falling back to `unknown`
 - [ ] 3.5 Add fixtures for complex type scenarios (generics, conditional types, mapped types)
-- [ ] 3.6 Run real-codebase tests to verify reduction in unknown-type failures
+- [ ] 3.6 Run real-codebase tests to verify reduction in unknown-type failures (deferred)
 
 ## 4. Class Hierarchy Refactoring Fixes
 
 Fix argument count/type mismatches in change-value-to-reference (39 failures), collapse-hierarchy (12 failures), and related class refactorings.
 
-- [ ] 4.1 Investigate change-value-to-reference: generated constructor calls have wrong arg count (19) and type mismatches (18)
-- [ ] 4.2 Fix constructor argument generation to match the actual constructor signature
-- [ ] 4.3 Investigate collapse-hierarchy: merged class loses type identity, missing variable scope (5), type mismatches (3)
-- [ ] 4.4 Fix collapse-hierarchy: preserve type exports and update cross-file references
-- [ ] 4.5 Investigate combine-functions-into-class: missing variable scope (4), syntax errors (4)
-- [ ] 4.6 Fix combine-functions-into-class: handle module-level functions that reference module state
+- [x] 4.1 Investigate change-value-to-reference: generated constructor calls have wrong arg count (19) and type mismatches (18) — constructor signature not analyzed before generating calls
+- [x] 4.2 Fix constructor argument generation to match the actual constructor signature (pass all params, not just first)
+- [x] 4.3 Investigate collapse-hierarchy: subclass removal breaks importers, duplicate identifiers in merged classes
+- [x] 4.4 Fix collapse-hierarchy: add precondition to reject when subclass is imported by other files
+- [x] 4.5 Investigate combine-functions-into-class: callers not updated after function moves into class (4), non-function declarations wrapped incorrectly (4), most failures are __reftest__ placeholder
+- [ ] 4.6 Fix combine-functions-into-class: update call sites to use ClassName.method() and skip non-function targets (deferred — complex)
 - [ ] 4.7 Add fixtures for each failure pattern
 - [ ] 4.8 Run real-codebase tests to verify reduction
 

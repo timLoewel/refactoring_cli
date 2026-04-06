@@ -2,12 +2,18 @@ import type { PreconditionResult, RefactoringResult } from "../../core/refactori
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
-function buildRegistryMethod(className: string, keyParam: string): string {
+function buildRegistryMethod(
+  className: string,
+  keyParam: string,
+  allParams: { name: string; type: string }[],
+): string {
+  const paramList = allParams.map((p) => `${p.name}: ${p.type}`).join(", ");
+  const argList = allParams.map((p) => p.name).join(", ");
   return (
     `  private static _registry: Map<string, ${className}> = new Map();\n\n` +
-    `  static getInstance(${keyParam}: string): ${className} {\n` +
+    `  static getInstance(${paramList}): ${className} {\n` +
     `    if (!${className}._registry.has(${keyParam})) {\n` +
-    `      ${className}._registry.set(${keyParam}, new ${className}(${keyParam}));\n` +
+    `      ${className}._registry.set(${keyParam}, new ${className}(${argList}));\n` +
     `    }\n` +
     `    return ${className}._registry.get(${keyParam}) as ${className};\n` +
     `  }`
@@ -44,9 +50,17 @@ export const changeValueToReference = defineRefactoring<ClassContext>({
     const { cls: targetClass } = ctx;
 
     const ctor = targetClass.getConstructors()[0];
-    const keyParam = ctor?.getParameters()[0]?.getName() ?? "id";
+    const ctorParams = ctor?.getParameters() ?? [];
+    const keyParam = ctorParams[0]?.getName() ?? "id";
+    const allParams = ctorParams.map((p) => ({
+      name: p.getName(),
+      type: p.getTypeNode()?.getText() ?? "unknown",
+    }));
+    if (allParams.length === 0) {
+      allParams.push({ name: "id", type: "string" });
+    }
 
-    const registryMethod = buildRegistryMethod(target, keyParam);
+    const registryMethod = buildRegistryMethod(target, keyParam, allParams);
     targetClass.addMember(registryMethod);
 
     return {
