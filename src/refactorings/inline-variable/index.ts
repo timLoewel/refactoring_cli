@@ -95,9 +95,16 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
     const initText = initializer.getText();
     // Wrap in parens if initializer is a complex expression that could change
     // semantics when inlined into a surrounding expression (e.g. `a + b` inlined
-    // into `sum * 2` would give `a + b * 2` without parens).
+    // into `sum * 2` would give `a + b * 2` without parens, or `await foo()` inlined
+    // into `x.bar` would give `await foo().bar` instead of `(await foo()).bar`).
     const needsParens =
-      Node.isBinaryExpression(initializer) || Node.isConditionalExpression(initializer);
+      Node.isBinaryExpression(initializer) ||
+      Node.isConditionalExpression(initializer) ||
+      Node.isAwaitExpression(initializer) ||
+      Node.isYieldExpression(initializer) ||
+      Node.isAsExpression(initializer) ||
+      Node.isSpreadElement(initializer) ||
+      initializer.getKind() === SyntaxKind.CommaToken;
     const inlineText = needsParens ? `(${initText})` : initText;
 
     // Use TypeScript's symbol-based reference finder to correctly handle shadowed names

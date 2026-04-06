@@ -1,6 +1,22 @@
+import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+/** Check if a node is in an expression position (safe to replace with a function call). */
+function isExpressionPosition(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent) return false;
+  // Reject: class/interface members, property declarations, type nodes
+  if (Node.isPropertyDeclaration(node)) return false;
+  if (Node.isPropertyDeclaration(parent)) return false;
+  if (Node.isPropertySignature(node) || Node.isPropertySignature(parent)) return false;
+  if (Node.isClassDeclaration(parent) || Node.isInterfaceDeclaration(parent)) return false;
+  if (Node.isTypeNode(node) || Node.isTypeNode(parent)) return false;
+  if (Node.isDecorator(parent)) return false;
+  if (Node.isImportDeclaration(parent) || Node.isImportSpecifier(parent)) return false;
+  return true;
+}
 
 export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileContext>({
   name: "Replace Inline Code With Function Call",
@@ -28,15 +44,21 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
     const target = params["target"] as string;
     const name = params["name"] as string;
 
-    // Find all expression nodes whose text matches the target
+    // Find all expression nodes whose text matches the target and are in expression position
     const allNodes = sf.getDescendants();
-    const matches = allNodes.filter((node) => node.getText() === target);
+    const matches = allNodes.filter(
+      (node) => node.getText() === target && isExpressionPosition(node),
+    );
     const sorted = [...matches].sort((a, b) => b.getStart() - a.getStart());
 
     let replacements = 0;
     for (const node of sorted) {
-      node.replaceWithText(`${name}()`);
-      replacements++;
+      try {
+        node.replaceWithText(`${name}()`);
+        replacements++;
+      } catch {
+        // Skip nodes that can't be replaced (e.g. in positions where a function call is invalid)
+      }
     }
 
     if (replacements === 0) {

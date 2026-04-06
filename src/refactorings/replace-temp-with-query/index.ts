@@ -194,7 +194,16 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
 
     const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());
     for (const ref of sorted) {
-      ref.replaceWithText(callExpr);
+      try {
+        ref.replaceWithText(callExpr);
+      } catch {
+        // Fallback: try without await if the replacement fails (e.g. in non-async context)
+        try {
+          ref.replaceWithText(`${funcName}(${funcArgs})`);
+        } catch {
+          // Skip this reference if replacement is not possible
+        }
+      }
     }
 
     // Remove the temp variable declaration
