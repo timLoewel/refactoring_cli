@@ -76,7 +76,7 @@ Fix extract-function enumerate to provide valid line ranges instead of defaultin
 The current precondition only rejects when the return expression directly references modifier locals. A more complete fix would restructure the split to share state between query and modifier.
 
 - [ ] 7.1 Instead of rejecting, include shared variable declarations in both query and modifier functions
-- [ ] 7.2 Handle async functions: propagate async/await to modifier when body uses await
+- [x] 7.2 Handle async functions: propagate async/await to modifier when body uses await
 - [ ] 7.3 Handle return type inference: use function's actual return type, not just the declared type
 - [ ] 7.4 Add fixtures for shared-state split, async split, and complex return types
 - [ ] 7.5 Run real-codebase tests to verify (currently 29 failures, 17 scope-related)
