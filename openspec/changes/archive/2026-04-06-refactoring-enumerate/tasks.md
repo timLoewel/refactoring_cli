@@ -11,9 +11,9 @@
 
 ## 3. Remaining refactorings
 
-- [ ] 3.1 inline-variable
-- [ ] 3.2 inline-function
-- [ ] 3.3 rename-variable
-- [ ] 3.4 extract-function
-- [ ] 3.5 replace-temp-with-query
-- [ ] 3.6 All remaining tier-1/2/3/4 refactorings
+- [x] 3.1 inline-variable
+- [x] 3.2 inline-function
+- [x] 3.3 rename-variable
+- [x] 3.4 extract-function (skipped: no target param, uses startLine/endLine)
+- [x] 3.5 replace-temp-with-query
+- [x] 3.6 All remaining tier-1/2/3/4 refactorings
