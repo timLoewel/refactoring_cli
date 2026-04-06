@@ -1,6 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const replaceConditionalWithPolymorphism = defineRefactoring<FunctionContext>({
@@ -122,6 +123,8 @@ export const replaceConditionalWithPolymorphism = defineRefactoring<FunctionCont
 
     // Append base class and subclasses
     sf.addStatements(`\n${baseClass}\n\n${subclasses.join("\n\n")}`);
+
+    cleanupUnused(sf);
 
     return {
       success: true,

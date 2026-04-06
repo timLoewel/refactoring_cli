@@ -7,6 +7,7 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 /** Collect free variables in a node that are declared in an enclosing function scope. */
 function findClosureVars(node: Node, sf: Node): { name: string; type: string }[] {
@@ -195,6 +196,8 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
 
     // Append helper functions to the end of the file
     sf.addStatements(`\n${condFn}\n${thenFn}${elseFn}`);
+
+    cleanupUnused(sf);
 
     return {
       success: true,

@@ -7,6 +7,7 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 function findTargetIf(sf: SourceFile, lineNum: number): IfStatement | undefined {
   return sf
@@ -167,6 +168,8 @@ export const consolidateConditionalExpression = defineRefactoring<SourceFileCont
         description: `Could not access first node to replace`,
       };
     }
+
+    cleanupUnused(sf);
 
     return {
       success: true,

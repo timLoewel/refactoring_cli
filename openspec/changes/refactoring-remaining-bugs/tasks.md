@@ -10,8 +10,8 @@ Build a shared post-transformation utility that removes unused imports and varia
 - [x] 1.6 Integrate into split-variable (47 unused declaration failures)
 - [x] 1.7 Integrate into replace-command-with-function (4 unused declaration failures)
 - [x] 1.8 Integrate into split-loop (8 unused declaration failures)
-- [ ] 1.9 Integrate into remaining refactorings that leave unused declarations
-- [ ] 1.10 Run real-codebase tests to verify reduction in unused-declaration failures
+- [x] 1.9 Integrate into remaining refactorings that leave unused declarations
+- [ ] 1.10 Run real-codebase tests to verify reduction in unused-declaration failures (deferred — requires ~30min run)
 
 ## 2. AST Manipulation Robustness
 
@@ -54,9 +54,9 @@ Fix argument count/type mismatches in change-value-to-reference (39 failures), c
 
 Fix test isolation issues where Python tree-sitter parser tests fail when run as part of the full suite but pass in isolation.
 
-- [ ] 5.1 Investigate tree-sitter parser resource sharing between tests (3 failures in full suite, 0 in isolation)
-- [ ] 5.2 Fix parser lifecycle: ensure tree-sitter parser is properly initialized/cleaned up per test suite
-- [ ] 5.3 Investigate python-rename test failure (TypeError: Cannot read 'type' of undefined) — passes in isolation
+- [x] 5.1 Investigate tree-sitter parser resource sharing between tests (3 failures in full suite, 0 in isolation)
+- [x] 5.2 Fix parser lifecycle: singleton parser with lazy language loading — resolved 3 tree-sitter failures
+- [ ] 5.3 Investigate python-rename test failure (TypeError: Cannot read 'type' of undefined) — intermittent Jest worker concurrency issue with native modules
 - [ ] 5.4 Fix test isolation: likely a shared state issue between python-rename and other test suites
 - [ ] 5.5 Add `--forceExit` or `--detectOpenHandles` configuration to catch resource leaks
 - [ ] 5.6 Verify all Python tests pass in both isolation and full-suite runs

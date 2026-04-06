@@ -1,6 +1,7 @@
 import { SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
 
 export const replaceFunctionWithCommand = defineRefactoring<FunctionContext>({
@@ -86,6 +87,8 @@ export const replaceFunctionWithCommand = defineRefactoring<FunctionContext>({
 
     // Add the command class at the end of the file
     sf.addStatements(`\n${classText}\n`);
+
+    cleanupUnused(sf);
 
     return {
       success: true,
