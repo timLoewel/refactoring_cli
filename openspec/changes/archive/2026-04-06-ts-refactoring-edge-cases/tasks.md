@@ -186,56 +186,56 @@
 
 For each of the following, add 3-5 fixtures covering the most important edge cases documented in `specs/remaining-refactorings/spec.md`. Run tests after each batch; fix if needed.
 
-- [ ] 13.1 **parameterize-function** — multiple-call-sites, default-value, recursive
-- [ ] 13.2 **remove-flag-argument** — true/false branches, multiple flags
-- [ ] 13.3 **replace-parameter-with-query** — computed-value, multiple-callers
-- [ ] 13.4 **replace-query-with-parameter** — side-effects, method-call
-- [ ] 13.5 **return-modified-value** — with-callers, chained-modification
-- [ ] 13.6 **move-field** — with-initializer, referenced-in-methods
-- [ ] 13.7 **pull-up-field / push-down-field** — with-type, with-access-modifier, already-in-parent
-- [ ] 13.8 **pull-up-method / push-down-method** — with-typed-params, multiple-subclasses
-- [ ] 13.9 **pull-up-constructor-body** — field-initialization, different-args
-- [ ] 13.10 **extract-class** — with-typed-fields, field-used-in-remaining-methods
-- [ ] 13.11 **extract-superclass** — shared-methods, with-constructor
-- [ ] 13.12 **collapse-hierarchy** — with-subclass-only-methods, with-overrides
-- [ ] 13.13 **remove-subclass** — with-overridden-methods, multiple-subclasses
-- [ ] 13.14 **replace-type-code-with-subclasses** — string-type-code, with-switch
-- [ ] 13.15 **replace-subclass-with-delegate** — with-multiple-methods, with-state
-- [ ] 13.16 **replace-superclass-with-delegate** — with-multiple-methods
-- [ ] 13.17 **encapsulate-record** — typed-fields, with-readonly, with-methods
-- [ ] 13.18 **encapsulate-collection** — array-field, with-direct-mutation
-- [ ] 13.19 **encapsulate-variable** — with-operations, with-callers
-- [ ] 13.20 **hide-delegate** — with-chained-access
-- [ ] 13.21 **remove-middle-man** — multiple-delegating-methods
-- [ ] 13.22 **remove-setting-method** — with-initializer-in-constructor, with-validation
-- [ ] 13.23 **consolidate-conditional-expression** — or-conditions, nested, ternary
-- [ ] 13.24 **decompose-conditional** — with-else, complex-condition, early-return
-- [ ] 13.25 **replace-nested-conditional-with-guard-clauses** — multiple-guards, with-else
-- [ ] 13.26 **replace-control-flag-with-break** — while-loop, for-loop, multiple-exits
-- [ ] 13.27 **introduce-assertion** — null-check, range-check, with-message, async
-- [ ] 13.28 **introduce-special-case** — null-check, undefined-check, multiple-callers
-- [ ] 13.29 **replace-conditional-with-polymorphism** — string-dispatch, multiple-types
-- [ ] 13.30 **split-loop** — two-accumulations, dependent-reject
-- [ ] 13.31 **split-phase** — with-shared-data, with-typed-intermediate
-- [ ] 13.32 **combine-functions-into-class** — with-shared-data, exported-functions
-- [ ] 13.33 **combine-functions-into-transform** — multi-transform
-- [ ] 13.34 **separate-query-from-modifier** — modifier-then-query, with-conditional-mutation
-- [ ] 13.35 **substitute-algorithm** — simpler-implementation, with-edge-cases
-- [ ] 13.36 **replace-function-with-command** — with-params-as-fields, with-return-value
-- [ ] 13.37 **replace-command-with-function** — with-state, multiple-execute-calls
-- [ ] 13.38 **replace-error-code-with-exception** — null-return, negative-return
-- [ ] 13.39 **replace-exception-with-precheck** — try-catch-guard, multiple-clauses
-- [ ] 13.40 **replace-primitive-with-object** — with-operations, with-string, with-boolean
-- [ ] 13.41 **change-reference-to-value** — with-equality-check
-- [ ] 13.42 **change-value-to-reference** — with-shared-mutation
-- [ ] 13.43 **replace-magic-literal** — boolean-literal, template-literal-context
-- [ ] 13.44 **replace-inline-code-with-function-call** — exact-match, multiple-occurrences
-- [ ] 13.45 **replace-derived-variable-with-query** — with-multiple-refs
-- [ ] 13.46 **remove-dead-code** — unreachable-after-return, always-false-condition
-- [ ] 13.47 **introduce-parameter-object** — all-parameters, with-defaults, with-callers
-- [ ] 13.48 **preserve-whole-object** — from-property-access, computed-values
-- [ ] 13.49 **move-statements-into-function** — multiple-callers, variable-leakage
-- [ ] 13.50 **move-statements-to-callers** — multiple-callers, with-function-params
-- [ ] 13.51 **parameterize-function** — with-callers
-- [ ] 13.52 **replace-function-with-command** (verify)
-- [ ] 13.53 **return-modified-value** (verify)
+- [x] 13.1 **parameterize-function** — multiple-call-sites, default-value, recursive
+- [x] 13.2 **remove-flag-argument** — true/false branches, multiple flags
+- [x] 13.3 **replace-parameter-with-query** — computed-value, multiple-callers
+- [x] 13.4 **replace-query-with-parameter** — side-effects, method-call
+- [x] 13.5 **return-modified-value** — with-callers, chained-modification
+- [x] 13.6 **move-field** — with-initializer, referenced-in-methods
+- [x] 13.7 **pull-up-field / push-down-field** — with-type, with-access-modifier, already-in-parent
+- [x] 13.8 **pull-up-method / push-down-method** — with-typed-params, multiple-subclasses
+- [x] 13.9 **pull-up-constructor-body** — field-initialization, different-args
+- [x] 13.10 **extract-class** — with-typed-fields, field-used-in-remaining-methods
+- [x] 13.11 **extract-superclass** — shared-methods, with-constructor
+- [x] 13.12 **collapse-hierarchy** — with-subclass-only-methods, with-overrides
+- [x] 13.13 **remove-subclass** — with-overridden-methods, multiple-subclasses
+- [x] 13.14 **replace-type-code-with-subclasses** — string-type-code, with-switch
+- [x] 13.15 **replace-subclass-with-delegate** — with-multiple-methods, with-state
+- [x] 13.16 **replace-superclass-with-delegate** — with-multiple-methods
+- [x] 13.17 **encapsulate-record** — typed-fields, with-readonly, with-methods
+- [x] 13.18 **encapsulate-collection** — array-field, with-direct-mutation
+- [x] 13.19 **encapsulate-variable** — with-operations, with-callers
+- [x] 13.20 **hide-delegate** — with-chained-access
+- [x] 13.21 **remove-middle-man** — multiple-delegating-methods
+- [x] 13.22 **remove-setting-method** — with-initializer-in-constructor, with-validation
+- [x] 13.23 **consolidate-conditional-expression** — or-conditions, nested, ternary
+- [x] 13.24 **decompose-conditional** — with-else, complex-condition, early-return
+- [x] 13.25 **replace-nested-conditional-with-guard-clauses** — multiple-guards, with-else
+- [x] 13.26 **replace-control-flag-with-break** — while-loop, for-loop, multiple-exits
+- [x] 13.27 **introduce-assertion** — null-check, range-check, with-message, async
+- [x] 13.28 **introduce-special-case** — null-check, undefined-check, multiple-callers
+- [x] 13.29 **replace-conditional-with-polymorphism** — string-dispatch, multiple-types
+- [x] 13.30 **split-loop** — two-accumulations, dependent-reject
+- [x] 13.31 **split-phase** — with-shared-data, with-typed-intermediate
+- [x] 13.32 **combine-functions-into-class** — with-shared-data, exported-functions
+- [x] 13.33 **combine-functions-into-transform** — multi-transform
+- [x] 13.34 **separate-query-from-modifier** — modifier-then-query, with-conditional-mutation
+- [x] 13.35 **substitute-algorithm** — simpler-implementation, with-edge-cases
+- [x] 13.36 **replace-function-with-command** — with-params-as-fields, with-return-value
+- [x] 13.37 **replace-command-with-function** — with-state, multiple-execute-calls
+- [x] 13.38 **replace-error-code-with-exception** — null-return, negative-return
+- [x] 13.39 **replace-exception-with-precheck** — try-catch-guard, multiple-clauses
+- [x] 13.40 **replace-primitive-with-object** — with-operations, with-string, with-boolean
+- [x] 13.41 **change-reference-to-value** — with-equality-check
+- [x] 13.42 **change-value-to-reference** — with-shared-mutation
+- [x] 13.43 **replace-magic-literal** — boolean-literal, template-literal-context
+- [x] 13.44 **replace-inline-code-with-function-call** — exact-match, multiple-occurrences
+- [x] 13.45 **replace-derived-variable-with-query** — with-multiple-refs
+- [x] 13.46 **remove-dead-code** — unreachable-after-return, always-false-condition
+- [x] 13.47 **introduce-parameter-object** — all-parameters, with-defaults, with-callers
+- [x] 13.48 **preserve-whole-object** — from-property-access, computed-values
+- [x] 13.49 **move-statements-into-function** — multiple-callers, variable-leakage
+- [x] 13.50 **move-statements-to-callers** — multiple-callers, with-function-params
+- [x] 13.51 **parameterize-function** — with-callers
+- [x] 13.52 **replace-function-with-command** (verify)
+- [x] 13.53 **return-modified-value** (verify)
