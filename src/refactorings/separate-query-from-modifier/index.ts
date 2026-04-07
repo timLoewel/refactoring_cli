@@ -39,6 +39,61 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       return { ok: false, errors };
     }
 
+    // Reject if the function body references variables from an enclosing function scope.
+    // The extracted query/modifier functions are placed at the top level, so they would
+    // lose access to closure variables from enclosing functions or blocks.
+    if (Node.isBlock(body)) {
+      const sf = ctx.sourceFile;
+      const fnStart = fn.getStart();
+      const fnEnd = fn.getEnd();
+      const closureVars: string[] = [];
+
+      for (const id of body.getDescendantsOfKind(SyntaxKind.Identifier)) {
+        const parent = id.getParent();
+        if (!parent) continue;
+        // Skip property names, declaration names, parameter names
+        if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) continue;
+        if (Node.isVariableDeclaration(parent) && parent.getNameNode() === id) continue;
+        if (Node.isParameterDeclaration(parent) && parent.getNameNode() === id) continue;
+
+        const sym = id.getSymbol();
+        if (!sym) continue;
+        const decls = sym.getDeclarations();
+        if (!decls || decls.length === 0) continue;
+
+        for (const decl of decls) {
+          if (decl.getSourceFile() !== sf) continue;
+          const declPos = decl.getStart();
+          // Skip if declared inside this function
+          if (declPos >= fnStart && declPos <= fnEnd) continue;
+          // Check if declared inside another function (not at file top level)
+          const insideFunction = decl
+            .getAncestors()
+            .some(
+              (a) =>
+                Node.isFunctionDeclaration(a) ||
+                Node.isArrowFunction(a) ||
+                Node.isFunctionExpression(a) ||
+                Node.isMethodDeclaration(a),
+            );
+          if (insideFunction && !closureVars.includes(id.getText())) {
+            closureVars.push(id.getText());
+          }
+        }
+      }
+
+      if (closureVars.length > 0) {
+        const varList = closureVars.map((v) => `'${v}'`).join(", ");
+        errors.push(
+          `Function '${fn.getName()}' references ${varList} from an enclosing function scope. ` +
+            `Separating into query and modifier would extract top-level functions that cannot ` +
+            `access these closure variables. Move the function to the top level first, or pass ` +
+            `the variables as parameters.`,
+        );
+        return { ok: false, errors };
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
