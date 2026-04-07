@@ -46,7 +46,7 @@ Fix argument count/type mismatches in change-value-to-reference (39 failures), c
 - [x] 4.3 Investigate collapse-hierarchy: subclass removal breaks importers, duplicate identifiers in merged classes
 - [x] 4.4 Fix collapse-hierarchy: add precondition to reject when subclass is imported by other files
 - [x] 4.5 Investigate combine-functions-into-class: callers not updated after function moves into class (4), non-function declarations wrapped incorrectly (4), most failures are __reftest__ placeholder
-- [ ] 4.6 Fix combine-functions-into-class: update call sites to use ClassName.method() and skip non-function targets (deferred — complex)
+- [x] 4.6 Fix combine-functions-into-class: update call sites to use ClassName.method() and skip non-function targets (deferred — complex)
 - [ ] 4.7 Add fixtures for each failure pattern (deferred — change-value-to-reference multi-param, collapse-hierarchy cross-file)
 - [ ] 4.8 Run real-codebase tests to verify reduction (deferred — included in verification run)
 

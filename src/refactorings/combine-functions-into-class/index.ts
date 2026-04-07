@@ -1,10 +1,28 @@
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
+import type { FunctionDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
 
-function convertFunctionToMethod(functionText: string, _functionName: string): string {
-  return functionText.replace(/^(export\s+)?function\s+/, "").trim();
+function convertFunctionToStaticMethod(functionText: string): string {
+  return "static " + functionText.replace(/^(export\s+)?function\s+/, "").trim();
+}
+
+/** Find all call expression identifiers that reference one of the moved functions. */
+function findCallSites(fn: FunctionDeclaration): { id: Node; name: string }[] {
+  const sf = fn.getSourceFile();
+  const name = fn.getName();
+  if (!name) return [];
+  const results: { id: Node; name: string }[] = [];
+  for (const id of sf.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    if (id.getText() !== name) continue;
+    const parent = id.getParent();
+    // Skip the function declaration's own name node
+    if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) continue;
+    // Only include call expressions or references outside the moved functions
+    results.push({ id, name });
+  }
+  return results;
 }
 
 export const combineFunctionsIntoClass = defineRefactoring<SourceFileContext>({
@@ -71,10 +89,24 @@ export const combineFunctionsIntoClass = defineRefactoring<SourceFileContext>({
       };
     }
 
-    const methodTexts = functionsToMove.map((fn) =>
-      convertFunctionToMethod(fn.getText(), fn.getName() ?? ""),
-    );
+    // Collect method texts and call sites before mutations
+    const methodTexts = functionsToMove.map((fn) => convertFunctionToStaticMethod(fn.getText()));
+    const allCallSites: { id: Node; name: string }[] = [];
+    for (const fn of functionsToMove) {
+      allCallSites.push(...findCallSites(fn));
+    }
 
+    // Update call sites: foo(args) → ClassName.foo(args) (reverse order to preserve positions)
+    const sortedCallSites = [...allCallSites].sort((a, b) => b.id.getStart() - a.id.getStart());
+    for (const site of sortedCallSites) {
+      try {
+        site.id.replaceWithText(`${className}.${site.name}`);
+      } catch {
+        // Skip if replacement fails (e.g., node already removed)
+      }
+    }
+
+    // Remove original function declarations
     const sorted = [...functionsToMove].sort((a, b) => b.getStart() - a.getStart());
     for (const fn of sorted) {
       fn.remove();
