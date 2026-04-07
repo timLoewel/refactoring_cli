@@ -8,6 +8,7 @@ import type {
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import { cleanupUnused } from "../../core/cleanup-unused.js";
+import { findReferencedTypeParams } from "../../core/type-params.js";
 
 /** Collect free variables in a node that are declared in an enclosing function scope. */
 function findClosureVars(node: Node, sf: Node): { name: string; type: string }[] {
@@ -171,9 +172,13 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
       thenBody = `  ${thenStmt.getText()}`;
     }
 
+    // Propagate type parameters from enclosing generic context
+    const typeParamsArr = findReferencedTypeParams(ifStmt);
+    const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
+
     // Build replacement
-    const condFn = `function ${condFnName}(${paramList}): boolean {\n  return ${conditionText};\n}`;
-    const thenFn = `function ${thenFnName}(${paramList}): void {\n${thenBody}\n}`;
+    const condFn = `function ${condFnName}${typeParams}(${paramList}): boolean {\n  return ${conditionText};\n}`;
+    const thenFn = `function ${thenFnName}${typeParams}(${paramList}): void {\n${thenBody}\n}`;
 
     let replacementIf: string;
     let elseFn = "";
@@ -186,7 +191,7 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
       } else {
         elseBody = `  ${elseStmt.getText()}`;
       }
-      elseFn = `\nfunction ${elseFnName}(${paramList}): void {\n${elseBody}\n}`;
+      elseFn = `\nfunction ${elseFnName}${typeParams}(${paramList}): void {\n${elseBody}\n}`;
       replacementIf = `if (${condFnName}(${argList})) {\n  ${thenFnName}(${argList});\n} else {\n  ${elseFnName}(${argList});\n}`;
     } else {
       replacementIf = `if (${condFnName}(${argList})) {\n  ${thenFnName}(${argList});\n}`;

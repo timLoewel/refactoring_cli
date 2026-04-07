@@ -13,6 +13,7 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { findReferencedTypeParams } from "../../core/type-params.js";
 
 /** True if the identifier is used as a value, not as a property/declaration name. */
 function isValueReference(id: Identifier): boolean {
@@ -178,6 +179,10 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     const funcParams = findParamsForInitializer(initializer, sf);
     const paramList = funcParams.map((p) => `${p.name}: ${p.type}`).join(", ");
     const funcArgs = funcParams.map((p) => p.name).join(", ");
+    // Propagate type parameters from enclosing generic context BEFORE mutations
+    const typeParamsArr = findReferencedTypeParams(decl);
+    const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
+
     // Check for await BEFORE mutations invalidate the initializer node
     const hasAwait =
       initializer.getKind() === SyntaxKind.AwaitExpression ||
@@ -222,7 +227,7 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     // Insert query function at the top of the source file
     sf.insertStatements(
       0,
-      `${asyncPrefix}function ${funcName}(${paramList}): ${wrappedRetType} {\n  return ${initText};\n}\n`,
+      `${asyncPrefix}function ${funcName}${typeParams}(${paramList}): ${wrappedRetType} {\n  return ${initText};\n}\n`,
     );
 
     return {

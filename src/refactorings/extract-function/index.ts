@@ -14,6 +14,7 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { findReferencedTypeParams } from "../../core/type-params.js";
 
 interface StatementsContainer {
   getStatements(): Statement[];
@@ -287,6 +288,10 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
     const asyncMod = isAsync ? "async " : "";
     const awaitPre = isAsync ? "await " : "";
 
+    // Propagate type parameters from enclosing generic context
+    const typeParamsArr = findReferencedTypeParams(stmts[0]!);
+    const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
+
     const bodyLines = stmts.map((s) => `  ${s.getText()}`);
     if (escapingVars.length === 1) {
       bodyLines.push(`  return ${escapingVars[0]};`);
@@ -294,7 +299,7 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
       bodyLines.push(`  return { ${escapingVars.join(", ")} };`);
     }
 
-    const functionText = `\n${asyncMod}function ${name}(${paramList}) {\n${bodyLines.join("\n")}\n}\n`;
+    const functionText = `\n${asyncMod}function ${name}${typeParams}(${paramList}) {\n${bodyLines.join("\n")}\n}\n`;
 
     let callText: string;
     if (escapingVars.length === 1) {

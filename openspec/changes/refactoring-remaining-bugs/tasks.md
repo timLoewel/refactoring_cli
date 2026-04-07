@@ -32,9 +32,9 @@ Replace `unknown` type fallbacks with better inference. Affects replace-temp-wit
 
 - [x] 3.1 Audit: `getWidenedType` in replace-temp-with-query and `findClosureVars` in decompose-conditional already fixed to use `getText(decl)`
 - [x] 3.2 Use `getText(node)` consistently — applied to replace-temp-with-query and decompose-conditional
-- [ ] 3.3 Handle generic type parameters: when extracting functions that use generics, carry type params (complex — needs design)
+- [x] 3.3 Handle generic type parameters: when extracting functions that use generics, carry type params (complex — needs design)
 - [x] 3.4 Handle `typeof` expressions: only reject `typeof import(...)`, keep valid `typeof X` annotations
-- [ ] 3.5 Add fixtures for complex type scenarios (generics, conditional types, mapped types)
+- [x] 3.5 Add fixtures for complex type scenarios (generics, conditional types, mapped types)
 - [ ] 3.6 Run real-codebase tests to verify reduction in unknown-type failures (deferred)
 
 ## 4. Class Hierarchy Refactoring Fixes

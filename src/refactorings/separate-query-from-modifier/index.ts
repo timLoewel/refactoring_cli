@@ -7,6 +7,7 @@ import type {
   RefactoringResult,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+import { findReferencedTypeParams } from "../../core/type-params.js";
 
 export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
   name: "Separate Query From Modifier",
@@ -23,15 +24,6 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
   preconditions(ctx: FunctionContext): PreconditionResult {
     const errors: string[] = [];
     const { fn, body } = ctx;
-
-    // Skip generic functions: type parameters aren't copied to the generated query/modifier
-    // functions, causing "Cannot find name 'T'" errors in the generated code.
-    if (fn.getTypeParameters().length > 0) {
-      errors.push(
-        `Function '${fn.getName()}' has generic type parameters; cannot safely split into query and modifier`,
-      );
-      return { ok: false, errors };
-    }
 
     // Must return something (query part) and have side effects (modifier part)
     const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
@@ -160,13 +152,17 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       returnStmt.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0;
     const queryAsync = queryHasAwait ? "async " : "";
 
+    // Propagate type parameters from enclosing generic context
+    const typeParamsArr = findReferencedTypeParams(body);
+    const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
+
     const queryBody = `  return ${returnExpr};`;
-    const queryFn = `${queryAsync}function ${queryName}(${paramList}): ${returnType} {\n${queryBody}\n}`;
+    const queryFn = `${queryAsync}function ${queryName}${typeParams}(${paramList}): ${returnType} {\n${queryBody}\n}`;
 
     // Build modifier function (side effects only, returns void)
     const modifierBody = sideEffectStmts.map((s: Statement) => `  ${s.getText()}`).join("\n");
     const modifierVoidType = modifierHasAwait ? "Promise<void>" : "void";
-    const modifierFn = `${modifierAsync}function ${modifierName}(${paramList}): ${modifierVoidType} {\n${modifierBody}\n}`;
+    const modifierFn = `${modifierAsync}function ${modifierName}${typeParams}(${paramList}): ${modifierVoidType} {\n${modifierBody}\n}`;
 
     // Replace the original function body to call both
     const newBody = `{\n  ${modifierAwait}${modifierName}(${paramNames});\n  return ${awaitPrefix}${queryName}(${paramNames});\n}`;
@@ -199,8 +195,6 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
         // Skip void return type
         const retType = fn.getReturnTypeNode();
         if (retType && retType.getText() === "void") continue;
-        // Skip generic functions
-        if (fn.getTypeParameters().length > 0) continue;
         candidates.push({ file, target: name });
       }
     }
