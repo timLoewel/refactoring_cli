@@ -1,4 +1,4 @@
-import { Project, ts, Node, SyntaxKind } from "ts-morph";
+import { Project, ts, SyntaxKind } from "ts-morph";
 import { findReferencedTypeParams } from "./type-params.js";
 
 function createProject(content: string) {
@@ -13,6 +13,13 @@ function createProject(content: string) {
   return project.createSourceFile("test.ts", content);
 }
 
+/** Get the first descendant of a given kind, throwing if not found. */
+function first<T>(arr: T[]): T {
+  const item = arr[0];
+  if (item === undefined) throw new Error("Expected at least one element");
+  return item;
+}
+
 describe("findReferencedTypeParams", () => {
   it("returns type params referenced in a node inside a generic function", () => {
     const sf = createProject(`
@@ -22,7 +29,7 @@ function foo<T>(x: T) {
   }
 }
 `);
-    const ifStmt = sf.getDescendantsOfKind(SyntaxKind.IfStatement)[0]!;
+    const ifStmt = first(sf.getDescendantsOfKind(SyntaxKind.IfStatement));
     const result = findReferencedTypeParams(ifStmt);
     expect(result).toEqual(["<T>"]);
   });
@@ -35,7 +42,7 @@ function foo<T, U>(x: T, y: U) {
   }
 }
 `);
-    const ifStmt = sf.getDescendantsOfKind(SyntaxKind.IfStatement)[0]!;
+    const ifStmt = first(sf.getDescendantsOfKind(SyntaxKind.IfStatement));
     const result = findReferencedTypeParams(ifStmt);
     expect(result).toEqual(["<T>"]);
   });
@@ -46,7 +53,7 @@ function foo<T, U>(x: T, y: U) {
   const z = [x, y];
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual(["<T, U>"]);
   });
@@ -59,7 +66,7 @@ function foo<T extends string>(x: T) {
   }
 }
 `);
-    const ifStmt = sf.getDescendantsOfKind(SyntaxKind.IfStatement)[0]!;
+    const ifStmt = first(sf.getDescendantsOfKind(SyntaxKind.IfStatement));
     const result = findReferencedTypeParams(ifStmt);
     expect(result).toEqual(["<T extends string>"]);
   });
@@ -70,7 +77,7 @@ function foo<T = string>(x: T) {
   const y = x;
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual(["<T = string>"]);
   });
@@ -81,7 +88,7 @@ function foo(x: number) {
   const y = x + 1;
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual([]);
   });
@@ -92,7 +99,7 @@ function foo<T>(x: number) {
   const y = x + 1;
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual([]);
   });
@@ -108,10 +115,7 @@ class Box<T> {
   }
 }
 `);
-    // The if statement references T through this.value, but the identifier "T"
-    // itself doesn't appear in the if body — only the parameter variables do.
-    // For class context, we detect T through parameter/variable types.
-    const ifStmt = sf.getDescendantsOfKind(SyntaxKind.IfStatement)[0]!;
+    const ifStmt = first(sf.getDescendantsOfKind(SyntaxKind.IfStatement));
     const result = findReferencedTypeParams(ifStmt);
     // T is not directly referenced as an identifier in the if body
     expect(result).toEqual([]);
@@ -125,7 +129,7 @@ class Box<T> {
   }
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual(["<T>"]);
   });
@@ -138,7 +142,7 @@ function outer<T>(x: T) {
   }
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     // z = y references U (from inner), not T
     expect(result).toEqual(["<U>"]);
@@ -153,11 +157,12 @@ function outer<T>(x: T) {
   }
 }
 `);
-    // Get the block of inner function which contains both statements
-    const innerFn = sf.getDescendantsOfKind(SyntaxKind.FunctionDeclaration).find(
-      (f) => f.getName() === "inner",
-    )!;
-    const body = innerFn.getBody()!;
+    const innerFn = sf
+      .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+      .find((f) => f.getName() === "inner");
+    if (!innerFn) throw new Error("inner function not found");
+    const body = innerFn.getBody();
+    if (!body) throw new Error("inner function has no body");
     const result = findReferencedTypeParams(body);
     expect(result).toEqual(["<T, U>"]);
   });
@@ -168,9 +173,8 @@ const foo = <T>(x: T) => {
   const y: T = x;
 };
 `);
-    // Get the variable statement inside the arrow body
-    const arrowBody = sf.getDescendantsOfKind(SyntaxKind.ArrowFunction)[0]!;
-    const varStmt = arrowBody.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const arrowBody = first(sf.getDescendantsOfKind(SyntaxKind.ArrowFunction));
+    const varStmt = first(arrowBody.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varStmt);
     expect(result).toEqual(["<T>"]);
   });
@@ -183,7 +187,7 @@ class Foo {
   }
 }
 `);
-    const varDecl = sf.getDescendantsOfKind(SyntaxKind.VariableStatement)[0]!;
+    const varDecl = first(sf.getDescendantsOfKind(SyntaxKind.VariableStatement));
     const result = findReferencedTypeParams(varDecl);
     expect(result).toEqual(["<T>"]);
   });

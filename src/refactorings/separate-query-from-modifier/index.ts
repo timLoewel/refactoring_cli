@@ -100,7 +100,8 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     } else {
       // Infer return type from the function's type checker
       const inferredType = fn.getReturnType().getText(fn);
-      returnType = inferredType.includes("import(") || inferredType === "" ? "unknown" : inferredType;
+      returnType =
+        inferredType.includes("import(") || inferredType === "" ? "unknown" : inferredType;
     }
 
     const fnParams = fn.getParameters();
@@ -137,7 +138,6 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
 
     // Detect if the function is async (need to propagate to generated functions)
     const isAsync = fn.isAsync();
-    const asyncPrefix = isAsync ? "async " : "";
     const awaitPrefix = isAsync ? "await " : "";
 
     // Check if modifier body uses await
@@ -148,8 +148,7 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     const modifierAwait = modifierHasAwait ? "await " : "";
 
     // Check if return expression uses await
-    const queryHasAwait =
-      returnStmt.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0;
+    const queryHasAwait = returnStmt.getDescendantsOfKind(SyntaxKind.AwaitExpression).length > 0;
     const queryAsync = queryHasAwait ? "async " : "";
 
     // Propagate type parameters from enclosing generic context

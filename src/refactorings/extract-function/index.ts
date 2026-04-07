@@ -289,7 +289,10 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
     const awaitPre = isAsync ? "await " : "";
 
     // Propagate type parameters from enclosing generic context
-    const typeParamsArr = findReferencedTypeParams(stmts[0]!);
+    const firstStmtForTypeParams = stmts[0];
+    const typeParamsArr = firstStmtForTypeParams
+      ? findReferencedTypeParams(firstStmtForTypeParams)
+      : [];
     const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
 
     const bodyLines = stmts.map((s) => `  ${s.getText()}`);
