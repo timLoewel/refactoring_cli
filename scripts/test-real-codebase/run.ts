@@ -9,10 +9,45 @@ const ROOT = join(__dirname, "../..");
 const CLI = join(ROOT, "src/core/cli/index.ts");
 const TSX = join(ROOT, "node_modules/.bin/tsx");
 
-// Pinned TypeORM release
-const TYPEORM_REF = "0.3.20";
-const TYPEORM_URL = "https://github.com/typeorm/typeorm.git";
-const CACHE_DIR = join(ROOT, "tmp", "real-codebase", `typeorm-${TYPEORM_REF}`);
+// --- Repo configuration ---
+interface RepoConfig {
+  name: string;
+  url: string;
+  ref: string;
+  installCmd?: string;
+}
+
+const REPOS: RepoConfig[] = [
+  {
+    name: "typeorm",
+    url: "https://github.com/typeorm/typeorm.git",
+    ref: "0.3.20",
+  },
+  {
+    name: "zod",
+    url: "https://github.com/colinhacks/zod.git",
+    ref: "v3.24.4",
+  },
+  {
+    name: "date-fns",
+    url: "https://github.com/date-fns/date-fns.git",
+    ref: "v4.1.0",
+  },
+  {
+    name: "inversify",
+    url: "https://github.com/inversify/InversifyJS.git",
+    ref: "v6.2.2",
+  },
+  {
+    name: "ts-pattern",
+    url: "https://github.com/gvergnaud/ts-pattern.git",
+    ref: "v5.9.0",
+  },
+];
+
+function repoCacheDir(repo: RepoConfig): string {
+  return join(ROOT, "tmp", "real-codebase", `${repo.name}-${repo.ref}`);
+}
 
 // --- Arg parsing ---
 const scriptArgs = process.argv.slice(2);
@@ -30,6 +65,23 @@ const maxCandidates = ((): number | undefined => {
   const idx = scriptArgs.indexOf("--max-candidates");
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : undefined;
 })();
+
+// --repo <name>: run against a single repo (default: all)
+const repoFilter = ((): string | undefined => {
+  const idx = scriptArgs.indexOf("--repo");
+  return idx >= 0 ? scriptArgs[idx + 1] : undefined;
+})();
+
+function getSelectedRepos(): RepoConfig[] {
+  if (!repoFilter || repoFilter === "all") return REPOS;
+  const repo = REPOS.find((r) => r.name === repoFilter);
+  if (!repo) {
+    const available = REPOS.map((r) => r.name).join(", ");
+    process.stderr.write(`Unknown repo: ${repoFilter}. Available: ${available}\n`);
+    process.exit(1);
+  }
+  return [repo];
+}
 
 // --- Seeded LCG ---
 function makeLCG(seed = 42): () => number {
@@ -95,45 +147,49 @@ function runCLI(
 }
 
 // --- Step 2: Clone and cache ---
-function ensureCloned(): void {
-  const nodeModulesPresent = existsSync(join(CACHE_DIR, "node_modules"));
+function ensureCloned(repo: RepoConfig): string {
+  const cacheDir = repoCacheDir(repo);
+  const nodeModulesPresent = existsSync(join(cacheDir, "node_modules"));
 
-  if (existsSync(CACHE_DIR) && existsSync(join(CACHE_DIR, "tsconfig.json")) && nodeModulesPresent) {
-    process.stderr.write(`Using cached repo: ${CACHE_DIR}\n`);
-    return;
+  if (existsSync(cacheDir) && existsSync(join(cacheDir, "tsconfig.json")) && nodeModulesPresent) {
+    process.stderr.write(`Using cached repo: ${cacheDir}\n`);
+    return cacheDir;
   }
 
-  if (!existsSync(CACHE_DIR)) {
-    process.stderr.write(`Cloning typeorm@${TYPEORM_REF}...\n`);
+  if (!existsSync(cacheDir)) {
+    process.stderr.write(`Cloning ${repo.name}@${repo.ref}...\n`);
     mkdirSync(join(ROOT, "tmp", "real-codebase"), { recursive: true });
-    const result = runShell(
-      `git clone --depth 1 --branch ${TYPEORM_REF} ${TYPEORM_URL} "${CACHE_DIR}"`,
-    );
+    const result = runShell(`git clone --depth 1 --branch ${repo.ref} ${repo.url} "${cacheDir}"`);
     if (result.code !== 0) {
       process.stderr.write(`Clone failed:\n${result.stderr}\n`);
       process.exit(1);
     }
-    if (!existsSync(join(CACHE_DIR, "tsconfig.json"))) {
+    if (!existsSync(join(cacheDir, "tsconfig.json"))) {
       process.stderr.write(`Cloned repo has no tsconfig.json — aborting.\n`);
       process.exit(1);
     }
   }
 
   if (!nodeModulesPresent) {
-    process.stderr.write(`Installing TypeORM dependencies...\n`);
-    const result = runShell("npm install --ignore-scripts", CACHE_DIR);
+    process.stderr.write(`Installing ${repo.name} dependencies...\n`);
+    const installCmd = repo.installCmd ?? "npm ci --ignore-scripts";
+    const result = runShell(installCmd, cacheDir);
     if (result.code !== 0) {
-      process.stderr.write(`npm install failed:\n${result.stderr}\n`);
+      process.stderr.write(`Install failed:\n${result.stderr}\n`);
       process.exit(1);
     }
   }
+
+  return cacheDir;
 }
 
 // --- Step 3: Baseline verification ---
-function checkBaseline(): void {
+function checkBaseline(cacheDir: string): void {
   process.stderr.write("Verifying baseline compilation...\n");
-  const tsc = join(CACHE_DIR, "node_modules/.bin/tsc");
-  const result = runShell(`"${tsc}" --noEmit`, CACHE_DIR);
+  const tscBin = join(cacheDir, "node_modules/.bin/tsc");
+  const tscDirect = join(cacheDir, "node_modules/typescript/bin/tsc");
+  const tsc = existsSync(tscBin) ? tscBin : tscDirect;
+  const result = runShell(`"${tsc}" --noEmit`, cacheDir);
   if (result.code !== 0) {
     process.stderr.write(
       `Baseline compilation failed — cannot run tests.\n\n${result.stdout}\n${result.stderr}\n`,
@@ -329,6 +385,7 @@ async function applyAndCheck(
   reverseImportMap: Map<string, Set<string>>,
   tsProject: Project,
   baselineCache: { baselined: Set<string>; keys: Set<string> },
+  cacheDir: string,
 ): Promise<CandidateResult> {
   const params = buildApplyParams(refactoring, candidate.file, candidate.target);
   const noResult = (skipReason: string | null): CandidateResult => ({
@@ -381,7 +438,7 @@ async function applyAndCheck(
   }
 
   // Capture diff before rollback
-  const diff = gitDiff(CACHE_DIR);
+  const diff = gitDiff(cacheDir);
 
   // Compile check using in-process ts-morph (avoids per-check tsc process spawn overhead)
   const t1 = Date.now();
@@ -459,7 +516,7 @@ async function applyAndCheck(
 
   // Rollback changes and refresh daemon's AST + in-process project
   const t2 = Date.now();
-  gitRollback(CACHE_DIR);
+  gitRollback(cacheDir);
   for (const changedFile of result.filesChanged) {
     const sf = tsProject.getSourceFile(changedFile);
     if (!sf) continue;
@@ -512,26 +569,21 @@ function killStaleTestProcesses(): void {
   }
 }
 
-// --- Main ---
-async function main(): Promise<void> {
-  killStaleTestProcesses();
-  ensureCloned();
-  checkBaseline();
+// --- Run all refactorings against a single repo ---
+async function runRepo(
+  repo: RepoConfig,
+  refactorings: RefactoringInfo[],
+  registry: { lookup(name: string): { enumerate?: (project: Project) => Candidate[] } | undefined },
+): Promise<{ repo: string; stats: RefactoringStats[] }> {
+  const cacheDir = ensureCloned(repo);
+  checkBaseline(cacheDir);
 
-  process.stderr.write("Loading refactorings...\n");
-  const refactorings = loadRefactorings();
-  process.stderr.write(`${refactorings.length} TypeScript refactoring(s) loaded.\n`);
-
-  process.stderr.write("Enumerating candidates...\n");
+  process.stderr.write(`\nEnumerating candidates for ${repo.name}...\n`);
   const {
     candidates: allCandidates,
     reverseImportMap,
     project: tsProject,
-  } = enumerateCandidates(CACHE_DIR);
-  // Weighted shuffle: bias toward candidates whose file has FEW importers (small change sets).
-  // Most draws come from fast, small-scope files; large-scope files appear occasionally.
-  // Weight = 1 / (importerCount + 1)^2 — quadratic inverse skew.
-  // Uses the exponential-key trick (weighted random permutation without replacement).
+  } = enumerateCandidates(cacheDir);
   const shuffledCandidates = weightedShuffle(
     allCandidates,
     (c) => {
@@ -544,36 +596,15 @@ async function main(): Promise<void> {
     `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
   );
 
-  // Step 6.1: dry-run — report candidate counts and exit
-  if (isDryRun) {
-    const rows = refactorings.map((r) => ({
-      refactoring: r.kebabName,
-      candidates: shuffledCandidates.length,
-    }));
-    if (isJson) {
-      process.stdout.write(JSON.stringify({ dryRun: true, refactorings: rows }, null, 2) + "\n");
-    } else {
-      for (const row of rows) {
-        process.stdout.write(`${row.refactoring}: ${row.candidates} symbols to try\n`);
-      }
-    }
-    return;
-  }
-
-  // Start daemon for the cached TypeORM project
+  // Start daemon for this repo
   process.stderr.write("Starting refactoring daemon...\n");
   const { RefactorClient } = await import("../../src/core/refactor-client.js");
   const { startDaemon } = await import("../../src/core/server/daemon.js");
-  // Import registry after all refactoring modules have been loaded (side-effects register them)
-  await import("../../src/refactorings/register-all.js");
-  const { registry } = await import("../../src/core/refactoring-registry.js");
-  await startDaemon(CACHE_DIR);
-  const client = await RefactorClient.connect(CACHE_DIR);
+  await startDaemon(cacheDir);
+  const client = await RefactorClient.connect(cacheDir);
   process.stderr.write("Daemon ready.\n");
 
-  // Cache pre-existing diagnostics for importer files to filter out false positives
   const baselineCache = { baselined: new Set<string>(), keys: new Set<string>() };
-
   const stats: RefactoringStats[] = [];
 
   for (const refactoring of refactorings) {
@@ -588,7 +619,6 @@ async function main(): Promise<void> {
 
     const limit = maxCandidates ?? shuffledCandidates.length;
 
-    // Use refactoring-specific enumerate when available; fall back to generic symbol list.
     const definition = registry.lookup(refactoring.kebabName);
     const candidateList: Candidate[] = definition?.enumerate
       ? weightedShuffle(
@@ -605,14 +635,12 @@ async function main(): Promise<void> {
       `\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${candidateList.length} candidates [${source}])\n`,
     );
 
-    // Track skip reasons for summary
     const skipReasonCounts = new Map<string, number>();
-    // Sample of skipped candidates for LLM review (first occurrence per unique reason)
     const skipSamples: { reason: string; candidate: Candidate; source: string }[] = [];
 
     let checked = 0;
     for (const candidate of candidateList) {
-      const shortFile = candidate.file.replace(CACHE_DIR + "/", "");
+      const shortFile = candidate.file.replace(cacheDir + "/", "");
 
       if (isVerbose) {
         process.stderr.write(
@@ -620,7 +648,6 @@ async function main(): Promise<void> {
         );
       }
 
-      // Capture file content before applying (used for context on failures)
       let beforeContent = "";
       try {
         beforeContent = readFileSync(candidate.file, "utf8");
@@ -635,18 +662,15 @@ async function main(): Promise<void> {
         reverseImportMap,
         tsProject,
         baselineCache,
+        cacheDir,
       );
       checked++;
 
       if (!result.isTarget) {
-        // Normalize skip reason to a category key for aggregation
         const rawReason = result.skipReason ?? "precondition failed";
-        const reasonKey = rawReason
-          .replace(/'[^']+'/g, "'<name>'") // normalize symbol names
-          .replace(/\d+/g, "N"); // normalize numbers
+        const reasonKey = rawReason.replace(/'[^']+'/g, "'<name>'").replace(/\d+/g, "N");
         const prev = skipReasonCounts.get(reasonKey) ?? 0;
         skipReasonCounts.set(reasonKey, prev + 1);
-        // Keep first occurrence per reason category for sample review
         if (prev === 0) {
           skipSamples.push({ reason: rawReason, candidate, source: beforeContent });
         }
@@ -673,7 +697,6 @@ async function main(): Promise<void> {
             `  ${label} ✗ ${candidate.target} (${shortFile}) — tsc failed  [${timing}]\n`,
           );
           process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
-          // Source context around target
           const lines = beforeContent.split("\n");
           const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
           if (targetLineIdx >= 0) {
@@ -702,13 +725,11 @@ async function main(): Promise<void> {
           }
         }
       } else {
-        // Daemon error or non-precondition apply failure
         stat.failed++;
         process.stderr.write(`  ${label} ✗ ${candidate.target} (${shortFile}) — apply failed\n`);
         if (result.error) {
           process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
           process.stderr.write(`    error: ${result.error}\n`);
-          // Show the relevant section of the source file for context
           const lines = beforeContent.split("\n");
           const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
           if (targetLineIdx >= 0) {
@@ -726,8 +747,6 @@ async function main(): Promise<void> {
         }
       }
 
-      // Stop once we've collected enough valid targets, or after a reasonable scan budget
-      // (20× the target limit) to avoid iterating the entire corpus for rare refactorings.
       if (stat.targets >= limit) break;
       if (maxCandidates !== undefined && checked >= limit * 20) break;
     }
@@ -736,17 +755,15 @@ async function main(): Promise<void> {
       `  Summary: checked=${checked}, targets=${stat.targets}, passed=${stat.passed}, failed=${stat.failed}\n`,
     );
 
-    // Print skip reason breakdown
     if (skipReasonCounts.size > 0) {
       const sortedReasons = [...skipReasonCounts.entries()].sort((a, b) => b[1] - a[1]);
       process.stderr.write(`  Skip reasons (${checked - stat.targets} skipped):\n`);
       for (const [reason, count] of sortedReasons.slice(0, 5)) {
         process.stderr.write(`    ${count}x  ${reason}\n`);
       }
-      // Print samples for LLM review
       process.stderr.write(`  Sample skipped candidates (for review):\n`);
       for (const sample of skipSamples.slice(0, 5)) {
-        const shortFile = sample.candidate.file.replace(CACHE_DIR + "/", "");
+        const shortFile = sample.candidate.file.replace(cacheDir + "/", "");
         process.stderr.write(
           `    [${sample.candidate.target} in ${shortFile}] reason: ${sample.reason}\n`,
         );
@@ -766,14 +783,11 @@ async function main(): Promise<void> {
   }
 
   await client.close();
+  return { repo: repo.name, stats };
+}
 
-  // Step 7.2 / 7.3: summary
-  if (isJson) {
-    process.stdout.write(JSON.stringify(stats, null, 2) + "\n");
-    return;
-  }
-
-  // Text table
+function printStatsTable(stats: RefactoringStats[], label?: string): void {
+  if (label) process.stdout.write(`\n${label}\n`);
   const headers = ["Refactoring", "Targets", "Applied", "Passed", "Failed"];
   const rows = stats.map((s) => [
     s.refactoring,
@@ -788,6 +802,89 @@ async function main(): Promise<void> {
   process.stdout.write(fmt(headers) + "\n");
   process.stdout.write(widths.map((w) => "-".repeat(w)).join("  ") + "\n");
   for (const row of rows) process.stdout.write(fmt(row) + "\n");
+}
+
+// --- Main ---
+async function main(): Promise<void> {
+  killStaleTestProcesses();
+
+  const selectedRepos = getSelectedRepos();
+  process.stderr.write(`Repos: ${selectedRepos.map((r) => r.name).join(", ")}\n`);
+
+  process.stderr.write("Loading refactorings...\n");
+  const refactorings = loadRefactorings();
+  process.stderr.write(`${refactorings.length} TypeScript refactoring(s) loaded.\n`);
+
+  // Import registry once (side-effects register all refactorings)
+  await import("../../src/refactorings/register-all.js");
+  const { registry } = await import("../../src/core/refactoring-registry.js");
+
+  // Dry-run: clone + baseline each repo, report candidate counts, exit
+  if (isDryRun) {
+    for (const repo of selectedRepos) {
+      process.stderr.write(`\n=== ${repo.name} ===\n`);
+      const cacheDir = ensureCloned(repo);
+      checkBaseline(cacheDir);
+      const { candidates } = enumerateCandidates(cacheDir);
+      const rows = refactorings.map((r) => ({
+        refactoring: r.kebabName,
+        candidates: candidates.length,
+      }));
+      if (isJson) {
+        process.stdout.write(
+          JSON.stringify({ dryRun: true, repo: repo.name, refactorings: rows }, null, 2) + "\n",
+        );
+      } else {
+        for (const row of rows) {
+          process.stdout.write(
+            `${repo.name}/${row.refactoring}: ${row.candidates} symbols to try\n`,
+          );
+        }
+      }
+    }
+    return;
+  }
+
+  // Run each repo sequentially
+  const allResults: { repo: string; stats: RefactoringStats[] }[] = [];
+
+  for (const repo of selectedRepos) {
+    process.stderr.write(`\n${"=".repeat(60)}\n=== ${repo.name} ===\n${"=".repeat(60)}\n`);
+    const result = await runRepo(repo, refactorings, registry);
+    allResults.push(result);
+
+    if (!isJson) {
+      printStatsTable(result.stats, `--- ${repo.name} results ---`);
+    }
+  }
+
+  // Final output
+  if (isJson) {
+    const output: Record<string, RefactoringStats[]> = {};
+    for (const r of allResults) output[r.repo] = r.stats;
+    process.stdout.write(JSON.stringify(output, null, 2) + "\n");
+    return;
+  }
+
+  // Cross-repo aggregate
+  if (allResults.length > 1) {
+    const aggregate = new Map<string, RefactoringStats>();
+    for (const { stats } of allResults) {
+      for (const s of stats) {
+        const existing = aggregate.get(s.refactoring);
+        if (existing) {
+          existing.targets += s.targets;
+          existing.applied += s.applied;
+          existing.passed += s.passed;
+          existing.failed += s.failed;
+          existing.failures.push(...s.failures);
+        } else {
+          aggregate.set(s.refactoring, { ...s, failures: [...s.failures] });
+        }
+      }
+    }
+    printStatsTable(Array.from(aggregate.values()), "--- AGGREGATE (all repos) ---");
+  }
 }
 
 main().catch((err) => {
