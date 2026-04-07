@@ -26,6 +26,16 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
 
   if (!targetClass.getProperty(typeField)) {
     errors.push(`Field '${typeField}' not found in class '${target}'`);
+    return { ok: false, errors };
+  }
+
+  // Check if a parent class defines the same field as a property — converting to a
+  // getter would violate TypeScript's property/accessor override rules.
+  const baseClass = targetClass.getBaseClass();
+  if (baseClass?.getProperty(typeField)) {
+    errors.push(
+      `Field '${typeField}' is also defined as a property in parent class '${baseClass.getName() ?? ""}' — converting to a getter would create a property/accessor conflict`,
+    );
   }
 
   return { ok: errors.length === 0, errors };
@@ -46,7 +56,7 @@ function buildSubclassText(
   typeFieldName: string,
   typeValue: string,
 ): string {
-  return `class ${subclassName} extends ${parentName} {\n  get ${typeFieldName}(): string { return "${typeValue}"; }\n}\n`;
+  return `export class ${subclassName} extends ${parentName} {\n  get ${typeFieldName}(): string { return "${typeValue}"; }\n}\n`;
 }
 
 function apply(project: Project, params: Record<string, unknown>): RefactoringResult {
