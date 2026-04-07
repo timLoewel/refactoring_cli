@@ -1,23 +1,19 @@
 # file-watcher Specification
 
 ## Purpose
-Watch project source files for external changes and refresh the TypeScript/Python models so the daemon always operates on current AST state.
+Watch project source files for external changes and refresh the TypeScript model so the daemon always operates on current AST state.
 
 ## Requirements
 
 ### Requirement: Watch project source files for external changes
-The daemon SHALL watch the project root directory recursively using `fs.watch` and detect create, modify, and delete events for in-scope source files (TypeScript and Python).
+The daemon SHALL watch the project root directory recursively using `fs.watch` and detect create, modify, and delete events for in-scope source files.
 
 #### Scenario: TypeScript file modified externally
 - **WHEN** an in-scope `.ts` or `.tsx` file is modified outside the daemon (e.g., by an IDE)
 - **THEN** the watcher SHALL detect the change and schedule a refresh for that file
 
-#### Scenario: Python file modified externally
-- **WHEN** an in-scope `.py` file is modified outside the daemon
-- **THEN** the watcher SHALL detect the change and schedule a notification to PyrightClient
-
 #### Scenario: New file created in project scope
-- **WHEN** a new `.ts`, `.tsx`, or `.py` file is created within the tsconfig/project scope
+- **WHEN** a new `.ts` or `.tsx` file is created within the tsconfig/project scope
 - **THEN** the watcher SHALL detect the creation and schedule it for addition to the project model
 
 #### Scenario: File deleted from project
@@ -65,17 +61,6 @@ When the debounce window flushes, the watcher SHALL update the ts-morph `Project
 #### Scenario: Subsequent apply sees refreshed state
 - **WHEN** a file is modified externally and the debounce window has flushed
 - **THEN** the next `apply` request SHALL operate on the updated AST
-
-### Requirement: Notify PyrightClient of Python file changes
-When the debounce window flushes, the watcher SHALL send LSP notifications to PyrightClient for all accumulated Python file changes.
-
-#### Scenario: Modified Python file notified
-- **WHEN** a batch flush includes a modified `.py` file
-- **THEN** the watcher SHALL send a `textDocument/didSave` LSP notification to PyrightClient for that file
-
-#### Scenario: PyrightClient not available
-- **WHEN** Python support was not initialized (PyrightClient is null)
-- **THEN** the watcher SHALL skip Python notifications without error
 
 ### Requirement: Watcher lifecycle tied to daemon
 The watcher SHALL start after the daemon server is listening and stop when the daemon shuts down.

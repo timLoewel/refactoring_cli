@@ -8,7 +8,7 @@ import { connectOrSpawn } from "../../server/connect.js";
 import { frameMessage } from "../../server/framing.js";
 import type { ApplyResult } from "../../refactoring.types.js";
 
-export function parseKeyValueArgs(args: string[]): Record<string, unknown> {
+function parseKeyValueArgs(args: string[]): Record<string, unknown> {
   const params: Record<string, unknown> = {};
   for (const arg of args) {
     const eqIndex = arg.indexOf("=");
@@ -17,21 +17,6 @@ export function parseKeyValueArgs(args: string[]): Record<string, unknown> {
     }
   }
   return params;
-}
-
-export function detectLanguage(
-  params: Record<string, unknown>,
-  explicitLang?: string,
-): "typescript" | "python" {
-  if (explicitLang === "python" || explicitLang === "typescript") {
-    return explicitLang;
-  }
-  const file = params["file"];
-  if (typeof file === "string") {
-    if (file.endsWith(".py")) return "python";
-    if (file.endsWith(".ts") || file.endsWith(".tsx")) return "typescript";
-  }
-  return "typescript";
 }
 
 async function tryDaemonApply(
@@ -78,7 +63,6 @@ async function tryDaemonApply(
 async function inProcessApply(
   name: string,
   params: Record<string, unknown>,
-  lang: "typescript" | "python",
   global: { path?: string; config?: string; json?: boolean },
   dryRun: boolean,
   isJson: boolean,
@@ -90,51 +74,11 @@ async function inProcessApply(
     return;
   }
 
-  if (lang !== def.language) {
-    printOutput(
-      errorOutput("apply", [`Refactoring '${name}' is for ${def.language}, but target is ${lang}`]),
-      isJson,
-    );
+  const { project } = loadProject({ path: global.path, config: global.config });
+  const result = applyRefactoring(def, project, params, { dryRun });
+  printOutput(successOutput("apply", result), isJson);
+  if (!result.success) {
     process.exitCode = 1;
-    return;
-  }
-
-  let teardown: (() => Promise<void>) | null = null;
-  if (lang === "python") {
-    teardown = await setupPythonContext(global.path ?? process.cwd());
-  }
-
-  try {
-    const { project } = loadProject({ path: global.path, config: global.config });
-    const result = applyRefactoring(def, project, params, { dryRun });
-    printOutput(successOutput("apply", result), isJson);
-    if (!result.success) {
-      process.exitCode = 1;
-    }
-  } finally {
-    if (teardown) {
-      await teardown();
-    }
-  }
-}
-
-async function setupPythonContext(projectRoot: string): Promise<(() => Promise<void>) | null> {
-  try {
-    const { PyrightClient } = await import("../../../python/pyright-client.js");
-    const { createPythonParser } = await import("../../../python/tree-sitter-parser.js");
-    const { setPythonContext } = await import("../../../python/python-refactoring-builder.js");
-
-    const pyright = new PyrightClient(projectRoot);
-    await pyright.ensureReady();
-    const parser = createPythonParser();
-    setPythonContext({ pyright, parser, projectRoot });
-
-    return async (): Promise<void> => {
-      setPythonContext(null);
-      await pyright.shutdown();
-    };
-  } catch {
-    return null;
   }
 }
 
@@ -149,25 +93,22 @@ export function createApplyCommand(): Command {
       const global = getGlobalOptions(cmd);
       const isJson = global.json ?? false;
       const params = parseKeyValueArgs(cmd.args.slice(1));
-      const lang = detectLanguage(params, global.lang);
       const dryRun = opts.dryRun ?? false;
       const projectRoot = global.path ?? process.cwd();
 
-      // Try daemon first for TypeScript
-      if (lang === "typescript") {
-        const result = await tryDaemonApply(projectRoot, name, params, dryRun);
-        if (result) {
-          printOutput(successOutput("apply", result), isJson);
-          if (!result.success) {
-            process.exitCode = 1;
-          }
-          return;
+      // Try daemon first
+      const result = await tryDaemonApply(projectRoot, name, params, dryRun);
+      if (result) {
+        printOutput(successOutput("apply", result), isJson);
+        if (!result.success) {
+          process.exitCode = 1;
         }
+        return;
       }
 
       // Fallback: in-process apply
       try {
-        await inProcessApply(name, params, lang, global, dryRun, isJson);
+        await inProcessApply(name, params, global, dryRun, isJson);
       } catch (error) {
         printOutput(
           errorOutput("apply", [error instanceof Error ? error.message : String(error)]),

@@ -292,7 +292,6 @@ export function defineRefactoring<TContext = Project>(
     kebabName: config.kebabName,
     description: config.description,
     tier: config.tier,
-    language: "typescript",
     params: paramSchema,
 
     preconditions(project: Project, raw: unknown): PreconditionResult {

@@ -1,18 +1,15 @@
 import { watch, existsSync, type FSWatcher } from "node:fs";
 import { resolve, relative, extname } from "node:path";
 import type { Project, SourceFile } from "ts-morph";
-import type { PyrightClient } from "../../python/pyright-client.js";
 
 const DEBOUNCE_MS = 100;
 
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".py"]);
-const TS_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 
 export interface FileWatcherOptions {
   project: Project;
   projectRoot: string;
   sourceFiles: string[];
-  pyrightClient?: PyrightClient | null;
 }
 
 type ChangeKind = "modify" | "create" | "delete";
@@ -32,12 +29,10 @@ export class FileWatcher {
 
   private readonly project: Project;
   private readonly projectRoot: string;
-  pyrightClient: PyrightClient | null;
 
   constructor(private readonly options: FileWatcherOptions) {
     this.project = options.project;
     this.projectRoot = options.projectRoot;
-    this.pyrightClient = options.pyrightClient ?? null;
     this.sourceFileSet = new Set(options.sourceFiles);
   }
 
@@ -150,15 +145,7 @@ export class FileWatcher {
     this.pending.clear();
 
     for (const change of changes) {
-      const ext = extname(change.absPath);
-
-      if (TS_EXTENSIONS.has(ext)) {
-        this.refreshTypeScript(change);
-      }
-
-      if (ext === ".py" && this.pyrightClient) {
-        this.notifyPython(change);
-      }
+      this.refreshTypeScript(change);
     }
   }
 
@@ -191,12 +178,5 @@ export class FileWatcher {
     if (sf) {
       sf.refreshFromFileSystem();
     }
-  }
-
-  private notifyPython(change: PendingChange): void {
-    if (change.kind === "delete" || !this.pyrightClient) return;
-
-    const uri = `file://${change.absPath}`;
-    this.pyrightClient.notifyFileSaved(uri);
   }
 }

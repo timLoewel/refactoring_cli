@@ -8,7 +8,6 @@ import { registry } from "../refactoring-registry.js";
 import { FileWatcher } from "./file-watcher.js";
 import "../../refactorings/register-all.js"; // side-effect: populates registry
 import type { Project } from "ts-morph";
-import type { PyrightClient } from "../../python/pyright-client.js";
 import type { ApplyResult } from "../refactoring.types.js";
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -19,7 +18,6 @@ interface DaemonState {
   token: string;
   server: Server;
   watcher: FileWatcher | null;
-  pyrightClient: PyrightClient | null;
 }
 
 interface JsonRpcRequest {
@@ -220,23 +218,6 @@ function handleMessage(
   return true;
 }
 
-async function setupPythonIfAvailable(projectRoot: string): Promise<PyrightClient | null> {
-  try {
-    const { PyrightClient: PC } = await import("../../python/pyright-client.js");
-    const { createPythonParser } = await import("../../python/tree-sitter-parser.js");
-    const { setPythonContext } = await import("../../python/python-refactoring-builder.js");
-
-    const pyright = new PC(projectRoot);
-    await pyright.ensureReady();
-    const parser = createPythonParser();
-    setPythonContext({ pyright, parser, projectRoot });
-    return pyright;
-  } catch {
-    // Python dependencies not available — Python refactorings will fail with a clear error
-    return null;
-  }
-}
-
 export function startDaemon(projectRoot: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let model;
@@ -256,22 +237,7 @@ export function startDaemon(projectRoot: string): Promise<void> {
       token,
       server,
       watcher: null,
-      pyrightClient: null,
     };
-
-    // Set up Python context (non-blocking, optional)
-    setupPythonIfAvailable(model.projectRoot)
-      .then((client) => {
-        state.pyrightClient = client;
-        if (state.watcher && client) {
-          state.watcher.pyrightClient = client;
-        }
-      })
-      .catch((err: unknown) => {
-        process.stderr.write(
-          `Python setup failed: ${err instanceof Error ? err.message : String(err)}\n`,
-        );
-      });
 
     server.on("connection", (socket: Socket) => {
       const parser = new FramingParser();
@@ -321,7 +287,6 @@ export function startDaemon(projectRoot: string): Promise<void> {
           project: state.project,
           projectRoot: state.projectRoot,
           sourceFiles: model.sourceFiles,
-          pyrightClient: state.pyrightClient,
         });
         state.watcher.start();
       } catch (err: unknown) {

@@ -51,9 +51,6 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "pyright": "^1.1.408",
-    "tree-sitter": "^0.25.0",
-    "tree-sitter-python": "^0.25.0",
     "ts-morph": "^27.0.2",
     "typescript": "^5.9.3"
   },

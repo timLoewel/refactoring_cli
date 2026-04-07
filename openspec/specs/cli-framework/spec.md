@@ -23,7 +23,7 @@ Every command SHALL support a `--json` flag that outputs a consistent JSON envel
 - **THEN** output is human-readable text (but JSON is the primary interface)
 
 ### Requirement: Global options
-The system SHALL accept global options: `--path <dir>`, `--config <tsconfig-path>`, `--json`, `--version`, `--help`.
+The system SHALL accept global options: `--path <dir>`, `--config <tsconfig-path>`, `--json`, `--version`, `--help`. The `--lang` option SHALL NOT exist.
 
 #### Scenario: --version
 - **WHEN** user runs `refactor --version`
@@ -31,4 +31,4 @@ The system SHALL accept global options: `--path <dir>`, `--config <tsconfig-path
 
 #### Scenario: --help
 - **WHEN** user runs `refactor --help`
-- **THEN** the system prints usage for all commands
+- **THEN** the system prints usage for all commands without referencing language selection

@@ -1,11 +1,15 @@
-## ADDED Requirements
+## Purpose
+
+Defines the core refactoring engine: definition interface, precondition checking, apply/dry-run modes, registry, type inference, and generic type parameter handling.
+
+## Requirements
 
 ### Requirement: Refactoring definition interface
-Each refactoring SHALL implement a `RefactoringDefinition` interface with: name, kebabName, description, tier, typed parameter schema, precondition checker, and apply function.
+Each refactoring SHALL implement a `RefactoringDefinition` interface with: name, kebabName, description, tier, typed parameter schema, precondition checker, and apply function. The interface SHALL NOT include a `language` field.
 
 #### Scenario: Refactoring is registered
 - **WHEN** the CLI starts
-- **THEN** all 66 refactorings are discovered and available via the registry
+- **THEN** all TypeScript refactorings are discovered and available via the registry
 
 #### Scenario: Parameter schema is introspectable
 - **WHEN** an agent calls `describe <refactoring> --json`
@@ -41,7 +45,7 @@ Each refactoring SHALL check preconditions before applying. If preconditions fai
 - **THEN** no partial changes are written (atomic operation) and the error is reported
 
 ### Requirement: Refactoring registry
-The system SHALL maintain a registry of all refactorings, discoverable by name or kebab-name, filterable by tier.
+The system SHALL maintain a registry of all refactorings, discoverable by name or kebab-name, filterable by tier. The registry SHALL NOT support language-based filtering.
 
 #### Scenario: Lookup by kebab-name
 - **WHEN** the system looks up "extract-function"
@@ -50,3 +54,25 @@ The system SHALL maintain a registry of all refactorings, discoverable by name o
 #### Scenario: List by tier
 - **WHEN** the system lists refactorings filtered by tier 2
 - **THEN** it returns all tier 2 refactoring definitions
+
+### Requirement: Context-relative type printing
+All refactorings that generate type annotations SHALL use `type.getText(node)` for context-relative type resolution. This produces short import names (e.g., `DataSource`) instead of fully-qualified paths (e.g., `import("/path/to/module").DataSource`).
+
+#### Scenario: Imported type printed as short name
+- **WHEN** a refactoring extracts a function whose parameter type is an imported class
+- **THEN** the generated type annotation uses the short class name, not the `import()` path
+
+#### Scenario: Truly unresolvable type falls back to unknown
+- **WHEN** `getText(node)` returns an empty string or an anonymous type
+- **THEN** the refactoring falls back to `unknown` as the type annotation
+
+### Requirement: Generic type parameter propagation
+Refactorings that extract functions from generic contexts SHALL carry type parameters to the extracted function when the extracted code references them.
+
+#### Scenario: Extracted function preserves generic
+- **WHEN** decompose-conditional extracts a condition from a generic function `foo<T>(x: T)`
+- **THEN** the extracted condition function includes the type parameter `<T>`
+
+#### Scenario: Non-generic extraction omits type params
+- **WHEN** the extracted code does not reference any type parameters
+- **THEN** no type parameters are added to the extracted function

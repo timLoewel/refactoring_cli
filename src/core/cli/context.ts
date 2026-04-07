@@ -4,7 +4,6 @@ export interface GlobalOptions {
   path?: string;
   config?: string;
   json?: boolean;
-  lang?: "typescript" | "python";
 }
 
 export function getGlobalOptions(cmd: Command): GlobalOptions {
