@@ -271,6 +271,10 @@ function buildApplyParams(
       params["startLine"] = parseInt(rangeMatch[1] as string, 10);
     } else if (p.name === "endLine" && rangeMatch) {
       params["endLine"] = parseInt(rangeMatch[2] as string, 10);
+    } else if (p.name === "typeField" && target.includes(":")) {
+      // Structured target: "ClassName:fieldName" for type-code refactorings
+      params["typeField"] = target.split(":")[1];
+      params["target"] = target.split(":")[0];
     } else if (p.type === "number") {
       params[p.name] = 0;
     } else if (p.name.toLowerCase().endsWith("type") || p.name.toLowerCase() === "typename") {

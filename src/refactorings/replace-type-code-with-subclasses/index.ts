@@ -1,6 +1,12 @@
+import { SyntaxKind } from "ts-morph";
 import type { Project } from "ts-morph";
-import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
+import type {
+  EnumerateCandidate,
+  PreconditionResult,
+  RefactoringResult,
+} from "../../core/refactoring.types.js";
+import { defineRefactoring, param } from "../../core/refactoring-builder.js";
+import { cleanupUnused } from "../../core/cleanup-unused.js";
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -25,8 +31,13 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
   return { ok: errors.length === 0, errors };
 }
 
-function capitalizeFirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+function toValidClassName(str: string): string {
+  // Remove non-alphanumeric characters and capitalize each word
+  const cleaned = str.replace(/[^a-zA-Z0-9]+/g, " ").trim();
+  return cleaned
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("");
 }
 
 function buildSubclassText(
@@ -79,9 +90,11 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   }
 
   // Generate a concrete subclass for the known type value
-  const subclassName = capitalizeFirst(typeValue) + target;
+  const subclassName = toValidClassName(typeValue) + target;
   const subclassText = buildSubclassText(subclassName, target, typeField, typeValue);
   sf.addStatements(`\n${subclassText}`);
+
+  cleanupUnused(sf);
 
   return {
     success: true,
@@ -103,5 +116,28 @@ export const replaceTypeCodeWithSubclasses = defineRefactoring({
   ],
   preconditions,
   apply,
-  enumerate: enumerate.classes,
+  enumerate(project: Project): EnumerateCandidate[] {
+    const candidates: EnumerateCandidate[] = [];
+    for (const sf of project.getSourceFiles()) {
+      const file = sf.getFilePath();
+      for (const cls of sf.getClasses()) {
+        const name = cls.getName();
+        if (!name) continue;
+        // Only include classes with string-initialized properties (type code candidates)
+        for (const prop of cls.getProperties()) {
+          const init = prop.getInitializer();
+          if (!init) continue;
+          if (
+            init.getKind() === SyntaxKind.StringLiteral ||
+            init.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral
+          ) {
+            // Encode as "ClassName:fieldName" for buildApplyParams
+            candidates.push({ file, target: `${name}:${prop.getName()}` });
+            break; // one candidate per class is enough
+          }
+        }
+      }
+    }
+    return candidates;
+  },
 });
