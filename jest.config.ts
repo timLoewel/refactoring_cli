@@ -18,6 +18,9 @@ const config: Config = {
     ],
   },
   testPathIgnorePatterns: ["/node_modules/", "pyright-client\\.test\\.ts$"],
+  // Force exit after tests complete to prevent native module handles (tree-sitter, pyright)
+  // from keeping the process alive indefinitely.
+  forceExit: true,
   moduleFileExtensions: ["ts", "js", "json"],
   coverageDirectory: "coverage",
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.fixture.ts"],

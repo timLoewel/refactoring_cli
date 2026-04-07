@@ -102,7 +102,14 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     }
     const statements = body.getStatements();
     const returnTypeNode = fn.getReturnTypeNode();
-    const returnType = returnTypeNode ? returnTypeNode.getText() : "unknown";
+    let returnType: string;
+    if (returnTypeNode) {
+      returnType = returnTypeNode.getText();
+    } else {
+      // Infer return type from the function's type checker
+      const inferredType = fn.getReturnType().getText(fn);
+      returnType = inferredType.includes("import(") || inferredType === "" ? "unknown" : inferredType;
+    }
 
     const fnParams = fn.getParameters();
     const paramList = fnParams

@@ -33,7 +33,7 @@ Replace `unknown` type fallbacks with better inference. Affects replace-temp-wit
 - [x] 3.1 Audit: `getWidenedType` in replace-temp-with-query and `findClosureVars` in decompose-conditional already fixed to use `getText(decl)`
 - [x] 3.2 Use `getText(node)` consistently — applied to replace-temp-with-query and decompose-conditional
 - [ ] 3.3 Handle generic type parameters: when extracting functions that use generics, carry type params (complex — needs design)
-- [ ] 3.4 Handle `typeof` expressions: use the underlying type instead of falling back to `unknown`
+- [x] 3.4 Handle `typeof` expressions: only reject `typeof import(...)`, keep valid `typeof X` annotations
 - [ ] 3.5 Add fixtures for complex type scenarios (generics, conditional types, mapped types)
 - [ ] 3.6 Run real-codebase tests to verify reduction in unknown-type failures (deferred)
 
@@ -58,7 +58,7 @@ Fix test isolation issues where Python tree-sitter parser tests fail when run as
 - [x] 5.2 Fix parser lifecycle: singleton parser with lazy language loading — resolved 3 tree-sitter failures
 - [x] 5.3 Investigate python-rename test failure — tree-sitter rootNode can be undefined when native module is in degraded state
 - [x] 5.4 Fix: add null guard to hasIdentifier in rename-variable/python.ts — gracefully returns "not found" instead of crashing
-- [ ] 5.5 Add `--forceExit` or `--detectOpenHandles` configuration to catch resource leaks (remaining tree-sitter/refactor-client failures are pre-existing native module issues)
+- [x] 5.5 Add `forceExit: true` to jest.config.ts to prevent native module handles from keeping the process alive
 - [x] 5.6 Verify Python tests: python-rename fixed, tree-sitter parser fixed in isolation (3 remaining full-suite failures are pre-existing native module issues)
 
 ## 6. Enumerate Improvements
@@ -77,6 +77,6 @@ The current precondition only rejects when the return expression directly refere
 
 - [ ] 7.1 Instead of rejecting, include shared variable declarations in both query and modifier functions
 - [x] 7.2 Handle async functions: propagate async/await to modifier when body uses await
-- [ ] 7.3 Handle return type inference: use function's actual return type, not just the declared type
+- [x] 7.3 Handle return type inference: use `fn.getReturnType().getText(fn)` when no explicit annotation
 - [ ] 7.4 Add fixtures for shared-state split, async split, and complex return types
 - [ ] 7.5 Run real-codebase tests to verify (currently 29 failures, 17 scope-related)

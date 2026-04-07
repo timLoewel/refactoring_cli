@@ -37,7 +37,7 @@ function getWidenedType(decl: VariableDeclaration | ParameterDeclaration): strin
   if (t.isNumberLiteral()) return "number";
   if (t.isBooleanLiteral()) return "boolean";
   const text = t.getText(decl);
-  if (text.includes("import(") || text.startsWith("typeof ") || text === "") return "unknown";
+  if (text.includes("import(") || text.startsWith("typeof import(") || text === "") return "unknown";
   return text;
 }
 

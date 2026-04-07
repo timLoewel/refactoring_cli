@@ -59,7 +59,7 @@ function findClosureVars(node: Node, sf: Node): { name: string; type: string }[]
       typeStr = typeNode ? typeNode.getText() : decl.getType().getText(decl);
     }
     // Fall back to unknown only if the type is truly unresolvable
-    if (typeStr.includes("import(") || typeStr === "" || typeStr.startsWith("typeof ")) {
+    if (typeStr.includes("import(") || typeStr === "" || typeStr.startsWith("typeof import(")) {
       typeStr = "unknown";
     }
 
