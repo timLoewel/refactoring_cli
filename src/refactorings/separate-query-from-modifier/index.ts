@@ -117,24 +117,82 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     const typeParamsArr = findReferencedTypeParams(body);
     const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
 
-    // Find variables referenced in the return expression that are declared in side-effect statements.
-    // Include those declaration statements in the query function so the return expression compiles.
+    // Find local variables declared in side-effect statements that are referenced by the
+    // return expression. Include those declarations AND statements that mutate them in the
+    // query function, so the return value is correctly computed.
     const returnExprNode = returnStmt.asKind(SyntaxKind.ReturnStatement)?.getExpression();
     const sharedStmts: Statement[] = [];
     if (returnExprNode) {
-      const referencedNames = new Set<string>();
-      for (const id of returnExprNode.getDescendantsOfKind(SyntaxKind.Identifier)) {
-        referencedNames.add(id.getText());
-      }
-      if (returnExprNode.getKind() === SyntaxKind.Identifier) {
-        referencedNames.add(returnExprNode.getText());
-      }
+      // First, identify all variable names declared in side-effect statements
+      const localDeclNames = new Set<string>();
       for (const stmt of sideEffectStmts) {
-        const declaredNames = stmt
-          .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-          .map((d) => d.getName());
-        if (declaredNames.some((n) => referencedNames.has(n))) {
-          sharedStmts.push(stmt);
+        for (const d of stmt.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+          localDeclNames.add(d.getName());
+        }
+      }
+
+      // Find which of those locals are referenced by the return expression
+      const sharedVarNames = new Set<string>();
+      for (const id of returnExprNode.getDescendantsOfKind(SyntaxKind.Identifier)) {
+        if (localDeclNames.has(id.getText())) sharedVarNames.add(id.getText());
+      }
+      if (
+        returnExprNode.getKind() === SyntaxKind.Identifier &&
+        localDeclNames.has(returnExprNode.getText())
+      ) {
+        sharedVarNames.add(returnExprNode.getText());
+      }
+
+      if (sharedVarNames.size > 0) {
+        // Include statements that declare or WRITE TO shared variables.
+        // A statement writes to a variable if it contains assignments, ++/--, or
+        // the variable appears as the target of a mutation.
+        for (const stmt of sideEffectStmts) {
+          // Check for variable declarations of shared vars
+          const declaredNames = stmt
+            .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+            .map((d) => d.getName());
+          if (declaredNames.some((n) => sharedVarNames.has(n))) {
+            sharedStmts.push(stmt);
+            continue;
+          }
+
+          // Check for assignments to shared vars (=, +=, etc.)
+          const writesShared = stmt.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((be) => {
+            const op = be.getOperatorToken().getKind();
+            const isAssignment =
+              op === SyntaxKind.EqualsToken ||
+              op === SyntaxKind.PlusEqualsToken ||
+              op === SyntaxKind.MinusEqualsToken ||
+              op === SyntaxKind.AsteriskEqualsToken;
+            if (!isAssignment) return false;
+            const left = be.getLeft();
+            return Node.isIdentifier(left) && sharedVarNames.has(left.getText());
+          });
+          if (writesShared) {
+            sharedStmts.push(stmt);
+            continue;
+          }
+
+          // Check for prefix/postfix ++/-- on shared vars
+          const hasPrefixPostfix =
+            stmt
+              .getDescendantsOfKind(SyntaxKind.PostfixUnaryExpression)
+              .some(
+                (e) =>
+                  Node.isIdentifier(e.getOperand()) && sharedVarNames.has(e.getOperand().getText()),
+              ) ||
+            stmt.getDescendantsOfKind(SyntaxKind.PrefixUnaryExpression).some((e) => {
+              const op = e.getOperatorToken();
+              return (
+                (op === SyntaxKind.PlusPlusToken || op === SyntaxKind.MinusMinusToken) &&
+                Node.isIdentifier(e.getOperand()) &&
+                sharedVarNames.has(e.getOperand().getText())
+              );
+            });
+          if (hasPrefixPostfix) {
+            sharedStmts.push(stmt);
+          }
         }
       }
     }
