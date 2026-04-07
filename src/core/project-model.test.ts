@@ -37,7 +37,9 @@ describe("loadProject", () => {
   });
 
   it("throws when tsconfig not found", () => {
-    expect(() => loadProject({ path: "/nonexistent/path" })).toThrow("tsconfig.json not found");
+    expect(() => loadProject({ path: "/nonexistent/path" })).toThrow(
+      "tsconfig.json not found in /nonexistent/path or any parent directory",
+    );
   });
 
   it("throws when explicit config not found", () => {
@@ -58,5 +60,32 @@ describe("loadProject", () => {
   it("works without .refactorignore", () => {
     const model = loadProject({ path: tempDir });
     expect(model.sourceFiles.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("walks up to find tsconfig in parent directory", () => {
+    const subDir = join(tempDir, "src", "deep", "nested");
+    mkdirSync(subDir, { recursive: true });
+
+    const model = loadProject({ path: subDir });
+    expect(model.projectRoot).toBe(tempDir);
+  });
+
+  it("finds nearest ancestor tsconfig in nested projects", () => {
+    // Create a nested tsconfig inside src/
+    const nestedRoot = join(tempDir, "src");
+    writeFileSync(
+      join(nestedRoot, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: { target: "ES2022", strict: true },
+        include: ["./**/*.ts"],
+      }),
+    );
+
+    const deepDir = join(nestedRoot, "deep");
+    mkdirSync(deepDir, { recursive: true });
+
+    const model = loadProject({ path: deepDir });
+    // Should find src/tsconfig.json, not the root one
+    expect(model.projectRoot).toBe(nestedRoot);
   });
 });

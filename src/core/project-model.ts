@@ -14,6 +14,17 @@ export interface ProjectModel {
   sourceFiles: string[];
 }
 
+function findTsConfigUp(startDir: string): string | null {
+  let dir = startDir;
+  while (true) {
+    const candidate = join(dir, "tsconfig.json");
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
 function resolveTsConfig(options: LoadProjectOptions): string {
   if (options.config) {
     const configPath = resolve(options.config);
@@ -24,13 +35,13 @@ function resolveTsConfig(options: LoadProjectOptions): string {
   }
 
   const dir = options.path ? resolve(options.path) : process.cwd();
-  const tsConfigPath = join(dir, "tsconfig.json");
+  const found = findTsConfigUp(dir);
 
-  if (!existsSync(tsConfigPath)) {
-    throw new Error(`tsconfig.json not found in ${dir}`);
+  if (!found) {
+    throw new Error(`tsconfig.json not found in ${dir} or any parent directory`);
   }
 
-  return tsConfigPath;
+  return found;
 }
 
 const DEFAULT_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/build/**"];

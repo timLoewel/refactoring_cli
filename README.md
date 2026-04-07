@@ -52,6 +52,24 @@ refactor --path /path/to/project apply inline-variable file=src/utils.ts target=
 
 All commands support `--json` for structured output and `--path <dir>` to target a different project directory.
 
+## Project Resolution
+
+The CLI finds your project by locating `tsconfig.json`. It searches upward from the current directory (or the directory given via `--path`) through parent directories until it finds one. The nearest `tsconfig.json` wins.
+
+This means you can run `refactor` from any subdirectory of your project and it will find the root automatically.
+
+**Monorepo note:** In monorepos with multiple `tsconfig.json` files (e.g., one per package), the CLI picks the nearest ancestor. If you need to target a specific package root, pass `--path` explicitly:
+
+```bash
+refactor --path packages/api apply extract-variable file=src/app.ts target="x + 1" name=total
+```
+
+You can also point directly at a specific tsconfig with `--config`:
+
+```bash
+refactor --config tsconfig.build.json apply ...
+```
+
 ## Available Refactorings
 
 66 refactorings organized across 4 tiers, covering variables, functions, conditionals, classes, and inheritance:
@@ -94,6 +112,23 @@ prefer using the `refactor` CLI over manual AST edits.
 - `refactor unused --json` — find dead code to clean up
 - `refactor fix-imports --json` — fix broken imports after moves
 ```
+
+## AGENTS.md
+
+Instructions for AI coding agents consuming this tool:
+
+### Project resolution
+
+`refactoring-cli` walks up the directory tree from `cwd` to find `tsconfig.json`. This works automatically for single-project repos. **In monorepos with multiple `tsconfig.json` files, always pass `--path` to target the correct package root.** Without it, the CLI may pick a parent tsconfig that includes more files than intended.
+
+```bash
+# Monorepo: always be explicit
+refactor --path packages/api apply extract-variable file=src/app.ts target="x + 1" name=total
+```
+
+### Persistent server
+
+The CLI runs a background daemon that keeps the parsed TypeScript AST in memory. The daemon is identified by the resolved project root. In a monorepo, different `--path` values that resolve to different tsconfigs will spawn separate daemons.
 
 ## License
 
