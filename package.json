@@ -1,6 +1,6 @@
 {
   "name": "refactoring-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Agent-consumable CLI for applying Martin Fowler's catalog of refactorings to TypeScript codebases with guaranteed semantic preservation",
   "type": "module",
   "main": "dist/index.js",
