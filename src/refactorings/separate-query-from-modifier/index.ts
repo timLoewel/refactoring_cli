@@ -39,44 +39,6 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       return { ok: false, errors };
     }
 
-    // Check if the return expression references local variables declared in non-return statements.
-    // If so, the query can't be separated because it depends on modifier state.
-    if (Node.isBlock(body)) {
-      const statements = body.getStatements();
-      const sideEffectStmts = statements.filter((s) => s.getKind() !== SyntaxKind.ReturnStatement);
-      const localNames = new Set<string>();
-      for (const stmt of sideEffectStmts) {
-        for (const d of stmt.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
-          localNames.add(d.getName());
-        }
-      }
-
-      if (localNames.size > 0) {
-        const returnStmt = returnStmts[0];
-        const returnExpr = returnStmt?.asKind(SyntaxKind.ReturnStatement)?.getExpression();
-        if (returnExpr) {
-          for (const id of returnExpr.getDescendantsOfKind(SyntaxKind.Identifier)) {
-            if (localNames.has(id.getText())) {
-              errors.push(
-                `Return expression references local variable '${id.getText()}' declared in side-effect statements; cannot separate query from modifier`,
-              );
-              return { ok: false, errors };
-            }
-          }
-          // Also check the return expression itself if it's an identifier
-          if (
-            returnExpr.getKind() === SyntaxKind.Identifier &&
-            localNames.has(returnExpr.getText())
-          ) {
-            errors.push(
-              `Return expression references local variable '${returnExpr.getText()}' declared in side-effect statements; cannot separate query from modifier`,
-            );
-            return { ok: false, errors };
-          }
-        }
-      }
-    }
-
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
@@ -155,7 +117,32 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
     const typeParamsArr = findReferencedTypeParams(body);
     const typeParams = typeParamsArr.length > 0 ? typeParamsArr[0] : "";
 
-    const queryBody = `  return ${returnExpr};`;
+    // Find variables referenced in the return expression that are declared in side-effect statements.
+    // Include those declaration statements in the query function so the return expression compiles.
+    const returnExprNode = returnStmt.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+    const sharedStmts: Statement[] = [];
+    if (returnExprNode) {
+      const referencedNames = new Set<string>();
+      for (const id of returnExprNode.getDescendantsOfKind(SyntaxKind.Identifier)) {
+        referencedNames.add(id.getText());
+      }
+      if (returnExprNode.getKind() === SyntaxKind.Identifier) {
+        referencedNames.add(returnExprNode.getText());
+      }
+      for (const stmt of sideEffectStmts) {
+        const declaredNames = stmt
+          .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+          .map((d) => d.getName());
+        if (declaredNames.some((n) => referencedNames.has(n))) {
+          sharedStmts.push(stmt);
+        }
+      }
+    }
+
+    const sharedBody = sharedStmts.map((s: Statement) => `  ${s.getText()}`).join("\n");
+    const queryBody = sharedBody
+      ? `${sharedBody}\n  return ${returnExpr};`
+      : `  return ${returnExpr};`;
     const queryFn = `${queryAsync}function ${queryName}${typeParams}(${paramList}): ${returnType} {\n${queryBody}\n}`;
 
     // Build modifier function (side effects only, returns void)
