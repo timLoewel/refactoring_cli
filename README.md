@@ -117,9 +117,17 @@ prefer using the `refactor` CLI over manual AST edits.
 
 Instructions for AI coding agents consuming this tool:
 
-### Project resolution
+### How the project is scoped
 
-`refactoring-cli` walks up the directory tree from `cwd` to find `tsconfig.json`. This works automatically for single-project repos. **In monorepos with multiple `tsconfig.json` files, always pass `--path` to target the correct package root.** Without it, the CLI may pick a parent tsconfig that includes more files than intended.
+The CLI uses `tsconfig.json` to define the project boundary. The `include` and `exclude` fields in `tsconfig.json` determine which source files are in scope for refactoring — only files matched by the tsconfig are loaded, searchable, and refactorable. This means the tsconfig controls both type-checking and the refactoring scope.
+
+### Project resolution and `--path`
+
+The CLI walks up the directory tree from `cwd` to find the nearest `tsconfig.json`. This works automatically for single-project repos — you can run `refactor` from any subdirectory.
+
+Use `--path <dir>` to explicitly set the starting directory for tsconfig resolution. The CLI will look for `tsconfig.json` in that directory first, then walk up from there. Use `--config <file>` to point at a specific tsconfig file directly.
+
+**In monorepos with multiple `tsconfig.json` files, always pass `--path` to target the correct package root.** Without it, the CLI may pick a parent tsconfig that includes more files than intended.
 
 ```bash
 # Monorepo: always be explicit
@@ -128,7 +136,7 @@ refactor --path packages/api apply extract-variable file=src/app.ts target="x + 
 
 ### Persistent server
 
-The CLI runs a background daemon that keeps the parsed TypeScript AST in memory. The daemon is identified by the resolved project root. In a monorepo, different `--path` values that resolve to different tsconfigs will spawn separate daemons.
+The CLI runs a background daemon that keeps the parsed TypeScript AST in memory. The daemon is identified by the resolved project root (the directory containing the `tsconfig.json` that was found). In a monorepo, different `--path` values that resolve to different tsconfigs will spawn separate daemons.
 
 ## License
 

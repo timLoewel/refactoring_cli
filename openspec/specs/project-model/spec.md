@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Load TypeScript project via tsconfig.json
-The system SHALL load a target TypeScript project by locating and parsing its `tsconfig.json`. It SHALL use ts-morph to create a `Project` instance with full type information.
+The system SHALL load a target TypeScript project by locating and parsing its `tsconfig.json`. It SHALL use ts-morph to create a `Project` instance with full type information. When no `tsconfig.json` exists in the starting directory, the system SHALL walk up the directory tree until one is found or the filesystem root is reached.
 
 #### Scenario: Load project from current directory
 - **WHEN** the user runs any command without `--config` or `--path` flags
@@ -15,9 +15,18 @@ The system SHALL load a target TypeScript project by locating and parsing its `t
 - **WHEN** the user provides `--config /some/dir/tsconfig.custom.json`
 - **THEN** the system loads that specific tsconfig file
 
-#### Scenario: No tsconfig found
-- **WHEN** no `tsconfig.json` exists at the resolved location
+#### Scenario: Walk up directory tree
+- **WHEN** no `tsconfig.json` exists in the starting directory (cwd or `--path`)
+- **AND** no `--config` flag is provided
+- **THEN** the system SHALL check each parent directory in ascending order until a `tsconfig.json` is found
+
+#### Scenario: No tsconfig found after walking up
+- **WHEN** no `tsconfig.json` exists in the starting directory or any ancestor up to the filesystem root
 - **THEN** the system exits with an error and a clear message
+
+#### Scenario: Nearest ancestor wins
+- **WHEN** multiple ancestor directories contain `tsconfig.json`
+- **THEN** the system uses the nearest (lowest) ancestor's `tsconfig.json`
 
 ### Requirement: Support .refactorignore file
 The system SHALL support a `.refactorignore` file in the project root that excludes files from refactoring scope using gitignore syntax.
