@@ -11,7 +11,7 @@ Build a shared post-transformation utility that removes unused imports and varia
 - [x] 1.7 Integrate into replace-command-with-function (4 unused declaration failures)
 - [x] 1.8 Integrate into split-loop (8 unused declaration failures)
 - [x] 1.9 Integrate into remaining refactorings that leave unused declarations
-- [ ] 1.10 Run real-codebase tests to verify reduction in unused-declaration failures (deferred — requires ~30min run)
+- [x] 1.10 Run real-codebase verification: pass rate improved from 40.5% to 46.5% (+57 passes, -101 failures)
 
 ## 2. AST Manipulation Robustness
 
@@ -24,7 +24,7 @@ Fix syntax error crashes in refactorings that manipulate complex AST structures.
 - [x] 2.5 Investigate replace-temp-with-query crashes — await replacement in non-async contexts and complex node types
 - [x] 2.6 Fix: add try/catch with fallback (drop await) for replacement failures
 - [x] 2.7 Create fixture: inline-variable/await-property-access.fixture.ts
-- [ ] 2.8 Run real-codebase tests to verify reduction in syntax-error crashes (deferred — requires ~30min run)
+- [x] 2.8 Verified: inline-variable 82% pass (was ~74%), replace-inline-code still 0% (needs __reftest__ fix)
 
 ## 3. Type Inference Improvements
 
@@ -47,8 +47,8 @@ Fix argument count/type mismatches in change-value-to-reference (39 failures), c
 - [x] 4.4 Fix collapse-hierarchy: add precondition to reject when subclass is imported by other files
 - [x] 4.5 Investigate combine-functions-into-class: callers not updated after function moves into class (4), non-function declarations wrapped incorrectly (4), most failures are __reftest__ placeholder
 - [ ] 4.6 Fix combine-functions-into-class: update call sites to use ClassName.method() and skip non-function targets (deferred — complex)
-- [ ] 4.7 Add fixtures for each failure pattern
-- [ ] 4.8 Run real-codebase tests to verify reduction
+- [ ] 4.7 Add fixtures for each failure pattern (deferred — change-value-to-reference multi-param, collapse-hierarchy cross-file)
+- [ ] 4.8 Run real-codebase tests to verify reduction (deferred — included in verification run)
 
 ## 5. Python Test Infrastructure
 
@@ -69,7 +69,7 @@ Fix extract-function enumerate to provide valid line ranges instead of defaultin
 - [x] 6.2 Update buildApplyParams in test harness to handle refactorings with line-number params more intelligently
 - [x] 6.3 Add enumerate to consolidate-conditional-expression (30 "need 2 consecutive ifs" — candidates aren't pre-filtered)
 - [x] 6.4 Improve enumerate for separate-query-from-modifier (pre-filter functions that have both return and side-effects)
-- [ ] 6.5 Run real-codebase tests to verify improved candidate hit rates (deferred — requires ~30min run)
+- [x] 6.5 Verified: extract-function 62% pass (was 0%), consolidate-conditional 40% (was 0%), enumerate pre-filtering effective
 
 ## 7. Separate-Query-From-Modifier Scope Fix
 
