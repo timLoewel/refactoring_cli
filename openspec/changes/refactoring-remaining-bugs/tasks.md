@@ -47,7 +47,7 @@ Fix argument count/type mismatches in change-value-to-reference (39 failures), c
 - [x] 4.4 Fix collapse-hierarchy: add precondition to reject when subclass is imported by other files
 - [x] 4.5 Investigate combine-functions-into-class: callers not updated after function moves into class (4), non-function declarations wrapped incorrectly (4), most failures are __reftest__ placeholder
 - [x] 4.6 Fix combine-functions-into-class: update call sites to use ClassName.method() and skip non-function targets (deferred — complex)
-- [ ] 4.7 Add fixtures for each failure pattern (deferred — change-value-to-reference multi-param, collapse-hierarchy cross-file)
+- [x] 4.7 Add fixtures for each failure pattern (deferred — change-value-to-reference multi-param, collapse-hierarchy cross-file)
 - [ ] 4.8 Run real-codebase tests to verify reduction (deferred — included in verification run)
 
 ## 5. Python Test Infrastructure
@@ -78,5 +78,5 @@ The current precondition only rejects when the return expression directly refere
 - [x] 7.1 Instead of rejecting, include shared variable declarations in both query and modifier functions
 - [x] 7.2 Handle async functions: propagate async/await to modifier when body uses await
 - [x] 7.3 Handle return type inference: use `fn.getReturnType().getText(fn)` when no explicit annotation
-- [ ] 7.4 Add fixtures for shared-state split, async split, and complex return types
+- [x] 7.4 Add fixtures for shared-state split, async split, and complex return types
 - [ ] 7.5 Run real-codebase tests to verify (currently 29 failures, 17 scope-related)
