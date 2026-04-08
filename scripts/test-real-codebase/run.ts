@@ -295,7 +295,10 @@ function ensureCloned(repo: RepoConfig): string {
 
   if (!nodeModulesPresent) {
     process.stderr.write(`Installing ${repo.name} dependencies...\n`);
-    const installCmd = repo.installCmd ?? "npm ci --ignore-scripts";
+    const defaultCmd = existsSync(join(cacheDir, "package-lock.json"))
+      ? "npm ci --ignore-scripts"
+      : "npm install --ignore-scripts";
+    const installCmd = repo.installCmd ?? defaultCmd;
     const result = runShell(installCmd, cacheDir);
     if (result.code !== 0) {
       process.stderr.write(`Install failed:\n${result.stderr}\n`);
