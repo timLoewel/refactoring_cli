@@ -33,11 +33,11 @@
 
 ## 6. Reporting and output for fixture creation
 
-- [ ] 6.1 Add `semanticErrors` count to `RefactoringStats` alongside existing `failed` (type errors)
-- [ ] 6.2 Update summary table to show separate TypeErr and SemanticErr columns
-- [ ] 6.3 For semantic failures, output a fixture-ready block containing: refactoring name, params used, the source code before the refactoring (the function/class/block around the target), the diff, and the test error message
-- [ ] 6.4 Deduplicate semantic failures by root cause pattern (normalize error messages like skip reasons) and output only the first occurrence per unique cause, with a count
-- [ ] 6.5 At the end of the run, print a "fixture creation summary" section that lists each unique semantic failure with: the suggested fixture path (`src/refactorings/<name>/fixtures/<cause>.fixture.ts`), the minimal source to paste into the fixture, and the params block (`export const params = { ... }`)
+- [x] 6.1 Add `semanticErrors` count to `RefactoringStats` alongside existing `failed` (type errors)
+- [x] 6.2 Update summary table to show separate TypeErr and SemanticErr columns
+- [x] 6.3 For semantic failures, output a fixture-ready block containing: refactoring name, params used, the source code before the refactoring (the function/class/block around the target), the diff, and the test error message
+- [x] 6.4 Deduplicate semantic failures by root cause pattern (normalize error messages like skip reasons) and output only the first occurrence per unique cause, with a count
+- [x] 6.5 At the end of the run, print a "fixture creation summary" section that lists each unique semantic failure with: the suggested fixture path (`src/refactorings/<name>/fixtures/<cause>.fixture.ts`), the minimal source to paste into the fixture, and the params block (`export const params = { ... }`)
 
 ## 7. Dry-run and validation
 

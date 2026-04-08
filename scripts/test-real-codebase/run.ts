@@ -741,13 +741,24 @@ async function applyAndCheck(
 }
 
 // --- Step 7: Stats ---
+interface SemanticFailure {
+  symbol: string;
+  refactoring: string;
+  params: Record<string, unknown>;
+  sourceBefore: string;
+  diff: string;
+  testError: string;
+}
+
 interface RefactoringStats {
   refactoring: string;
   targets: number;
   applied: number;
   passed: number;
   failed: number;
+  semanticErrors: number;
   failures: { symbol: string; error: string }[];
+  semanticFailures: SemanticFailure[];
 }
 
 // --- Cleanup stale test processes ---
@@ -824,7 +835,9 @@ async function runRepo(
       applied: 0,
       passed: 0,
       failed: 0,
+      semanticErrors: 0,
       failures: [],
+      semanticFailures: [],
     };
 
     const limit = maxApplies ?? shuffledCandidates.length;
@@ -897,12 +910,46 @@ async function runRepo(
 
       if (result.applied) {
         stat.applied++;
-        const timing = `apply=${result.applyMs}ms  typecheck=${result.tscMs}ms (${result.scopeFileCount} files)  rollback=${result.rollbackMs}ms`;
-        if (result.passed) {
+        const testTimingPart = result.testMs > 0 ? `  test=${result.testMs}ms` : "";
+        const timing = `apply=${result.applyMs}ms  typecheck=${result.tscMs}ms (${result.scopeFileCount} files)${testTimingPart}  rollback=${result.rollbackMs}ms`;
+        if (result.passed && result.testsPassed !== false) {
           stat.passed++;
+          const testLabel = result.testsPassed === true ? "tsc+tests passed" : "tsc passed";
           process.stderr.write(
-            `  ${label} ✓ ${candidate.target} (${shortFile}) — tsc passed  [${timing}]\n`,
+            `  ${label} ✓ ${candidate.target} (${shortFile}) — ${testLabel}  [${timing}]\n`,
           );
+        } else if (result.passed && result.testsPassed === false) {
+          // tsc passed but tests failed — semantic error
+          stat.semanticErrors++;
+          process.stderr.write(
+            `  ${label} ✗ ${candidate.target} (${shortFile}) — tsc passed, tests FAILED  [${timing}]\n`,
+          );
+          process.stderr.write(`    params: ${JSON.stringify(result.params)}\n`);
+          if (result.testError) {
+            process.stderr.write(`    test error:\n`);
+            for (const line of result.testError.split("\n").slice(0, 30)) {
+              process.stderr.write(`      ${line}\n`);
+            }
+          }
+
+          // Collect source context for fixture output
+          const lines = beforeContent.split("\n");
+          const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
+          let sourceSnippet = "";
+          if (targetLineIdx >= 0) {
+            const start = Math.max(0, targetLineIdx - 5);
+            const end = Math.min(lines.length, targetLineIdx + 15);
+            sourceSnippet = lines.slice(start, end).join("\n");
+          }
+
+          stat.semanticFailures.push({
+            symbol: `${candidate.file}::${candidate.target}`,
+            refactoring: refactoring.kebabName,
+            params: result.params,
+            sourceBefore: sourceSnippet,
+            diff: result.diff ?? "",
+            testError: result.testError ?? "",
+          });
         } else {
           stat.failed++;
           process.stderr.write(
@@ -964,7 +1011,7 @@ async function runRepo(
     }
 
     process.stderr.write(
-      `  Summary: checked=${checked}, targets=${stat.targets}, passed=${stat.passed}, failed=${stat.failed}\n`,
+      `  Summary: checked=${checked}, targets=${stat.targets}, passed=${stat.passed}, typeErr=${stat.failed}, semanticErr=${stat.semanticErrors}\n`,
     );
 
     if (skipReasonCounts.size > 0) {
@@ -1000,20 +1047,76 @@ async function runRepo(
 
 function printStatsTable(stats: RefactoringStats[], label?: string): void {
   if (label) process.stdout.write(`\n${label}\n`);
-  const headers = ["Refactoring", "Targets", "Applied", "Passed", "Failed"];
+  const headers = ["Refactoring", "Targets", "Applied", "Passed", "TypeErr", "SemanticErr"];
   const rows = stats.map((s) => [
     s.refactoring,
     String(s.targets),
     String(s.applied),
     String(s.passed),
     String(s.failed),
+    String(s.semanticErrors),
   ]);
-  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
-  const fmt = (row: string[]): string => row.map((cell, i) => cell.padEnd(widths[i])).join("  ");
+  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));
+  const fmt = (row: string[]): string =>
+    row.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join("  ");
 
   process.stdout.write(fmt(headers) + "\n");
   process.stdout.write(widths.map((w) => "-".repeat(w)).join("  ") + "\n");
   for (const row of rows) process.stdout.write(fmt(row) + "\n");
+}
+
+function normalizeTestError(error: string): string {
+  return error
+    .replace(/'[^']+'/g, "'<name>'")
+    .replace(/\d+/g, "N")
+    .replace(/\/[^\s]+\//g, "<path>/")
+    .trim()
+    .slice(0, 200);
+}
+
+function printSemanticFailureSummary(allStats: RefactoringStats[]): void {
+  const allFailures = allStats.flatMap((s) => s.semanticFailures);
+  if (allFailures.length === 0) return;
+
+  // Deduplicate by normalized error pattern
+  const seen = new Map<string, { failure: SemanticFailure; count: number }>();
+  for (const f of allFailures) {
+    const key = `${f.refactoring}::${normalizeTestError(f.testError)}`;
+    const existing = seen.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      seen.set(key, { failure: f, count: 1 });
+    }
+  }
+
+  process.stdout.write(
+    `\n--- Semantic Failure Summary (${allFailures.length} total, ${seen.size} unique) ---\n`,
+  );
+  for (const [, { failure, count }] of seen) {
+    const causeName = normalizeTestError(failure.testError)
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .slice(0, 50)
+      .replace(/-+$/, "");
+    const fixturePath = `src/refactorings/${failure.refactoring}/fixtures/${causeName}.fixture.ts`;
+
+    process.stdout.write(`\n[${failure.refactoring}] ${count}x occurrence(s)\n`);
+    process.stdout.write(`  Suggested fixture: ${fixturePath}\n`);
+    process.stdout.write(`  Params: ${JSON.stringify(failure.params)}\n`);
+    if (failure.sourceBefore) {
+      process.stdout.write(`  Source before:\n`);
+      for (const line of failure.sourceBefore.split("\n").slice(0, 20)) {
+        process.stdout.write(`    ${line}\n`);
+      }
+    }
+    if (failure.diff) {
+      process.stdout.write(`  Diff:\n`);
+      for (const line of failure.diff.split("\n").slice(0, 50)) {
+        process.stdout.write(`    ${line}\n`);
+      }
+    }
+    process.stdout.write(`  Test error: ${failure.testError.slice(0, 300)}\n`);
+  }
 }
 
 // --- Main ---
@@ -1090,13 +1193,23 @@ async function main(): Promise<void> {
           existing.applied += s.applied;
           existing.passed += s.passed;
           existing.failed += s.failed;
+          existing.semanticErrors += s.semanticErrors;
           existing.failures.push(...s.failures);
+          existing.semanticFailures.push(...s.semanticFailures);
         } else {
-          aggregate.set(s.refactoring, { ...s, failures: [...s.failures] });
+          aggregate.set(s.refactoring, {
+            ...s,
+            failures: [...s.failures],
+            semanticFailures: [...s.semanticFailures],
+          });
         }
       }
     }
-    printStatsTable(Array.from(aggregate.values()), "--- AGGREGATE (all repos) ---");
+    const aggregateStats = Array.from(aggregate.values());
+    printStatsTable(aggregateStats, "--- AGGREGATE (all repos) ---");
+    printSemanticFailureSummary(aggregateStats);
+  } else {
+    printSemanticFailureSummary(allResults.flatMap((r) => r.stats));
   }
 }
 
