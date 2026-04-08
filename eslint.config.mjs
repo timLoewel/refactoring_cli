@@ -23,6 +23,13 @@ export default tseslint.config(
       "@typescript-eslint/explicit-function-return-type": "error",
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ExportDefaultDeclaration",
+          message: "Prefer named exports for grep-ability.",
+        },
+      ],
     },
   },
   {
