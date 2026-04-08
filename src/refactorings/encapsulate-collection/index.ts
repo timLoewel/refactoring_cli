@@ -1,3 +1,4 @@
+import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
@@ -83,6 +84,36 @@ export const encapsulateCollection = defineRefactoring<ClassContext>({
 
     const methods = buildCollectionMethods(field, collectionType, elementType);
     targetClass.addMember(methods);
+
+    // Rewrite external access sites
+    const capitalized = field.charAt(0).toUpperCase() + field.slice(1);
+    const sf = ctx.sourceFile;
+    const accesses = sf
+      .getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
+      .filter((pa) => pa.getName() === field)
+      .filter((pa) => pa.getFirstAncestorByKind(SyntaxKind.ClassDeclaration) !== targetClass)
+      .sort((a, b) => b.getStart() - a.getStart());
+
+    for (const access of accesses) {
+      const parent = access.getParent();
+      const objText = access.getExpression().getText();
+
+      // obj.field.push(item) → obj.addField(item)
+      if (parent && Node.isPropertyAccessExpression(parent) && parent.getName() === "push") {
+        const call = parent.getParent();
+        if (call && Node.isCallExpression(call) && call.getExpression() === parent) {
+          const args = call
+            .getArguments()
+            .map((a) => a.getText())
+            .join(", ");
+          call.replaceWithText(`${objText}.add${capitalized}(${args})`);
+          continue;
+        }
+      }
+
+      // obj.field (any other read) → obj.getField()
+      access.replaceWithText(`${objText}.get${capitalized}()`);
+    }
 
     return {
       success: true,

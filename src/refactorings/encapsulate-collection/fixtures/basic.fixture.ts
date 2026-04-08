@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "Course", field: "prerequisites" };
+
 class Course {
   name: string = "";
   prerequisites: string[] = [];
