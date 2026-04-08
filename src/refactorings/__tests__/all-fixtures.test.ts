@@ -29,8 +29,11 @@ for (const fixtureModule of fixtureModules) {
       const params = loadFixtureParams(fixture);
 
       if (!params) {
-        it.skip(`preserves semantics: ${fixture.name} (no params exported)`, () => {
-          // Skipped — fixture does not export params
+        it(`preserves semantics: ${fixture.name}`, () => {
+          throw new Error(
+            `Fixture "${fixture.name}" does not export params. ` +
+              `Add: export const params = { file: "fixture.ts", target: "...", ... }`,
+          );
         });
         continue;
       }
