@@ -1,4 +1,4 @@
-import { SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -96,6 +96,23 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
 
     freshDecl.setType(className);
     freshDecl.setInitializer(`new ${className}(${initializerText})`);
+
+    // Wrap assignment RHS values in new ClassName(...)
+    const assignments = sf
+      .getDescendantsOfKind(SyntaxKind.BinaryExpression)
+      .filter((bin) => {
+        if (bin.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) return false;
+        const left = bin.getLeft();
+        return Node.isIdentifier(left) && left.getText() === target;
+      })
+      .sort((a, b) => b.getStart() - a.getStart());
+
+    for (const assign of assignments) {
+      const rhs = assign.getRight();
+      // Skip if already wrapped
+      if (Node.isNewExpression(rhs) && rhs.getExpression().getText() === className) continue;
+      rhs.replaceWithText(`new ${className}(${rhs.getText()})`);
+    }
 
     return {
       success: true,
