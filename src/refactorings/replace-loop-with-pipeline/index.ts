@@ -177,6 +177,18 @@ export const replaceLoopWithPipeline = defineRefactoring<SourceFileContext>({
       errors.push(`Loop at line ${lineNum} contains await — forEach callback cannot be async`);
     }
 
+    // return inside for-of exits the enclosing function, but return inside
+    // .forEach() only exits the callback. Reject loops that use return.
+    if (
+      body.getKind() === SyntaxKind.ReturnStatement ||
+      body.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0
+    ) {
+      errors.push(
+        `Loop at line ${lineNum} contains a return statement — ` +
+          `converting to forEach would change return semantics`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
