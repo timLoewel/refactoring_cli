@@ -60,9 +60,9 @@ const refactoringFilter = ((): string | undefined => {
   return idx >= 0 ? scriptArgs[idx + 1] : undefined;
 })();
 
-// --max-candidates N: stop after N valid (applied) candidates per refactoring
-const maxCandidates = ((): number | undefined => {
-  const idx = scriptArgs.indexOf("--max-candidates");
+// --max-applies N: stop after N valid (applied) candidates per refactoring
+const maxApplies = ((): number | undefined => {
+  const idx = scriptArgs.indexOf("--max-applies");
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : undefined;
 })();
 
@@ -593,7 +593,7 @@ async function runRepo(
     42,
   );
   process.stderr.write(
-    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=42).${maxCandidates !== undefined ? ` Will stop after ${maxCandidates} valid targets per refactoring.` : ""}\n`,
+    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=42).${maxApplies !== undefined ? ` Will stop after ${maxApplies} applies per refactoring.` : ""}\n`,
   );
 
   // Start daemon for this repo
@@ -617,7 +617,7 @@ async function runRepo(
       failures: [],
     };
 
-    const limit = maxCandidates ?? shuffledCandidates.length;
+    const limit = maxApplies ?? shuffledCandidates.length;
 
     const definition = registry.lookup(refactoring.kebabName);
     const candidateList: Candidate[] = definition?.enumerate
@@ -632,7 +632,7 @@ async function runRepo(
       : shuffledCandidates;
     const source = definition?.enumerate ? "enumerate" : "generic";
     process.stderr.write(
-      `\nTesting: ${refactoring.kebabName} (up to ${limit} valid targets from ${candidateList.length} candidates [${source}])\n`,
+      `\nTesting: ${refactoring.kebabName} (up to ${limit} applies from ${candidateList.length} candidates [${source}])\n`,
     );
 
     const skipReasonCounts = new Map<string, number>();
@@ -748,7 +748,7 @@ async function runRepo(
       }
 
       if (stat.targets >= limit) break;
-      if (maxCandidates !== undefined && checked >= limit * 20) break;
+      if (maxApplies !== undefined && checked >= limit * 20) break;
     }
 
     process.stderr.write(

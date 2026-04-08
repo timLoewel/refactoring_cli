@@ -1,7 +1,9 @@
+# Tasks
+
 ## 1. Rename --max-candidates to --max-applies
 
-- [ ] 1.1 Rename `--max-candidates` CLI flag to `--max-applies` and update `maxCandidates` variable to `maxApplies` throughout `run.ts`
-- [ ] 1.2 Update log messages that reference "valid targets" or "candidates" to say "applies"
+- [x] 1.1 Rename `--max-candidates` CLI flag to `--max-applies` and update `maxCandidates` variable to `maxApplies` throughout `run.ts`
+- [x] 1.2 Update log messages that reference "valid targets" or "candidates" to say "applies"
 
 ## 2. Extend RepoConfig and add new repos
 
