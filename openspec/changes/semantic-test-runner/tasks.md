@@ -51,10 +51,10 @@ Work through one refactoring at a time, across repos in order. For each pair: ru
 
 Invoke per pair: `tsx scripts/test-real-codebase/run.ts --refactoring <name> --repo <name> --max-applies 100`
 
-- [ ] 8.1 For each refactoring (outer loop), for each compile-and-test repo (inner loop): run the refactoring, triage failures, then for each confirmed bug either fix the transformation or add a missing precondition that rejects the unsafe case. Create a `.fixture.ts` for each: semantic bugs get a fixture that asserts output mismatch, missing preconditions get a fixture that asserts the refactoring is rejected (precondition fails). Verify fixtures pass in vitest, then advance to the next repo.
-- [ ] 8.2 After all compile-and-test repos are done for a refactoring, run it against each compile-only repo (inner loop): triage type errors, then for each confirmed bug either fix the transformation or add a missing precondition. Create type-error or precondition-rejection fixtures accordingly, fix and advance.
+- [x] 8.1 For each refactoring (outer loop), for each compile-and-test repo (inner loop): run the refactoring, triage failures, then for each confirmed bug either fix the transformation or add a missing precondition that rejects the unsafe case. Create a `.fixture.ts` for each: semantic bugs get a fixture that asserts output mismatch, missing preconditions get a fixture that asserts the refactoring is rejected (precondition fails). Verify fixtures pass in vitest, then advance to the next repo.
+- [x] 8.2 After all compile-and-test repos are done for a refactoring, run it against each compile-only repo (inner loop): triage type errors, then for each confirmed bug either fix the transformation or add a missing precondition. Create type-error or precondition-rejection fixtures accordingly, fix and advance.
 
 ## 9. README marketing section and release
 
 - [x] 9.1 Write a short, factual marketing section at the top of README.md (after the title/tagline, before Installation). Describe the real-world testing approach: how many repos, which ones, what the test runner validates (compile + semantic correctness). No hyperbole — just what's tested and why it matters.
-- [ ] 9.2 Bump version to 0.3.0 in package.json and create a new npm release
+- [x] 9.2 Bump version to 0.3.0 in package.json and create a new npm release
