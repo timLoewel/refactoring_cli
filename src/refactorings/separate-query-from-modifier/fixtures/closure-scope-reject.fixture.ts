@@ -1,6 +1,6 @@
-// No params: function references 'dataSource' from enclosing describe() scope.
-// Extracting to top-level would lose access to that variable.
-// Precondition should reject with a clear error message.
+// Nested function captures closure scope — precondition should reject.
+
+export const params = { file: "fixture.ts", target: "fetchAndStore", expectRejection: true };
 
 const results: string[] = [];
 

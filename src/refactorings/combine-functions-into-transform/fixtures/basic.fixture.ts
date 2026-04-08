@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", functions: "normalize,validate", name: "processInput" };
+
 function normalize(input: string): string {
   return input.trim().toLowerCase();
 }

@@ -1,3 +1,9 @@
+export const params = {
+  file: "fixture.ts",
+  target: "sortItems",
+  newBody: "{ return [...items].sort(); }",
+};
+
 export function main(): string {
   const items = ["banana", "apple", "cherry"];
   const sorted = sortItems(items);

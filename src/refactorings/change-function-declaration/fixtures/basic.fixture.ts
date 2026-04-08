@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "computeTotal", name: "sumValues" };
+
 function computeTotal(a: number, b: number): number {
   return a + b;
 }

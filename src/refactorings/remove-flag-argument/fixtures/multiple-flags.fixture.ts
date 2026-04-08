@@ -1,6 +1,11 @@
-// No params: after splitting, WhenTrue/WhenFalse bodies still reference the removed
-// flag variable by name, causing a ReferenceError at runtime. The fixture below
-// shows a function with two boolean flags, where one would be removed.
+// After splitting, bodies still reference the removed flag variable — runtime error.
+
+export const params = {
+  file: "fixture.ts",
+  target: "formatValue",
+  flag: "asPercent",
+  expectRejection: true,
+};
 
 function formatValue(value: number, asPercent: boolean, withSign: boolean): string {
   const base = asPercent ? `${value}%` : `${value}`;

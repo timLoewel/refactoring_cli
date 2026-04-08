@@ -1,5 +1,6 @@
-// No params: rejection case. Command is designed to be executed multiple times,
-// which doesn't translate cleanly to a plain function.
+// Multiple execute() calls — doesn't translate cleanly to a plain function.
+
+export const params = { file: "fixture.ts", target: "CounterCommand", expectRejection: true };
 
 class CounterCommand {
   private readonly step: number;

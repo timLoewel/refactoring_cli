@@ -1,6 +1,11 @@
-// No params: after splitting, WhenTrue/WhenFalse bodies still reference the removed
-// flag variable by name, causing a ReferenceError at runtime. The fixture below
-// shows the before-state only.
+// After splitting, bodies still reference the removed flag variable — runtime error.
+
+export const params = {
+  file: "fixture.ts",
+  target: "renderWidget",
+  flag: "compact",
+  expectRejection: true,
+};
 
 function renderWidget(size: number, compact: boolean): string {
   if (compact) {

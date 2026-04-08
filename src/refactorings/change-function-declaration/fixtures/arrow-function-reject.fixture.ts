@@ -1,4 +1,11 @@
-// No params: arrow function variable — precondition rejects (not a FunctionDeclaration).
+// Arrow function variable — precondition rejects (not a FunctionDeclaration).
+
+export const params = {
+  file: "fixture.ts",
+  target: "double",
+  name: "doubleValue",
+  expectRejection: true,
+};
 
 const double = (x: number): number => x * 2;
 

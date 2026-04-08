@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "processOrder" };
+
 function processOrder(id: string): void {
   console.log(`Processing order ${id}`);
   console.log("Order complete");

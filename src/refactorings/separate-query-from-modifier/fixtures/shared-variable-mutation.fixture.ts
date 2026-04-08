@@ -1,6 +1,6 @@
-// No params: shared variable (count) is mutated in the same statement block that
-// contains external side effects (log.push) — cannot safely separate without
-// duplicating side effects. Precondition should reject.
+// Shared variable mutation interleaved with side effects — precondition should reject.
+
+export const params = { file: "fixture.ts", target: "collectAndCount", expectRejection: true };
 
 let log: string[] = [];
 
