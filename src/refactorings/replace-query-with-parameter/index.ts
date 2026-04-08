@@ -57,7 +57,8 @@ export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
       .getDescendantsOfKind(SyntaxKind.Identifier)
       .filter((id) => id.getText() === query);
     if (queryNodes.length > 0) {
-      const inferred = queryNodes[0].getType().getText(queryNodes[0]);
+      const firstNode = queryNodes[0];
+      const inferred = firstNode ? firstNode.getType().getText(firstNode) : undefined;
       if (inferred && !inferred.includes("import(") && inferred !== "") {
         paramType = inferred;
       }

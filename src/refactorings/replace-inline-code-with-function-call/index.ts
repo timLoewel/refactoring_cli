@@ -36,7 +36,9 @@ function buildCallExpression(sf: SourceFile, name: string, inlineExpr: string): 
   const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
   if (returnStmts.length === 0) return `${name}()`;
 
-  const returnExpr = returnStmts[0].getExpression();
+  const firstReturn = returnStmts[0];
+  if (!firstReturn) return `${name}()`;
+  const returnExpr = firstReturn.getExpression();
   if (!returnExpr) return `${name}()`;
 
   const bodyExprText = returnExpr.getText();

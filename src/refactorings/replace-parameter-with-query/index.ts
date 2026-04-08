@@ -66,7 +66,8 @@ export const replaceParameterWithQuery = defineRefactoring<FunctionContext>({
     for (const call of callExprs) {
       const args = call.getArguments();
       if (paramIndex < args.length) {
-        argTexts.add(args[paramIndex].getText());
+        const arg = args[paramIndex];
+        if (arg) argTexts.add(arg.getText());
       }
     }
 
@@ -74,7 +75,7 @@ export const replaceParameterWithQuery = defineRefactoring<FunctionContext>({
     let queryExpr: string;
     if (argTexts.size === 1) {
       const [argText] = argTexts;
-      queryExpr = argText;
+      queryExpr = argText ?? `undefined as unknown as ${paramType}`;
     } else {
       queryExpr = `undefined as unknown as ${paramType}`;
     }

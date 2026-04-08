@@ -58,7 +58,7 @@ export const removeMiddleMan = defineRefactoring<ClassContext>({
     for (const method of delegatingMethods) {
       const methodName = method.getName();
       const nameNode = method.getNameNode();
-      const refs = nameNode.findReferencesAsNodes();
+      const refs = Node.isIdentifier(nameNode) ? nameNode.findReferencesAsNodes() : [];
 
       for (const ref of refs) {
         // Skip the definition itself
