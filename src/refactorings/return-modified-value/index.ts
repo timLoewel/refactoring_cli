@@ -1,4 +1,10 @@
-import { Node, SyntaxKind, type ParameterDeclaration, type SourceFile } from "ts-morph";
+import {
+  Node,
+  SyntaxKind,
+  VariableDeclarationKind,
+  type ParameterDeclaration,
+  type SourceFile,
+} from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
@@ -19,6 +25,19 @@ function addReturnStatement(ctx: FunctionContext, firstParam: ParameterDeclarati
   }
 }
 
+function promoteConstToLet(sourceFile: SourceFile, identifierName: string): void {
+  const declarations = sourceFile
+    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+    .filter((d) => d.getName() === identifierName);
+
+  for (const decl of declarations) {
+    const declList = decl.getVariableStatement();
+    if (declList && declList.getDeclarationKind() === VariableDeclarationKind.Const) {
+      declList.setDeclarationKind(VariableDeclarationKind.Let);
+    }
+  }
+}
+
 function updateCallSites(sourceFile: SourceFile, target: string): void {
   const callExprs = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
     const expr = call.getExpression();
@@ -34,6 +53,11 @@ function updateCallSites(sourceFile: SourceFile, target: string): void {
     if (!firstArg) continue;
 
     const argText = firstArg.getText();
+
+    if (Node.isIdentifier(firstArg)) {
+      promoteConstToLet(sourceFile, argText);
+    }
+
     callParent.replaceWithText(
       `${argText} = ${target}(${callArgs.map((a) => a.getText()).join(", ")});`,
     );

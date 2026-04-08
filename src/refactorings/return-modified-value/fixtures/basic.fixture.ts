@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "applyDiscount" };
+
 interface Order {
   items: string[];
   discount: number;

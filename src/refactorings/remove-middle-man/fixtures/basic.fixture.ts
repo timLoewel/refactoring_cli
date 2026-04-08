@@ -1,3 +1,9 @@
+export const params = {
+  file: "fixture.ts",
+  target: "Person",
+  delegate: "department",
+};
+
 class Department {
   manager: string = "Eve";
 

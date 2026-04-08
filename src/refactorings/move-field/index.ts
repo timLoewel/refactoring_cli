@@ -82,8 +82,29 @@ export const moveField = defineRefactoring<SourceFileContext>({
     }
 
     const propText = prop.getText();
+    const typeNode = prop.getTypeNode();
+    const typeText = typeNode ? typeNode.getText() : "unknown";
     prop.remove();
     destClass.addMember(propText);
+
+    // Add forwarding get/set accessors if the source class has a link field to the destination
+    const linkField = sourceClass
+      .getProperties()
+      .find((p) => (p.getTypeNode()?.getText() ?? "") === destination);
+
+    if (linkField) {
+      const linkName = linkField.getName();
+      sourceClass.addGetAccessor({
+        name: field,
+        returnType: typeText,
+        statements: [`return this.${linkName}.${field};`],
+      });
+      sourceClass.addSetAccessor({
+        name: field,
+        parameters: [{ name: "value", type: typeText }],
+        statements: [`this.${linkName}.${field} = value;`],
+      });
+    }
 
     return {
       success: true,
