@@ -1,5 +1,11 @@
-// No params exported: side-effect initializer used multiple times is refused by precondition.
+// Side-effect initializer used multiple times is refused by precondition.
 // Inlining `rand` at both sites would call getRandom() twice, changing callCount from 1 to 2.
+
+export const params = {
+  file: "fixture.ts",
+  target: "rand",
+  expectRejection: true,
+};
 
 let callCount = 0;
 const getRandom = (): number => {

@@ -1,4 +1,12 @@
-// No params: extraction with `this` reference — requires method extraction, not yet supported.
+// Extraction with `this` reference — requires method extraction, not yet supported.
+
+export const params = {
+  file: "fixture.ts",
+  startLine: 14,
+  endLine: 15,
+  name: "computeTotal",
+  expectRejection: true,
+};
 
 class Cart {
   items: number[] = [10, 20, 30];

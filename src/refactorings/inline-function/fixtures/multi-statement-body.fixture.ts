@@ -1,4 +1,10 @@
-// No params: multi-statement non-void body called in expression position — precondition error.
+// Multi-statement non-void body called in expression position — precondition error.
+
+export const params = {
+  file: "fixture.ts",
+  target: "process",
+  expectRejection: true,
+};
 
 function process(x: number): number {
   const doubled = x * 2;

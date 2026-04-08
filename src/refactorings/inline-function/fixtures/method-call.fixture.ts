@@ -1,4 +1,10 @@
-// No params: function used as method on object — precondition error (not all usages are direct calls).
+// Function used as method on object — precondition error (not all usages are direct calls).
+
+export const params = {
+  file: "fixture.ts",
+  target: "greet",
+  expectRejection: true,
+};
 
 function greet(): string {
   return "hello";
