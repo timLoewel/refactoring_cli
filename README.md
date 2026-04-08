@@ -4,6 +4,15 @@ Agent-consumable CLI for applying [Martin Fowler's catalog of refactorings](http
 
 Designed to be called by AI coding agents (Claude Code, OpenCode, etc.) but works just as well from the command line.
 
+## Tested Against Real Codebases
+
+Every refactoring is validated against 18 open-source TypeScript projects spanning classes, generics, decorators, functional composition, algebraic data types, and proxy patterns:
+
+- **Compile-and-test** (12 repos): zod, date-fns, inversify, ts-pattern, superstruct, neverthrow, remeda, immer, true-myth, purify-ts, class-validator, class-transformer — each refactoring must compile cleanly _and_ pass the project's own test suite on the changed files
+- **Compile-only** (6 repos): typeorm, rxjs, fp-ts, io-ts, immutable-js, mobx — each refactoring must produce valid TypeScript
+
+The test runner applies refactorings to real symbols in each repo, checks compilation with the project's own `tsc`, and for compile-and-test repos runs scoped tests (`vitest --related` / `jest --findRelatedTests`) to catch semantic-breaking changes. Failures are triaged into fixture tests that guard against regressions.
+
 ## Installation
 
 ```bash
@@ -39,16 +48,16 @@ refactor --path /path/to/project apply inline-variable file=src/utils.ts target=
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `refactor list` | List all available refactorings |
-| `refactor describe <name>` | Show params, preconditions, and example for a refactoring |
-| `refactor apply <name> [key=value...]` | Apply a refactoring to the target project |
-| `refactor search <pattern>` | Search for symbols in the project |
-| `refactor references <name>` | Find all references to a symbol |
-| `refactor unused` | Find unused symbols in the project |
-| `refactor fix-imports` | Detect and fix broken imports |
-| `refactor help` | Show usage guide with examples |
+| Command                                | Description                                               |
+| -------------------------------------- | --------------------------------------------------------- |
+| `refactor list`                        | List all available refactorings                           |
+| `refactor describe <name>`             | Show params, preconditions, and example for a refactoring |
+| `refactor apply <name> [key=value...]` | Apply a refactoring to the target project                 |
+| `refactor search <pattern>`            | Search for symbols in the project                         |
+| `refactor references <name>`           | Find all references to a symbol                           |
+| `refactor unused`                      | Find unused symbols in the project                        |
+| `refactor fix-imports`                 | Detect and fix broken imports                             |
+| `refactor help`                        | Show usage guide with examples                            |
 
 All commands support `--json` for structured output and `--path <dir>` to target a different project directory.
 
@@ -100,12 +109,14 @@ This project has `refactoring-cli` available globally. When performing refactori
 prefer using the `refactor` CLI over manual AST edits.
 
 ### Workflow
+
 1. `refactor search <pattern>` to find the symbol to refactor
 2. `refactor describe <name>` to check params and preconditions
 3. `refactor apply <name> file=<path> target=<name> [key=value...]` to apply
 4. `refactor apply <name> ... --dry-run` to preview changes first
 
 ### Key commands
+
 - `refactor list --json` — all available refactorings
 - `refactor describe <name> --json` — params and preconditions for a refactoring
 - `refactor apply <name> [params...] --json` — apply with structured output
@@ -113,6 +124,7 @@ prefer using the `refactor` CLI over manual AST edits.
 - `refactor fix-imports --json` — fix broken imports after moves
 
 ### Project resolution
+
 The CLI finds the project by walking up from `cwd` to the nearest `tsconfig.json`.
 In a monorepo, pass `--path` to target the correct package:
 `refactor --path packages/api apply ...`

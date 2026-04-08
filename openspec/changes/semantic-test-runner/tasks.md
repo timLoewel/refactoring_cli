@@ -56,5 +56,5 @@ Invoke per pair: `tsx scripts/test-real-codebase/run.ts --refactoring <name> --r
 
 ## 9. README marketing section and release
 
-- [ ] 9.1 Write a short, factual marketing section at the top of README.md (after the title/tagline, before Installation). Describe the real-world testing approach: how many repos, which ones, what the test runner validates (compile + semantic correctness). No hyperbole — just what's tested and why it matters.
+- [x] 9.1 Write a short, factual marketing section at the top of README.md (after the title/tagline, before Installation). Describe the real-world testing approach: how many repos, which ones, what the test runner validates (compile + semantic correctness). No hyperbole — just what's tested and why it matters.
 - [ ] 9.2 Bump version to 0.3.0 in package.json and create a new npm release
