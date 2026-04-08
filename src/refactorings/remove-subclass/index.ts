@@ -1,4 +1,4 @@
-import type { Project } from "ts-morph";
+import { type Project, SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
 import { cleanupUnused } from "../../core/cleanup-unused.js";
@@ -80,6 +80,24 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   const subMembers = subclass.getMembers();
   for (const member of subMembers) {
     parentClass.addMember(member.getText());
+  }
+
+  // Replace all references to the subclass name with the parent name
+  const identifiers = sf.getDescendantsOfKind(SyntaxKind.Identifier);
+  for (const id of identifiers) {
+    if (id.getText() !== target) continue;
+    // Skip the class declaration's own name node
+    if (id.getParent() === subclass) continue;
+    if (Node.isNewExpression(id.getParent())) {
+      id.replaceWithText(parentName);
+    } else if (Node.isTypeReference(id.getParent())) {
+      id.replaceWithText(parentName);
+    } else if (Node.isExpressionWithTypeArguments(id.getParent())) {
+      // extends clause — will be removed with the subclass
+      continue;
+    } else {
+      id.replaceWithText(parentName);
+    }
   }
 
   subclass.remove();

@@ -1,3 +1,8 @@
+export const params = {
+  file: "fixture.ts",
+  target: "Car",
+};
+
 export function main(): string {
   class Vehicle {
     speed: number = 0;

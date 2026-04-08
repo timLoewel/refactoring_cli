@@ -90,13 +90,22 @@ export const introduceSpecialCase = defineRefactoring<ClassContext>({
 
     sf.addStatements(`\n${specialClassText}`);
 
-    // Replace checks like `x === "${specialValue}"` with `x.isSpecialCase`
+    // Replace checks like `obj.getName() === "${specialValue}"` with `obj.isSpecialCase`
     const binaryExprs = sf.getDescendantsOfKind(SyntaxKind.BinaryExpression);
     for (const expr of binaryExprs) {
       const right = expr.getRight().getText();
       const operator = expr.getOperatorToken().getText();
       if ((operator === "===" || operator === "==") && right === `"${specialValue}"`) {
-        expr.replaceWithText(`${expr.getLeft().getText()}.isSpecialCase`);
+        const left = expr.getLeft();
+        // Walk through call expressions and property accesses to find the receiver object
+        let receiver = left;
+        if (receiver.isKind(SyntaxKind.CallExpression)) {
+          receiver = receiver.getExpression();
+        }
+        if (receiver.isKind(SyntaxKind.PropertyAccessExpression)) {
+          receiver = receiver.getExpression();
+        }
+        expr.replaceWithText(`${receiver.getText()}.isSpecialCase`);
       }
     }
 

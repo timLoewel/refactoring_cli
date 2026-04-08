@@ -1,7 +1,12 @@
-import type { Project } from "ts-morph";
+import { SyntaxKind } from "ts-morph";
+import type { ClassDeclaration, Project, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param } from "../../core/refactoring-builder.js";
 import { cleanupUnused } from "../../core/cleanup-unused.js";
+
+function findClassByName(sf: SourceFile, name: string): ClassDeclaration | undefined {
+  return sf.getDescendantsOfKind(SyntaxKind.ClassDeclaration).find((c) => c.getName() === name);
+}
 
 function preconditions(project: Project, params: Record<string, unknown>): PreconditionResult {
   const file = params["file"] as string;
@@ -13,7 +18,7 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
     return { ok: false, errors: [`File not found in project: ${file}`] };
   }
 
-  const subclass = sf.getClass(target);
+  const subclass = findClassByName(sf, target);
   if (!subclass) {
     return { ok: false, errors: [`Class '${target}' not found in file`] };
   }
@@ -24,7 +29,7 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
   }
 
   const parentName = extendsClause.getExpression().getText();
-  const parentClass = sf.getClass(parentName);
+  const parentClass = findClassByName(sf, parentName);
   if (!parentClass) {
     errors.push(`Parent class '${parentName}' not found in file — cannot collapse across files`);
   }
@@ -59,7 +64,7 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
     return { success: false, filesChanged: [], description: `File not found: ${file}` };
   }
 
-  const subclass = sf.getClass(target);
+  const subclass = findClassByName(sf, target);
   if (!subclass) {
     return { success: false, filesChanged: [], description: `Class '${target}' not found` };
   }
@@ -70,7 +75,7 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   }
 
   const parentName = extendsClause.getExpression().getText();
-  const parentClass = sf.getClass(parentName);
+  const parentClass = findClassByName(sf, parentName);
   if (!parentClass) {
     return {
       success: false,
@@ -83,6 +88,17 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   const subMembers = subclass.getMembers();
   for (const member of subMembers) {
     parentClass.addMember(member.getText());
+  }
+
+  // Rename all references to the subclass to use the parent name
+  const nameNode = subclass.getNameNode();
+  if (nameNode) {
+    const refs = nameNode.findReferencesAsNodes();
+    for (const ref of refs) {
+      if (ref !== nameNode) {
+        ref.replaceWithText(parentName);
+      }
+    }
   }
 
   subclass.remove();

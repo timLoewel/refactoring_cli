@@ -1,3 +1,10 @@
+export const params = {
+  file: "fixture.ts",
+  target: "Customer",
+  specialValue: "unknown",
+  specialClassName: "UnknownCustomer",
+};
+
 class Customer {
   name: string;
   constructor(name: string) {
