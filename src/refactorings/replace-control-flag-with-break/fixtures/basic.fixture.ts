@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "searching" };
+
 export function main(): string {
   const numbers = [1, 2, 3, 4, 5, 6];
   let found = -1;

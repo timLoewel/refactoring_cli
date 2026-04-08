@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "getPayAmount" };
+
 function getPayAmount(employee: {
   isSeparated: boolean;
   isRetired: boolean;

@@ -1,4 +1,6 @@
-// No params: second half references variable declared in first half — precondition error
+// Second half references variable declared in first half — precondition error.
+
+export const params = { file: "fixture.ts", target: "7", expectRejection: true };
 
 export function main(): string {
   const items = [1, 2, 3];

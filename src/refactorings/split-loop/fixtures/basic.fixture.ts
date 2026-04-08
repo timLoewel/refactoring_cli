@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "7" };
+
 export function main(): string {
   const numbers = [1, 2, 3, 4, 5];
   const doubled: number[] = [];

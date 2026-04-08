@@ -1,5 +1,6 @@
-// No params: const variable — precondition error.
-// 'const' variables cannot be reassigned, so there is nothing to split.
+// Const variable — precondition error.
+
+export const params = { file: "fixture.ts", target: "x", expectRejection: true };
 
 export function main(): string {
   const x = 42;

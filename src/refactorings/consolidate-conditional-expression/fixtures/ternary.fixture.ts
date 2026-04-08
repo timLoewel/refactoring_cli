@@ -1,5 +1,6 @@
-// No params: the implementation targets if-statements (SyntaxKind.IfStatement),
-// not ternary expressions. Ternary consolidation is not supported.
+// Ternary consolidation is not supported — only if-statements.
+
+export const params = { file: "fixture.ts", target: "5", expectRejection: true };
 
 function classify(n: number): string {
   return n < 0 ? "negative" : n === 0 ? "zero" : "positive";

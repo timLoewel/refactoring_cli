@@ -1,4 +1,6 @@
-// No params: branch contains return statement — precondition error (cannot safely extract)
+// Branch contains return statement — precondition error (cannot safely extract).
+
+export const params = { file: "fixture.ts", target: "8", expectRejection: true };
 
 export function main(): string {
   const threshold = 10;

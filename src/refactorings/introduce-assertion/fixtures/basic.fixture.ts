@@ -1,3 +1,9 @@
+export const params = {
+  file: "fixture.ts",
+  target: "computeDiscount",
+  condition: "percent >= 0",
+};
+
 function computeDiscount(price: number, percent: number): number {
   return price * (percent / 100);
 }

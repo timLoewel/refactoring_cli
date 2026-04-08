@@ -1,4 +1,11 @@
-// No params: extracting a temp that uses `this` requires method extraction, not yet supported.
+// Extracting a temp that uses `this` requires method extraction, not yet supported.
+
+export const params = {
+  file: "fixture.ts",
+  target: "area",
+  name: "getArea",
+  expectRejection: true,
+};
 
 class Rectangle {
   constructor(

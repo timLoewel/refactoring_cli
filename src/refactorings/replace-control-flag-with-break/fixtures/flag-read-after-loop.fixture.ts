@@ -1,4 +1,6 @@
-// No params: flag is read after the loop — precondition error
+// Flag is read after the loop — precondition error.
+
+export const params = { file: "fixture.ts", target: "found", expectRejection: true };
 
 export function main(): string {
   const items = [1, 2, 3, 4, 5];

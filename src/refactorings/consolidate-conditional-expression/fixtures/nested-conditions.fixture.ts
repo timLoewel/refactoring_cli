@@ -1,6 +1,6 @@
-// No params: the implementation only consolidates consecutive sibling
-// if-statements at the same block level using ||. Nested if-statements
-// (producing && semantics) are not supported by this refactoring.
+// Nested if-statements (producing && semantics) are not supported.
+
+export const params = { file: "fixture.ts", target: "6", expectRejection: true };
 
 function isEligible(age: number, hasId: boolean): boolean {
   if (age >= 18) {

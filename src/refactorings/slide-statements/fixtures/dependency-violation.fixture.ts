@@ -1,7 +1,6 @@
-// No params: dependency-violation — the refactoring has no data-flow analysis.
-// Moving a statement past a dependency (e.g., sliding `const b = a + 1` before
-// `const a = 1`) causes a runtime error. Callers are responsible for ensuring
-// the slide is semantically safe.
+// Dependency violation: no data-flow analysis, sliding past dependency causes runtime error.
+
+export const params = { file: "fixture.ts", target: 5, destination: 4, expectRejection: true };
 
 const a = 1;
 const b = a + 1;

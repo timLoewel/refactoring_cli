@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "unusedHelper" };
+
 function formatGreeting(name: string): string {
   return `Hello, ${name}!`;
 }
