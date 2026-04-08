@@ -1,7 +1,4 @@
-// No params: the implementation inserts `const <param> = <param> as unknown as <type>`
-// which is a self-referential block-scoped declaration (TS2448) and fails compilation.
-// The fixture below shows the intended before-state: the same function called from
-// multiple sites, each passing the same derivable argument.
+export const params = { file: "fixture.ts", target: "withTax", param: "rate" };
 
 const RATE = 0.15;
 

@@ -4,7 +4,6 @@ export const params = {
   file: "fixture.ts",
   target: "renderWidget",
   flag: "compact",
-  expectRejection: true,
 };
 
 function renderWidget(size: number, compact: boolean): string {

@@ -4,7 +4,6 @@ export const params = {
   file: "fixture.ts",
   target: "formatValue",
   flag: "asPercent",
-  expectRejection: true,
 };
 
 function formatValue(value: number, asPercent: boolean, withSign: boolean): string {

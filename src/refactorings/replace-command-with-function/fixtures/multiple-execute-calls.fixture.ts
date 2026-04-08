@@ -1,6 +1,6 @@
 // Multiple execute() calls — doesn't translate cleanly to a plain function.
 
-export const params = { file: "fixture.ts", target: "CounterCommand", expectRejection: true };
+export const params = { file: "fixture.ts", target: "CounterCommand" };
 
 class CounterCommand {
   private readonly step: number;
