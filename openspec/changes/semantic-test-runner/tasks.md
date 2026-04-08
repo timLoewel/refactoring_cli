@@ -7,28 +7,28 @@
 
 ## 2. Extend RepoConfig and add new repos
 
-- [ ] 2.1 Add `testMode`, `testCmd`, `relatedTestsFlag`, `testTimeout`, and `projectSubdir` fields to `RepoConfig` interface
-- [ ] 2.2 Update existing repos (typeorm → compile-only, zod/date-fns/inversify/ts-pattern → compile-and-test with their test commands)
-- [ ] 2.3 Add compile-and-test repos: superstruct, neverthrow, remeda, immer, true-myth, purify-ts, class-validator, class-transformer
-- [ ] 2.4 Add compile-only repos: rxjs, fp-ts, io-ts, immutable-js, mobx
-- [ ] 2.5 Add `--skip-tests` CLI flag parsing (forces all repos to compile-only)
+- [x] 2.1 Add `testMode`, `testCmd`, `relatedTestsFlag`, `testTimeout`, and `projectSubdir` fields to `RepoConfig` interface
+- [x] 2.2 Update existing repos (typeorm → compile-only, zod/date-fns/inversify/ts-pattern → compile-and-test with their test commands)
+- [x] 2.3 Add compile-and-test repos: superstruct, neverthrow, remeda, immer, true-myth, purify-ts, class-validator, class-transformer
+- [x] 2.4 Add compile-only repos: rxjs, fp-ts, io-ts, immutable-js, mobx
+- [x] 2.5 Add `--skip-tests` CLI flag parsing (forces all repos to compile-only)
 
 ## 3. Baseline test verification
 
-- [ ] 3.1 Add `checkBaselineTests(repo, cacheDir)` that runs the full `testCmd` once on the unmodified repo
-- [ ] 3.2 On failure, log a warning and downgrade the repo to compile-only for this run (do not abort)
-- [ ] 3.3 Wire baseline test check into `runRepo` after `checkBaseline` for repos with `testMode: "compile-and-test"`
+- [x] 3.1 Add `checkBaselineTests(repo, cacheDir)` that runs the full `testCmd` once on the unmodified repo
+- [x] 3.2 On failure, log a warning and downgrade the repo to compile-only for this run (do not abort)
+- [x] 3.3 Wire baseline test check into `runRepo` after `checkBaseline` for repos with `testMode: "compile-and-test"`
 
 ## 4. Scoped test execution in applyAndCheck
 
-- [ ] 4.1 After tsc passes for a compile-and-test repo, construct and run `{testCmd} {relatedTestsFlag} {changedFiles...}` with a timeout
-- [ ] 4.2 Kill the test process if it exceeds `testTimeout` (default 30s) and record as test failure
-- [ ] 4.3 Handle "no related tests found" (zero tests matched) as a pass
-- [ ] 4.4 Add `testsPassed`, `testError`, and `testMs` fields to `CandidateResult`
+- [x] 4.1 After tsc passes for a compile-and-test repo, construct and run `{testCmd} {relatedTestsFlag} {changedFiles...}` with a timeout
+- [x] 4.2 Kill the test process if it exceeds `testTimeout` (default 30s) and record as test failure
+- [x] 4.3 Handle "no related tests found" (zero tests matched) as a pass
+- [x] 4.4 Add `testsPassed`, `testError`, and `testMs` fields to `CandidateResult`
 
 ## 5. Monorepo support
 
-- [ ] 5.1 When `projectSubdir` is set, use `{cacheDir}/{projectSubdir}` as the effective root for tsconfig resolution, candidate enumeration, and test execution
+- [x] 5.1 When `projectSubdir` is set, use `{cacheDir}/{projectSubdir}` as the effective root for tsconfig resolution, candidate enumeration, and test execution
 - [ ] 5.2 Verify with `--dry-run` that remeda (`packages/remeda`) clones, installs, and compiles
 
 ## 6. Reporting and output for fixture creation

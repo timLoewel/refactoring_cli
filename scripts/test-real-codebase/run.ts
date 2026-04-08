@@ -15,33 +15,149 @@ interface RepoConfig {
   url: string;
   ref: string;
   installCmd?: string;
+  testMode?: "compile-only" | "compile-and-test";
+  testCmd?: string;
+  relatedTestsFlag?: string;
+  testTimeout?: number;
+  projectSubdir?: string;
 }
 
 const REPOS: RepoConfig[] = [
-  {
-    name: "typeorm",
-    url: "https://github.com/typeorm/typeorm.git",
-    ref: "0.3.20",
-  },
+  // --- Compile-and-test repos ---
   {
     name: "zod",
     url: "https://github.com/colinhacks/zod.git",
     ref: "v3.24.4",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
   },
   {
     name: "date-fns",
     url: "https://github.com/date-fns/date-fns.git",
     ref: "v4.1.0",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
   },
   {
     name: "inversify",
     url: "https://github.com/inversify/InversifyJS.git",
     ref: "v6.2.2",
+    testMode: "compile-and-test",
+    testCmd: "npx jest",
+    relatedTestsFlag: "--findRelatedTests",
   },
   {
     name: "ts-pattern",
     url: "https://github.com/gvergnaud/ts-pattern.git",
     ref: "v5.9.0",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "superstruct",
+    url: "https://github.com/ianstormtaylor/superstruct.git",
+    ref: "v2.0.2",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "neverthrow",
+    url: "https://github.com/supermacro/neverthrow.git",
+    ref: "v8.2.0",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "remeda",
+    url: "https://github.com/remeda/remeda.git",
+    ref: "v2.33.7",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+    projectSubdir: "packages/remeda",
+  },
+  {
+    name: "immer",
+    url: "https://github.com/immerjs/immer.git",
+    ref: "v11.1.4",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "true-myth",
+    url: "https://github.com/true-myth/true-myth.git",
+    ref: "v9.3.1",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "purify-ts",
+    url: "https://github.com/gigobyte/purify.git",
+    ref: "v2.1.4",
+    testMode: "compile-and-test",
+    testCmd: "npx vitest run",
+    relatedTestsFlag: "--related",
+  },
+  {
+    name: "class-validator",
+    url: "https://github.com/typestack/class-validator.git",
+    ref: "v0.15.1",
+    testMode: "compile-and-test",
+    testCmd: "npx jest",
+    relatedTestsFlag: "--findRelatedTests",
+  },
+  {
+    name: "class-transformer",
+    url: "https://github.com/typestack/class-transformer.git",
+    ref: "v0.5.1",
+    testMode: "compile-and-test",
+    testCmd: "npx jest",
+    relatedTestsFlag: "--findRelatedTests",
+  },
+  // --- Compile-only repos ---
+  {
+    name: "typeorm",
+    url: "https://github.com/typeorm/typeorm.git",
+    ref: "0.3.20",
+    testMode: "compile-only",
+  },
+  {
+    name: "rxjs",
+    url: "https://github.com/ReactiveX/rxjs.git",
+    ref: "7.8.2",
+    testMode: "compile-only",
+  },
+  {
+    name: "fp-ts",
+    url: "https://github.com/gcanti/fp-ts.git",
+    ref: "2.16.9",
+    testMode: "compile-only",
+  },
+  {
+    name: "io-ts",
+    url: "https://github.com/gcanti/io-ts.git",
+    ref: "2.2.22",
+    testMode: "compile-only",
+  },
+  {
+    name: "immutable-js",
+    url: "https://github.com/immutable-js/immutable-js.git",
+    ref: "v5.1.5",
+    testMode: "compile-only",
+  },
+  {
+    name: "mobx",
+    url: "https://github.com/mobxjs/mobx.git",
+    ref: "v6.0.2",
+    testMode: "compile-only",
+    installCmd: "yarn install --frozen-lockfile",
   },
 ];
 
@@ -55,6 +171,8 @@ const isDryRun = scriptArgs.includes("--dry-run");
 const isJson = scriptArgs.includes("--json");
 // --verbose: print each candidate attempt including skips (default: only print targets + failures)
 const isVerbose = scriptArgs.includes("--verbose");
+// --skip-tests: force all repos to compile-only (no semantic testing)
+const skipTests = scriptArgs.includes("--skip-tests");
 const refactoringFilter = ((): string | undefined => {
   const idx = scriptArgs.indexOf("--refactoring");
   return idx >= 0 ? scriptArgs[idx + 1] : undefined;
@@ -147,11 +265,16 @@ function runCLI(
 }
 
 // --- Step 2: Clone and cache ---
+function effectiveProjectDir(repo: RepoConfig, cacheDir: string): string {
+  return repo.projectSubdir ? join(cacheDir, repo.projectSubdir) : cacheDir;
+}
+
 function ensureCloned(repo: RepoConfig): string {
   const cacheDir = repoCacheDir(repo);
+  const projDir = effectiveProjectDir(repo, cacheDir);
   const nodeModulesPresent = existsSync(join(cacheDir, "node_modules"));
 
-  if (existsSync(cacheDir) && existsSync(join(cacheDir, "tsconfig.json")) && nodeModulesPresent) {
+  if (existsSync(cacheDir) && existsSync(join(projDir, "tsconfig.json")) && nodeModulesPresent) {
     process.stderr.write(`Using cached repo: ${cacheDir}\n`);
     return cacheDir;
   }
@@ -164,8 +287,8 @@ function ensureCloned(repo: RepoConfig): string {
       process.stderr.write(`Clone failed:\n${result.stderr}\n`);
       process.exit(1);
     }
-    if (!existsSync(join(cacheDir, "tsconfig.json"))) {
-      process.stderr.write(`Cloned repo has no tsconfig.json — aborting.\n`);
+    if (!existsSync(join(projDir, "tsconfig.json"))) {
+      process.stderr.write(`Cloned repo has no tsconfig.json at ${projDir} — aborting.\n`);
       process.exit(1);
     }
   }
@@ -184,12 +307,13 @@ function ensureCloned(repo: RepoConfig): string {
 }
 
 // --- Step 3: Baseline verification ---
-function checkBaseline(cacheDir: string): void {
+function checkBaseline(repo: RepoConfig, cacheDir: string): void {
+  const projDir = effectiveProjectDir(repo, cacheDir);
   process.stderr.write("Verifying baseline compilation...\n");
   const tscBin = join(cacheDir, "node_modules/.bin/tsc");
   const tscDirect = join(cacheDir, "node_modules/typescript/bin/tsc");
   const tsc = existsSync(tscBin) ? tscBin : tscDirect;
-  const result = runShell(`"${tsc}" --noEmit`, cacheDir);
+  const result = runShell(`"${tsc}" --noEmit`, projDir);
   if (result.code !== 0) {
     process.stderr.write(
       `Baseline compilation failed — cannot run tests.\n\n${result.stdout}\n${result.stderr}\n`,
@@ -197,6 +321,21 @@ function checkBaseline(cacheDir: string): void {
     process.exit(1);
   }
   process.stderr.write("Baseline OK.\n");
+}
+
+function checkBaselineTests(repo: RepoConfig, cacheDir: string): boolean {
+  if (!repo.testCmd) return false;
+  const effectiveDir = repo.projectSubdir ? join(cacheDir, repo.projectSubdir) : cacheDir;
+  process.stderr.write(`Verifying baseline tests for ${repo.name}...\n`);
+  const result = runShell(repo.testCmd, effectiveDir);
+  if (result.code !== 0) {
+    process.stderr.write(
+      `WARNING: Baseline tests failed for ${repo.name} — downgrading to compile-only.\n${result.stderr.slice(0, 500)}\n`,
+    );
+    return false;
+  }
+  process.stderr.write("Baseline tests OK.\n");
+  return true;
 }
 
 // --- Step 4: Load TypeScript refactorings ---
@@ -359,6 +498,10 @@ interface CandidateResult {
   tscMs: number;
   rollbackMs: number;
   scopeFileCount: number;
+  /** null = tests not run (compile-only or tsc failed) */
+  testsPassed: boolean | null;
+  testError: string | null;
+  testMs: number;
 }
 
 interface ApplyResult {
@@ -386,6 +529,8 @@ async function applyAndCheck(
   tsProject: Project,
   baselineCache: { baselined: Set<string>; keys: Set<string> },
   cacheDir: string,
+  repo: RepoConfig,
+  runTests: boolean,
 ): Promise<CandidateResult> {
   const params = buildApplyParams(refactoring, candidate.file, candidate.target);
   const noResult = (skipReason: string | null): CandidateResult => ({
@@ -400,6 +545,9 @@ async function applyAndCheck(
     tscMs: 0,
     rollbackMs: 0,
     scopeFileCount: 0,
+    testsPassed: null,
+    testError: null,
+    testMs: 0,
   });
   const failResult = (error: string | null, applyMs = 0): CandidateResult => ({
     isTarget: true,
@@ -413,6 +561,9 @@ async function applyAndCheck(
     tscMs: 0,
     rollbackMs: 0,
     scopeFileCount: 0,
+    testsPassed: null,
+    testError: null,
+    testMs: 0,
   });
 
   const t0 = Date.now();
@@ -514,6 +665,47 @@ async function applyAndCheck(
         })
         .join("\n");
 
+  // Scoped test execution (only if tsc passed and tests are enabled)
+  let testsPassed: boolean | null = null;
+  let testError: string | null = null;
+  let testMs = 0;
+
+  if (passed && runTests && repo.testCmd && repo.relatedTestsFlag) {
+    const effectiveDir = repo.projectSubdir ? join(cacheDir, repo.projectSubdir) : cacheDir;
+    const changedFilesRelative = result.filesChanged.map((f) => f.replace(cacheDir + "/", ""));
+    const testCommand = `${repo.testCmd} ${repo.relatedTestsFlag} ${changedFilesRelative.join(" ")}`;
+    const timeout = repo.testTimeout ?? 30_000;
+    const t3 = Date.now();
+    const testResult = spawnSync(testCommand, {
+      shell: true,
+      cwd: effectiveDir,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      timeout,
+    });
+    testMs = Date.now() - t3;
+
+    if (testResult.signal === "SIGTERM" || testResult.error?.message?.includes("ETIMEDOUT")) {
+      testsPassed = false;
+      testError = `Test timeout after ${timeout}ms`;
+    } else if (testResult.status === 0) {
+      testsPassed = true;
+    } else {
+      // Check for "no tests found" patterns — treat as pass
+      const output = (testResult.stdout ?? "") + (testResult.stderr ?? "");
+      const noTestsFound =
+        output.includes("No test files found") ||
+        output.includes("No tests found") ||
+        output.includes("No test suite found");
+      if (noTestsFound) {
+        testsPassed = true;
+      } else {
+        testsPassed = false;
+        testError = (testResult.stderr ?? testResult.stdout ?? "").trim().slice(0, 1000);
+      }
+    }
+  }
+
   // Rollback changes and refresh daemon's AST + in-process project
   const t2 = Date.now();
   gitRollback(cacheDir);
@@ -542,6 +734,9 @@ async function applyAndCheck(
     tscMs,
     rollbackMs,
     scopeFileCount: scopedFiles.length,
+    testsPassed,
+    testError,
+    testMs,
   };
 }
 
@@ -576,14 +771,29 @@ async function runRepo(
   registry: { lookup(name: string): { enumerate?: (project: Project) => Candidate[] } | undefined },
 ): Promise<{ repo: string; stats: RefactoringStats[] }> {
   const cacheDir = ensureCloned(repo);
-  checkBaseline(cacheDir);
+  const projDir = effectiveProjectDir(repo, cacheDir);
+  checkBaseline(repo, cacheDir);
 
-  process.stderr.write(`\nEnumerating candidates for ${repo.name}...\n`);
+  // Determine effective test mode for this run
+  const effectiveTestMode =
+    skipTests || repo.testMode !== "compile-and-test" ? "compile-only" : repo.testMode;
+  let runTests = effectiveTestMode === "compile-and-test";
+
+  if (runTests) {
+    const baselineOk = checkBaselineTests(repo, cacheDir);
+    if (!baselineOk) {
+      runTests = false;
+    }
+  }
+
+  process.stderr.write(
+    `\nEnumerating candidates for ${repo.name} [${runTests ? "compile-and-test" : "compile-only"}]...\n`,
+  );
   const {
     candidates: allCandidates,
     reverseImportMap,
     project: tsProject,
-  } = enumerateCandidates(cacheDir);
+  } = enumerateCandidates(projDir);
   const shuffledCandidates = weightedShuffle(
     allCandidates,
     (c) => {
@@ -663,6 +873,8 @@ async function runRepo(
         tsProject,
         baselineCache,
         cacheDir,
+        repo,
+        runTests,
       );
       checked++;
 
@@ -824,8 +1036,9 @@ async function main(): Promise<void> {
     for (const repo of selectedRepos) {
       process.stderr.write(`\n=== ${repo.name} ===\n`);
       const cacheDir = ensureCloned(repo);
-      checkBaseline(cacheDir);
-      const { candidates } = enumerateCandidates(cacheDir);
+      const projDir = effectiveProjectDir(repo, cacheDir);
+      checkBaseline(repo, cacheDir);
+      const { candidates } = enumerateCandidates(projDir);
       const rows = refactorings.map((r) => ({
         refactoring: r.kebabName,
         candidates: candidates.length,
