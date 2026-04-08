@@ -76,6 +76,24 @@ export const extractClass = defineRefactoring<ClassContext>({
       initializer: `new ${newClassName}()`,
     });
 
+    // Add forwarding accessors on the source class so external code keeps working
+    for (const fieldName of fieldNames) {
+      // Derive the type from the extracted field declaration text
+      const declText = fieldDeclarations.find((d) => d.includes(fieldName));
+      const typeMatch = declText ? /:\s*([^=;]+)/.exec(declText) : null;
+      const typeText = typeMatch && typeMatch[1] ? typeMatch[1].trim() : "unknown";
+      sourceClass.addGetAccessor({
+        name: fieldName,
+        returnType: typeText,
+        statements: [`return this.${delegateFieldName}.${fieldName};`],
+      });
+      sourceClass.addSetAccessor({
+        name: fieldName,
+        parameters: [{ name: "value", type: typeText }],
+        statements: [`this.${delegateFieldName}.${fieldName} = value;`],
+      });
+    }
+
     sf.addStatements(buildNewClassText(fieldDeclarations, newClassName));
 
     return {

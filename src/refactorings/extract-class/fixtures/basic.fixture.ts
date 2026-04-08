@@ -1,3 +1,10 @@
+export const params = {
+  file: "fixture.ts",
+  target: "Person",
+  fields: "street,city",
+  newClassName: "Address",
+};
+
 class Person {
   name: string = "";
   age: number = 0;

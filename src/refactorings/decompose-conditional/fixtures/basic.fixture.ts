@@ -1,9 +1,11 @@
+export const params = { file: "fixture.ts", target: "5" };
+
 export function main(): string {
-  const age = 20;
-  const hasLicense = true;
-  if (age >= 18 && hasLicense) {
-    return "allowed to drive";
+  const value = 100;
+  if (value > 50) {
+    console.log("large");
   } else {
-    return "not allowed to drive";
+    console.log("small");
   }
+  return String(value);
 }
