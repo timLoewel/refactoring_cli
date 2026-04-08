@@ -76,7 +76,7 @@ refactor --path packages/api apply extract-variable file=src/app.ts target="x + 
 You can also point directly at a specific tsconfig with `--config`:
 
 ```bash
-refactor --config tsconfig.build.json apply ...
+refactor --config tsconfig.lib.json apply ...
 ```
 
 ## Available Refactorings
