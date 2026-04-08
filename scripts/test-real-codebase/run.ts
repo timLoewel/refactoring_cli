@@ -768,20 +768,6 @@ interface RefactoringStats {
   semanticFailures: SemanticFailure[];
 }
 
-// --- Cleanup stale test processes ---
-function killStaleTestProcesses(): void {
-  // Kill any leftover tsx run.ts processes from previous interrupted runs (excluding self)
-  const self = process.pid;
-  const result = spawnSync(
-    "bash",
-    ["-c", `pgrep -f 'tsx.*test-real-codebase/run.ts' | grep -v '^${self}$' | xargs -r kill -9`],
-    { encoding: "utf8" },
-  );
-  if (result.status !== 0 && result.stderr?.trim()) {
-    // Non-fatal — stale processes might already be gone
-  }
-}
-
 // --- Run all refactorings against a single repo ---
 async function runRepo(
   repo: RepoConfig,
@@ -1048,7 +1034,7 @@ async function runRepo(
     stats.push(stat);
   }
 
-  await client.close();
+  await client.shutdown();
   return { repo: repo.name, stats };
 }
 
@@ -1128,8 +1114,6 @@ function printSemanticFailureSummary(allStats: RefactoringStats[]): void {
 
 // --- Main ---
 async function main(): Promise<void> {
-  killStaleTestProcesses();
-
   const selectedRepos = getSelectedRepos();
   process.stderr.write(`Repos: ${selectedRepos.map((r) => r.name).join(", ")}\n`);
 
@@ -1164,7 +1148,7 @@ async function main(): Promise<void> {
         process.stdout.write(`${repo.name} [${testMode}]: ${candidates.length} symbols to try\n`);
       }
     }
-    return;
+    process.exit(0);
   }
 
   // Run each repo sequentially
@@ -1217,9 +1201,14 @@ async function main(): Promise<void> {
   } else {
     printSemanticFailureSummary(allResults.flatMap((r) => r.stats));
   }
+  process.exit(0);
 }
 
-main().catch((err) => {
-  process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(1);
+  });
