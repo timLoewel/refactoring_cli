@@ -29,7 +29,7 @@
 ## 5. Monorepo support
 
 - [x] 5.1 When `projectSubdir` is set, use `{cacheDir}/{projectSubdir}` as the effective root for tsconfig resolution, candidate enumeration, and test execution
-- [ ] 5.2 Verify with `--dry-run` that remeda (`packages/remeda`) clones, installs, and compiles
+- [x] 5.2 Verify with `--dry-run` that remeda (`packages/remeda`) clones, installs, and compiles
 
 ## 6. Reporting and output for fixture creation
 

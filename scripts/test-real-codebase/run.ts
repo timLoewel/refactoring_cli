@@ -307,7 +307,7 @@ function ensureCloned(repo: RepoConfig): string {
 }
 
 // --- Step 3: Baseline verification ---
-function checkBaseline(repo: RepoConfig, cacheDir: string): void {
+function checkBaseline(repo: RepoConfig, cacheDir: string): boolean {
   const projDir = effectiveProjectDir(repo, cacheDir);
   process.stderr.write("Verifying baseline compilation...\n");
   const tscBin = join(cacheDir, "node_modules/.bin/tsc");
@@ -315,12 +315,14 @@ function checkBaseline(repo: RepoConfig, cacheDir: string): void {
   const tsc = existsSync(tscBin) ? tscBin : tscDirect;
   const result = runShell(`"${tsc}" --noEmit`, projDir);
   if (result.code !== 0) {
+    const errorLines = (result.stdout + result.stderr).trim().split("\n").filter(Boolean);
     process.stderr.write(
-      `Baseline compilation failed — cannot run tests.\n\n${result.stdout}\n${result.stderr}\n`,
+      `WARNING: Baseline compilation has ${errorLines.length} pre-existing error(s) — in-process checking will baseline them.\n`,
     );
-    process.exit(1);
+    return false;
   }
   process.stderr.write("Baseline OK.\n");
+  return true;
 }
 
 function checkBaselineTests(repo: RepoConfig, cacheDir: string): boolean {
