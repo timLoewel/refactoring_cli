@@ -73,6 +73,22 @@ describe("runFixtureTest", () => {
     expect(result.error).toContain("no-op");
   });
 
+  it("captures thrown error for rejection path", () => {
+    const fixture = {
+      name: "basic",
+      type: "single" as const,
+      path: join(fixturesDir, "passing", "basic.fixture.ts"),
+    };
+
+    const result = runFixtureTest(fixture, () => {
+      throw new Error("Precondition failed: target not found");
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.error).toContain("Precondition failed");
+    expect(result.structurallyChanged).toBe(false);
+  });
+
   it("fails when transformation changes output", () => {
     const fixture = {
       name: "basic",

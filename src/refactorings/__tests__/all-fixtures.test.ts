@@ -35,17 +35,37 @@ for (const fixtureModule of fixtureModules) {
         continue;
       }
 
-      it(`preserves semantics: ${fixture.name}`, () => {
-        const result = runFixtureTest(fixture, (project) => {
-          definition.apply(project, params);
+      if (params.expectRejection) {
+        it(`rejects precondition: ${fixture.name}`, () => {
+          const result = runFixtureTest(fixture, (project) => {
+            definition.apply(project, params);
+          });
+
+          if (result.passed) {
+            throw new Error(
+              `Expected refactoring to reject, but it applied successfully and preserved semantics. ` +
+                `The precondition is insufficient for this case.`,
+            );
+          }
+
+          // Acceptable outcomes: threw an error OR produced no structural change (no-op)
+          const threwError = result.error !== undefined && !result.error.includes("no-op");
+          const wasNoOp = !result.structurallyChanged;
+          expect(threwError || wasNoOp).toBe(true);
         });
+      } else {
+        it(`preserves semantics: ${fixture.name}`, () => {
+          const result = runFixtureTest(fixture, (project) => {
+            definition.apply(project, params);
+          });
 
-        if (!result.passed) {
-          throw new Error(result.error ?? "Fixture test failed");
-        }
+          if (!result.passed) {
+            throw new Error(result.error ?? "Fixture test failed");
+          }
 
-        expect(result.passed).toBe(true);
-      });
+          expect(result.passed).toBe(true);
+        });
+      }
     }
   });
 }
