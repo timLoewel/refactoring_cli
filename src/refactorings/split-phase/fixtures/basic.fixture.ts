@@ -1,10 +1,16 @@
-function processData(input: string): string {
-  const trimmed = input.trim();
-  const upper = trimmed.toUpperCase();
-  const tagged = `[${upper}]`;
-  return tagged;
+export const params = {
+  file: "fixture.ts",
+  target: "processData",
+  firstPhaseName: "prepareData",
+  secondPhaseName: "formatData",
+};
+
+function processData(input: string): void {
+  console.log(input.trim());
+  console.log(input.toUpperCase());
 }
 
 export function main(): string {
-  return processData("  hello world  ");
+  processData("  hello world  ");
+  return "done";
 }

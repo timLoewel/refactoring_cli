@@ -1,5 +1,5 @@
-import { SyntaxKind } from "ts-morph";
-import type { ClassDeclaration } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
+import type { ClassDeclaration, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -7,6 +7,55 @@ import type { SourceFileContext } from "../../core/refactoring.types.js";
 function copyMembersIntoClass(memberTexts: string[], intoClass: ClassDeclaration): void {
   for (const memberText of memberTexts) {
     intoClass.addMember(memberText);
+  }
+}
+
+/**
+ * Rewrites `new TargetClass()` usages: redirects property accesses from
+ * target-class variables to the nearest into-class variable, then removes
+ * the target-class variable declarations.
+ */
+function rewriteNewExpressions(sf: SourceFile, target: string, into: string): void {
+  // Collect variable names whose initializer is `new TargetClass()`
+  // and find the first variable whose initializer is `new IntoClass()`
+  const targetVarNames: string[] = [];
+  let intoVarName: string | undefined;
+
+  for (const varDecl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    const init = varDecl.getInitializer();
+    if (!init || !Node.isNewExpression(init)) continue;
+    const expr = init.getExpression();
+    const className = expr.getText();
+    if (className === target) {
+      targetVarNames.push(varDecl.getName());
+    } else if (className === into && intoVarName === undefined) {
+      intoVarName = varDecl.getName();
+    }
+  }
+
+  if (targetVarNames.length === 0 || intoVarName === undefined) return;
+
+  // Replace property accesses: `targetVar.prop` -> `intoVar.prop`
+  for (const targetVarName of targetVarNames) {
+    for (const id of sf.getDescendantsOfKind(SyntaxKind.Identifier)) {
+      if (id.getText() !== targetVarName) continue;
+      const parent = id.getParent();
+      if (!parent || !Node.isPropertyAccessExpression(parent)) continue;
+      if (parent.getExpression() !== id) continue;
+      id.replaceWithText(intoVarName);
+    }
+  }
+
+  // Remove variable statements that declare `new TargetClass()`
+  for (const varStmt of [...sf.getDescendantsOfKind(SyntaxKind.VariableStatement)]) {
+    const decls = varStmt.getDeclarationList().getDeclarations();
+    const allTarget = decls.every((d) => {
+      const init = d.getInitializer();
+      return init && Node.isNewExpression(init) && init.getExpression().getText() === target;
+    });
+    if (allTarget) {
+      varStmt.remove();
+    }
   }
 }
 
@@ -67,6 +116,9 @@ export const inlineClass = defineRefactoring<SourceFileContext>({
 
     copyMembersIntoClass(memberTexts, intoClass);
     targetClass.remove();
+
+    // Redirect `new TargetClass()` usages to the receiving class variable
+    rewriteNewExpressions(sf, target, into);
 
     return {
       success: true,

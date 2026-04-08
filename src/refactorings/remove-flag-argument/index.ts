@@ -1,7 +1,36 @@
-import { SyntaxKind } from "ts-morph";
+import { SyntaxKind, Node } from "ts-morph";
+import type { FunctionDeclaration } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { FunctionContext } from "../../core/refactoring.types.js";
+
+/** Extract body text with flag identifier references replaced by a literal value. */
+function getBodyWithFlagReplaced(
+  fn: FunctionDeclaration,
+  flag: string,
+  replacement: string,
+): string {
+  // Work on the AST: find identifiers in the body matching the flag
+  const body = fn.getBody();
+  if (!body || !Node.isBlock(body)) return "{}";
+
+  // We clone by working with the body text — but we need precise identifier replacement.
+  // Instead of regex, extract identifier positions relative to the body and replace them.
+  const bodyStart = body.getStart();
+  let bodyText = body.getText();
+  const identifiers = body.getDescendantsOfKind(SyntaxKind.Identifier);
+  // Sort from end to start so replacements don't shift positions
+  const sorted = [...identifiers].sort((a, b) => b.getStart() - a.getStart());
+  for (const id of sorted) {
+    if (id.getText() !== flag) continue;
+    const parent = id.getParent();
+    if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) continue;
+    const relStart = id.getStart() - bodyStart;
+    const relEnd = id.getEnd() - bodyStart;
+    bodyText = bodyText.slice(0, relStart) + replacement + bodyText.slice(relEnd);
+  }
+  return bodyText;
+}
 
 export const removeFlagArgument = defineRefactoring<FunctionContext>({
   name: "Remove Flag Argument",
@@ -31,7 +60,7 @@ export const removeFlagArgument = defineRefactoring<FunctionContext>({
     const file = params["file"] as string;
     const target = params["target"] as string;
     const flag = params["flag"] as string;
-    const { fn, body } = ctx;
+    const { fn } = ctx;
 
     const parameters = fn.getParameters();
     const flagIndex = parameters.findIndex((param) => param.getName() === flag);
@@ -46,19 +75,23 @@ export const removeFlagArgument = defineRefactoring<FunctionContext>({
     const trueName = `${target}WhenTrue`;
     const falseName = `${target}WhenFalse`;
 
-    // Get the body text of the original function
-    const bodyText = body.getText();
+    // Preserve the original return type
+    const returnTypeNode = fn.getReturnTypeNode();
+    const returnType = returnTypeNode ? returnTypeNode.getText() : "void";
+
+    // Build parameter list without the flag
+    const otherParams = parameters
+      .filter((_, i) => i !== flagIndex)
+      .map((par) => par.getText())
+      .join(", ");
+
+    // Replace flag identifier references in body with literal true/false (AST-aware, not regex)
+    const trueBody = getBodyWithFlagReplaced(fn, flag, "true");
+    const falseBody = getBodyWithFlagReplaced(fn, flag, "false");
 
     // Build two new functions — callers can specialize them further
-    const trueFunc = `\nfunction ${trueName}(${parameters
-      .filter((_, i) => i !== flagIndex)
-      .map((par) => par.getText())
-      .join(", ")}): void ${bodyText}\n`;
-
-    const falseFunc = `\nfunction ${falseName}(${parameters
-      .filter((_, i) => i !== flagIndex)
-      .map((par) => par.getText())
-      .join(", ")}): void ${bodyText}\n`;
+    const trueFunc = `\nfunction ${trueName}(${otherParams}): ${returnType} ${trueBody}\n`;
+    const falseFunc = `\nfunction ${falseName}(${otherParams}): ${returnType} ${falseBody}\n`;
 
     // Update call sites: replace calls with flag=true/false with the appropriate variant
     const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {

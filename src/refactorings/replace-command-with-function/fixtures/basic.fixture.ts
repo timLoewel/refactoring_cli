@@ -1,7 +1,7 @@
-export function main(): string {
-  const cmd = new Greeter("World");
-  return cmd.execute();
-}
+export const params = {
+  file: "fixture.ts",
+  target: "Greeter",
+};
 
 class Greeter {
   private readonly name: string;
@@ -13,4 +13,9 @@ class Greeter {
   execute(): string {
     return `Hello, ${this.name}!`;
   }
+}
+
+export function main(): string {
+  const cmd = new Greeter("World");
+  return cmd.execute();
 }

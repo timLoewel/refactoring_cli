@@ -1,20 +1,22 @@
+export const params = {
+  file: "fixture.ts",
+  target: "PremiumBooking",
+  delegateClassName: "PremiumDelegate",
+};
+
+class Booking {
+  label(): string {
+    return "standard booking";
+  }
+}
+
+class PremiumBooking extends Booking {
+  extras(): string {
+    return "breakfast included";
+  }
+}
+
 export function main(): string {
-  class Booking {
-    date: string;
-    constructor(date: string) {
-      this.date = date;
-    }
-    label(): string {
-      return `Booking on ${this.date}`;
-    }
-  }
-
-  class PremiumBooking extends Booking {
-    extras(): string {
-      return "breakfast included";
-    }
-  }
-
-  const booking = new PremiumBooking("2026-03-21");
-  return `${booking.label()} — ${booking.extras()}`;
+  const booking = new PremiumBooking();
+  return String(booking.extras());
 }

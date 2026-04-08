@@ -1,3 +1,9 @@
+export const params = {
+  file: "fixture.ts",
+  target: "readingBase,taxableCharge,calculateCharge",
+  className: "ReadingCalculator",
+};
+
 function readingBase(reading: number): number {
   return reading * 0.1;
 }

@@ -41,8 +41,8 @@ export const parameterizeFunction = defineRefactoring<FunctionContext>({
     const paramName = params["paramName"] as string;
     const paramType = params["paramType"] as string;
 
-    // Add the new parameter at the end of the parameter list
-    ctx.fn.addParameter({ name: paramName, type: paramType });
+    // Add the new parameter at the end of the parameter list (optional so existing call sites compile)
+    ctx.fn.addParameter({ name: paramName, type: paramType, hasQuestionToken: true });
 
     // Update all call sites to pass undefined for the new parameter
     const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {

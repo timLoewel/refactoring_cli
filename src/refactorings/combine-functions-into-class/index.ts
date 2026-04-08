@@ -89,8 +89,7 @@ export const combineFunctionsIntoClass = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Collect method texts and call sites before mutations
-    const methodTexts = functionsToMove.map((fn) => convertFunctionToStaticMethod(fn.getText()));
+    // Collect call sites before mutations
     const allCallSites: { id: Node; name: string }[] = [];
     for (const fn of functionsToMove) {
       allCallSites.push(...findCallSites(fn));
@@ -105,6 +104,9 @@ export const combineFunctionsIntoClass = defineRefactoring<SourceFileContext>({
         // Skip if replacement fails (e.g., node already removed)
       }
     }
+
+    // Capture method texts AFTER call site updates so bodies contain qualified references
+    const methodTexts = functionsToMove.map((fn) => convertFunctionToStaticMethod(fn.getText()));
 
     // Remove original function declarations
     const sorted = [...functionsToMove].sort((a, b) => b.getStart() - a.getStart());

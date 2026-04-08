@@ -31,10 +31,17 @@ function preconditions(project: Project, params: Record<string, unknown>): Preco
   return { ok: errors.length === 0, errors };
 }
 
-function buildForwardingMethods(superclassMethods: string[], delegateFieldName: string): string[] {
-  return superclassMethods.map(
-    (methodName) =>
-      `  ${methodName}(): unknown { return this.${delegateFieldName}.${methodName}(); }`,
+interface MethodSignature {
+  name: string;
+  params: string;
+  paramNames: string;
+  returnType: string;
+}
+
+function buildForwardingMethods(methods: MethodSignature[], delegateFieldName: string): string[] {
+  return methods.map(
+    (m) =>
+      `  ${m.name}(${m.params}): ${m.returnType} { return this.${delegateFieldName}.${m.name}(${m.paramNames}); }`,
   );
 }
 
@@ -69,8 +76,21 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
     };
   }
 
-  // Collect superclass method names for forwarding
-  const superclassMethodNames = parentClass ? parentClass.getMethods().map((m) => m.getName()) : [];
+  // Collect superclass method signatures for forwarding
+  const superclassMethods: MethodSignature[] = parentClass
+    ? parentClass.getMethods().map((m) => ({
+        name: m.getName(),
+        params: m
+          .getParameters()
+          .map((p) => p.getText())
+          .join(", "),
+        paramNames: m
+          .getParameters()
+          .map((p) => p.getName())
+          .join(", "),
+        returnType: m.getReturnType().getText(),
+      }))
+    : [];
 
   // Remove the extends clause via the class API
   targetClass.removeExtends();
@@ -103,7 +123,7 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
   refreshedClass.addMember(`private ${delegateFieldName}: ${parentName} = new ${parentName}();`);
 
   // Add forwarding methods for each inherited method
-  const forwardingMethods = buildForwardingMethods(superclassMethodNames, delegateFieldName);
+  const forwardingMethods = buildForwardingMethods(superclassMethods, delegateFieldName);
   for (const methodText of forwardingMethods) {
     refreshedClass.addMember(methodText);
   }

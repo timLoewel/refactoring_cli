@@ -1,4 +1,4 @@
-import { SyntaxKind } from "ts-morph";
+import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import { cleanupUnused } from "../../core/cleanup-unused.js";
@@ -81,6 +81,27 @@ export const replaceFunctionWithCommand = defineRefactoring<FunctionContext>({
     ]
       .filter((line) => line.trim() !== "")
       .join("\n");
+
+    // Update call sites: replace `functionName(args)` with `new ClassName(args).execute()`
+    const fnStart = fn.getStart();
+    const fnEnd = fn.getEnd();
+    const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+      const expr = c.getExpression();
+      if (Node.isIdentifier(expr) && expr.getText() === target) {
+        const pos = c.getStart();
+        return pos < fnStart || pos >= fnEnd;
+      }
+      return false;
+    });
+
+    const sortedCalls = [...calls].sort((a, b) => b.getStart() - a.getStart());
+    for (const call of sortedCalls) {
+      const args = call
+        .getArguments()
+        .map((a) => a.getText())
+        .join(", ");
+      call.replaceWithText(`new ${className}(${args}).execute()`);
+    }
 
     // Remove the original function
     fn.remove();

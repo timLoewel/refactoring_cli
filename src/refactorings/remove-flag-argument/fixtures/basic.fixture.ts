@@ -1,3 +1,9 @@
+export const params = {
+  file: "fixture.ts",
+  target: "renderWidget",
+  flag: "compact",
+};
+
 function renderWidget(size: number, compact: boolean): string {
   if (compact) {
     return `[compact:${size}]`;

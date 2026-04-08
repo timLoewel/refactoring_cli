@@ -1,3 +1,8 @@
+export const params = {
+  file: "fixture.ts",
+  target: "formatPerson",
+};
+
 export function main(): string {
   const person = { name: "Alice", age: 30 };
   const label = formatPerson(person.name, person.age);

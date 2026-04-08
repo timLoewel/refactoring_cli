@@ -1,3 +1,4 @@
+import { SyntaxKind, Node } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
@@ -87,6 +88,58 @@ export const replaceCommandWithFunction = defineRefactoring<ClassContext>({
 
     const functionName = target.charAt(0).toLowerCase() + target.slice(1);
     const fnText = `function ${functionName}(${fnParamList}): ${returnType} ${fnBody}`;
+
+    // Update call sites: replace `new ClassName(args).execute()` with `functionName(args)`
+    // and `variable.execute()` (where variable = new ClassName(args)) with `functionName(args)`
+    const newExpressions = sf.getDescendantsOfKind(SyntaxKind.NewExpression).filter((ne) => {
+      return ne.getExpression().getText() === target;
+    });
+
+    // Process from end to start to preserve positions
+    const sortedNew = [...newExpressions].sort((a, b) => b.getStart() - a.getStart());
+    for (const ne of sortedNew) {
+      const args = ne
+        .getArguments()
+        .map((a) => a.getText())
+        .join(", ");
+      const callText = `${functionName}(${args})`;
+      const parent = ne.getParent();
+
+      // Pattern: new ClassName(args).execute() — a property access on the new expression
+      if (Node.isPropertyAccessExpression(parent) && parent.getName() === "execute") {
+        const grandParent = parent.getParent();
+        if (Node.isCallExpression(grandParent) && grandParent.getExpression() === parent) {
+          grandParent.replaceWithText(callText);
+          continue;
+        }
+      }
+
+      // Pattern: const x = new ClassName(args); ... x.execute()
+      if (Node.isVariableDeclaration(parent)) {
+        const varName = parent.getName();
+        // Find all x.execute() calls and replace them
+        const executeCalls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+          const expr = c.getExpression();
+          return (
+            Node.isPropertyAccessExpression(expr) &&
+            expr.getName() === "execute" &&
+            expr.getExpression().getText() === varName
+          );
+        });
+        const sortedExecCalls = [...executeCalls].sort((a, b) => b.getStart() - a.getStart());
+        for (const ec of sortedExecCalls) {
+          ec.replaceWithText(callText);
+        }
+        // Remove the variable declaration statement
+        const declList = parent.getParent();
+        if (Node.isVariableDeclarationList(declList)) {
+          const stmt = declList.getParent();
+          if (Node.isVariableStatement(stmt)) {
+            stmt.remove();
+          }
+        }
+      }
+    }
 
     // Remove the class and add the function
     cls.remove();
