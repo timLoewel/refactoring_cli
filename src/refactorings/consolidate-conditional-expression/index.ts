@@ -17,12 +17,20 @@ function findTargetIf(sf: SourceFile, lineNum: number): IfStatement | undefined 
 
 function collectConsecutiveConditions(allStatements: Node[], startIdx: number): string[] {
   const conditions: string[] = [];
+  // All consecutive ifs must return the same expression to be safely consolidated.
+  let expectedReturn: string | undefined;
   let idx = startIdx;
   while (idx < allStatements.length) {
     const stmt = allStatements[idx];
     if (!stmt || stmt.getKind() !== SyntaxKind.IfStatement) break;
     const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
     if (!ifStmt) break;
+    const returnExpr = extractReturnExpression(stmt);
+    if (expectedReturn === undefined) {
+      expectedReturn = returnExpr;
+    } else if (returnExpr !== expectedReturn) {
+      break; // Different return expression — stop collecting
+    }
     conditions.push(ifStmt.getExpression().getText());
     idx++;
   }
