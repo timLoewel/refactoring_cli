@@ -46,14 +46,27 @@ export const replacePrimitiveWithObject = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
-    // Only meaningful for primitive types; reject complex object/interface types
-    const explicitType = varDecl.getTypeNode()?.getText();
+    // Only meaningful for primitive types; reject complex object/interface types.
+    // Check explicit type annotation first, then fall back to inferred type.
     const primitiveTypes = new Set(["string", "number", "boolean", "bigint", "unknown", "any"]);
-    if (explicitType && !primitiveTypes.has(explicitType)) {
-      errors.push(
-        `Variable '${target}' has type '${explicitType}' which is not a primitive. ` +
-          `This refactoring is intended for string, number, boolean, or bigint variables.`,
-      );
+    const explicitType = varDecl.getTypeNode()?.getText();
+    if (explicitType) {
+      if (!primitiveTypes.has(explicitType)) {
+        errors.push(
+          `Variable '${target}' has type '${explicitType}' which is not a primitive. ` +
+            `This refactoring is intended for string, number, boolean, or bigint variables.`,
+        );
+      }
+    } else {
+      // No explicit annotation — check the inferred type to reject functions, objects, etc.
+      const inferredType = varDecl.getType().getText(varDecl);
+      const inferredBase = inferredType.replace(/\s*\|.*/, "").trim();
+      if (!primitiveTypes.has(inferredBase)) {
+        errors.push(
+          `Variable '${target}' has inferred type '${inferredType}' which is not a primitive. ` +
+            `This refactoring is intended for string, number, boolean, or bigint variables.`,
+        );
+      }
     }
 
     return { ok: errors.length === 0, errors };
