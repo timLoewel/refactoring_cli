@@ -36,6 +36,14 @@ export const moveStatementsToCallers = defineRefactoring<FunctionContext>({
       return { ok: false, errors };
     }
 
+    // Reject exported functions: this refactoring only updates same-file call sites,
+    // so cross-file callers would lose the moved statement.
+    if (ctx.fn.isExported()) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' is exported. Moving statements would leave external callers without the moved logic.`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
