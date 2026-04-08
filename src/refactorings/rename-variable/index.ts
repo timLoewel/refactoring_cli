@@ -49,6 +49,19 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
 
     if (!findNameNode(sf, target)) {
       errors.push(`Variable '${target}' not found in file`);
+    } else {
+      // Reject renaming exported variables — external consumers import by name
+      const varDecl = sf
+        .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+        .find((d) => d.getName() === target);
+      if (varDecl) {
+        const varStmt = varDecl.getParent()?.getParent();
+        if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) {
+          errors.push(
+            `Variable '${target}' is exported. Renaming would break external consumers that import it by name.`,
+          );
+        }
+      }
     }
 
     if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
@@ -87,7 +100,10 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       const file = sf.getFilePath();
       for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
         const name = decl.getName();
-        if (name) candidates.push({ file, target: name });
+        if (!name) continue;
+        const varStmt = decl.getParent()?.getParent();
+        if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) continue;
+        candidates.push({ file, target: name });
       }
       for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
         const nameNode = p.getNameNode();
