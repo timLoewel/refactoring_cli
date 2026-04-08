@@ -1,0 +1,23 @@
+{
+  "config": {
+    // MD013/line-length: Disabled because prettier already enforces line
+    // wrapping via printWidth. Running both causes conflicts where
+    // markdownlint rejects what prettier produces.
+    "MD013": false,
+
+    // MD024/no-duplicate-heading: Restricted to siblings only. We use
+    // repeated headings like "## Patterns" / "## Gotchas" across
+    // independent sections (e.g. per-task learnings in openspec).
+    "MD024": { "siblings_only": true },
+
+    // MD033/no-inline-html: Disabled because the README uses <details>
+    // and <summary> for collapsible sections, which is standard GitHub
+    // Flavored Markdown.
+    "MD033": false,
+
+    // MD060/table-column-style: Disabled because prettier's table
+    // formatter controls pipe spacing. markdownlint's compact/padded
+    // expectation conflicts with prettier's output.
+    "MD060": false
+  }
+}

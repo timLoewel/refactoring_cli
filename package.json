@@ -47,6 +47,10 @@
       "eslint --fix --no-warn-ignored",
       "prettier --write",
       "node --experimental-vm-modules node_modules/.bin/jest --findRelatedTests --passWithNoTests --forceExit"
+    ],
+    "*.md": [
+      "markdownlint-cli2 --fix",
+      "prettier --write"
     ]
   },
   "dependencies": {
@@ -64,6 +68,7 @@
     "husky": "^9.1.7",
     "jest": "^30.3.0",
     "lint-staged": "^16.4.0",
+    "markdownlint-cli2": "^0.22.0",
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
