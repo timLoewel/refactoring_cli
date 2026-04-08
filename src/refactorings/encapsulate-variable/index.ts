@@ -80,9 +80,11 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Replace all remaining references to the original variable name with a call to the getter.
-    // Build getter name: get + capitalized first letter + rest.
-    const getterName = "get" + target.charAt(0).toUpperCase() + target.slice(1) + "()";
+    // Replace all remaining references to the original variable name.
+    // Assignments use the setter; reads use the getter.
+    const capitalized = target.charAt(0).toUpperCase() + target.slice(1);
+    const getterCall = `get${capitalized}()`;
+    const setterName = `set${capitalized}`;
     const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
       const parent = id.getParent();
@@ -120,7 +122,19 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
     });
     const sorted = [...refs].sort((a, b) => b.getStart() - a.getStart());
     for (const ref of sorted) {
-      ref.replaceWithText(getterName);
+      const parent = ref.getParent();
+      // Assignment: `target = value` → `setTarget(value)`
+      if (
+        parent &&
+        Node.isBinaryExpression(parent) &&
+        parent.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
+        parent.getLeft() === ref
+      ) {
+        const rhs = parent.getRight().getText();
+        parent.replaceWithText(`${setterName}(${rhs})`);
+      } else {
+        ref.replaceWithText(getterCall);
+      }
     }
 
     return {
