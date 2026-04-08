@@ -121,6 +121,41 @@ export const decomposeConditional = defineRefactoring<SourceFileContext>({
       );
     }
 
+    // Reject if any branch uses 'this' — extracted functions lose the class context
+    const hasThis = (node: Node): boolean =>
+      node.getDescendantsOfKind(SyntaxKind.ThisKeyword).length > 0;
+    if (hasThis(ifStmt.getExpression()) || hasThis(thenStmt) || (elseStmt && hasThis(elseStmt))) {
+      errors.push(
+        `If statement at line ${lineNum} references 'this' — cannot safely extract into standalone functions`,
+      );
+    }
+
+    // Reject if any branch assigns to a variable declared outside the if statement.
+    // Extracted functions receive closure variables by value, so mutations would be lost.
+    const assignsOuterVar = (node: Node): boolean => {
+      const ifStart = ifStmt.getStart();
+      const ifEnd = ifStmt.getEnd();
+      for (const bin of node.getDescendantsOfKind(SyntaxKind.BinaryExpression)) {
+        if (!bin.getOperatorToken().getText().endsWith("=")) continue;
+        const left = bin.getLeft();
+        if (!Node.isIdentifier(left)) continue;
+        const sym = left.getSymbol();
+        if (!sym) continue;
+        const decls = sym.getDeclarations();
+        if (!decls || decls.length === 0) continue;
+        const decl = decls[0];
+        if (!decl) continue;
+        const declPos = decl.getStart();
+        if (declPos < ifStart || declPos > ifEnd) return true;
+      }
+      return false;
+    };
+    if (assignsOuterVar(thenStmt) || (elseStmt && assignsOuterVar(elseStmt))) {
+      errors.push(
+        `If statement at line ${lineNum} assigns to variables declared outside — extracted functions cannot modify outer state`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {

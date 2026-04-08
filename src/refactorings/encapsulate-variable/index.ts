@@ -62,7 +62,11 @@ export const encapsulateVariable = defineRefactoring<SourceFileContext>({
     }
 
     const typeNode = varDecl.getTypeNode();
-    const typeText = typeNode?.getText() ?? "unknown";
+    let typeText = typeNode?.getText() ?? varDecl.getType().getText(varDecl);
+    // Fall back to 'unknown' if type resolution produces import-heavy or empty strings
+    if (!typeText || typeText.includes("import(") || typeText.startsWith("typeof import(")) {
+      typeText = "unknown";
+    }
     const initializer = varDecl.getInitializer()?.getText() ?? "undefined";
 
     const varStatement = varDecl.getParent()?.getParent();

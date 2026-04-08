@@ -70,6 +70,58 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       errors.push(`Variable '${target}' is not reassigned; nothing to split`);
     }
 
+    // Reject if any assignment is inside a nested function/arrow/method (closure)
+    // because splitting would create local variables that don't affect the outer scope.
+    const declScope = decl
+      .getAncestors()
+      .find(
+        (a) =>
+          Node.isBlock(a) ||
+          Node.isSourceFile(a) ||
+          Node.isFunctionDeclaration(a) ||
+          Node.isArrowFunction(a) ||
+          Node.isFunctionExpression(a) ||
+          Node.isMethodDeclaration(a),
+      );
+    for (const assignment of assignments) {
+      const assignScope = assignment
+        .getAncestors()
+        .find(
+          (a) =>
+            Node.isFunctionDeclaration(a) ||
+            Node.isArrowFunction(a) ||
+            Node.isFunctionExpression(a) ||
+            Node.isMethodDeclaration(a) ||
+            Node.isSourceFile(a),
+        );
+      if (assignScope !== declScope?.getParentOrThrow() && assignScope !== declScope) {
+        const closestFn = assignment
+          .getAncestors()
+          .find(
+            (a) =>
+              Node.isArrowFunction(a) ||
+              Node.isFunctionExpression(a) ||
+              Node.isFunctionDeclaration(a) ||
+              Node.isMethodDeclaration(a),
+          );
+        const declClosestFn = decl
+          .getAncestors()
+          .find(
+            (a) =>
+              Node.isArrowFunction(a) ||
+              Node.isFunctionExpression(a) ||
+              Node.isFunctionDeclaration(a) ||
+              Node.isMethodDeclaration(a),
+          );
+        if (closestFn !== declClosestFn) {
+          errors.push(
+            `Variable '${target}' is assigned inside a nested function/arrow; cannot safely split`,
+          );
+          break;
+        }
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
@@ -165,8 +217,27 @@ export const splitVariable = defineRefactoring<SourceFileContext>({
       return true;
     });
 
-    // Pre-compute segment for each ref before any mutations
-    const refSegments = refs.map((ref) => ({ ref, seg: getSegment(ref.getStart()) }));
+    // Pre-compute segment for each ref before any mutations.
+    // Special case: references on the RHS of an assignment to this variable read
+    // the value from the PREVIOUS segment, not the current one.
+    const assignmentNodes = new Set(sortedAssignments.map((a) => a));
+    const refSegments = refs.map((ref) => {
+      let seg = getSegment(ref.getStart());
+      // Walk up ancestors to check if this ref is inside the RHS of an assignment to this variable
+      let anc: Node | undefined = ref;
+      while (anc) {
+        if (Node.isBinaryExpression(anc) && assignmentNodes.has(anc)) {
+          // This ref is inside an assignment expression — check if it's on the RHS
+          const rhsStart = anc.getRight().getStart();
+          if (ref.getStart() >= rhsStart) {
+            seg = Math.max(1, seg - 1);
+          }
+          break;
+        }
+        anc = anc.getParent();
+      }
+      return { ref, seg };
+    });
 
     // Pre-compute segment index (1-based, starting at 2) for each assignment
     const assignmentSegments = sortedAssignments.map((a, i) => ({ assignment: a, seg: i + 2 }));

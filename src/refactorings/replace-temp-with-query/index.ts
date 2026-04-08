@@ -38,7 +38,8 @@ function getWidenedType(decl: VariableDeclaration | ParameterDeclaration): strin
   if (t.isNumberLiteral()) return "number";
   if (t.isBooleanLiteral()) return "boolean";
   const text = t.getText(decl);
-  if (text.includes("import(") || text.startsWith("typeof import(") || text === "") return "unknown";
+  if (text.includes("import(") || text.startsWith("typeof import(") || text === "")
+    return "unknown";
   return text;
 }
 
@@ -191,10 +192,15 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     const wrappedRetType = hasAwait ? `Promise<${retType}>` : retType;
     const callExpr = hasAwait ? `await ${funcName}(${funcArgs})` : `${funcName}(${funcArgs})`;
 
-    // Replace all identifier references to the temp variable with a call
+    // Replace only identifier references that resolve to the SAME declaration.
+    // Other variables with the same name in different scopes must not be touched.
+    const declSymbol = decl.getSymbol();
     const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
-      return isValueReference(id);
+      if (!isValueReference(id)) return false;
+      // Only replace references whose symbol matches the target declaration
+      const refSymbol = id.getSymbol();
+      return refSymbol !== undefined && refSymbol === declSymbol;
     });
 
     const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());

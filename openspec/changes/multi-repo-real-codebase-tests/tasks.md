@@ -17,10 +17,10 @@
 
 ## 4. Run refactorings and collect failures
 
-- [ ] 4.1 Run all refactorings with `--max-candidates 50` against each repo, capture JSON output
-- [ ] 4.2 Analyze failures: deduplicate by root cause and identify which refactorings have real bugs vs. expected precondition mismatches
+- [x] 4.1 Run all refactorings with `--max-candidates 50` against each repo, capture JSON output
+- [x] 4.2 Analyze failures: deduplicate by root cause and identify which refactorings have real bugs vs. expected precondition mismatches
 
 ## 5. Add failure fixtures
 
-- [ ] 5.1 For each confirmed bug, create a minimal `.fixture.ts` reproducing the failure in the relevant `src/refactorings/<name>/fixtures/` directory
-- [ ] 5.2 Verify new fixtures fail (red), then skip or mark as known-failing if fixes are out of scope
+- [x] 5.1 For each confirmed bug, create a minimal `.fixture.ts` reproducing the failure in the relevant `src/refactorings/<name>/fixtures/` directory
+- [x] 5.2 Fix bugs in refactoring implementations: split-variable (closure + RHS references), decompose-conditional (this context + outer var mutation), encapsulate-variable (generic type inference), replace-temp-with-query (cross-scope symbol matching)
