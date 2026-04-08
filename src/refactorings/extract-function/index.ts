@@ -304,11 +304,20 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
 
     const functionText = `\n${asyncMod}function ${name}${typeParams}(${paramList}) {\n${bodyLines.join("\n")}\n}\n`;
 
+    // If the extracted statements include a return, the call site must also return.
+    const hasReturn = stmts.some(
+      (s) =>
+        s.getKind() === SyntaxKind.ReturnStatement ||
+        s.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0,
+    );
+
     let callText: string;
     if (escapingVars.length === 1) {
       callText = `const ${escapingVars[0]} = ${awaitPre}${name}(${funcArgs});`;
     } else if (escapingVars.length > 1) {
       callText = `const { ${escapingVars.join(", ")} } = ${awaitPre}${name}(${funcArgs});`;
+    } else if (hasReturn) {
+      callText = `return ${awaitPre}${name}(${funcArgs});`;
     } else {
       callText = `${awaitPre}${name}(${funcArgs});`;
     }
