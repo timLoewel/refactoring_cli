@@ -1,4 +1,9 @@
-// No params: arrow function const — not supported (FunctionDeclaration only).
+export const params = {
+  file: "source.ts",
+  target: "multiply",
+  destination: "dest.ts",
+  expectRejection: true,
+};
 
 import { multiply } from "./source.js";
 

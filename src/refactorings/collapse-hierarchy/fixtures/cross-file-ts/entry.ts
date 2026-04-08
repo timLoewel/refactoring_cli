@@ -1,4 +1,5 @@
-// No params: subclass is imported cross-file — precondition should reject
+export const params = { file: "base.ts", target: "Circle" };
+
 import { Circle } from "./base.js";
 
 export function main(): string {
