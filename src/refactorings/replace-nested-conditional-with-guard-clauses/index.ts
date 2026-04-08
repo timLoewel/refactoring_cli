@@ -4,47 +4,42 @@ import { defineRefactoring, enumerate, param, resolve } from "../../core/refacto
 import type { FunctionContext } from "../../core/refactoring.types.js";
 import { cleanupUnused } from "../../core/cleanup-unused.js";
 
-interface GuardClauseResult {
-  guardClauses: string[];
-  mainBody: string;
-  otherStatements: string[];
-}
-
 function nodeText(node: Node): string {
   if (node.getKind() !== SyntaxKind.Block) return node.getText();
   const children = node.getChildSyntaxList()?.getChildren();
   return children ? children.map((s: Node) => s.getText()).join("\n") : node.getText();
 }
 
-function processStatements(statements: Node[]): GuardClauseResult {
-  const guardClauses: string[] = [];
-  const otherStatements: string[] = [];
-  let mainBody = "";
+function processStatements(statements: Node[]): string[] {
+  const outputLines: string[] = [];
 
   for (const stmt of statements) {
     const ifStmt = stmt.asKind(SyntaxKind.IfStatement);
     const elseClause = ifStmt?.getElseStatement();
 
     if (!ifStmt || !elseClause) {
-      otherStatements.push(stmt.getText());
+      outputLines.push(stmt.getText());
       continue;
     }
 
     const condition = ifStmt.getExpression().getText();
     const thenBlock = ifStmt.getThenStatement();
 
-    if (thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0) {
-      guardClauses.push(`if (${condition}) {\n  ${nodeText(thenBlock)}\n}`);
-      mainBody = nodeText(elseClause);
+    const thenHasReturn =
+      thenBlock.getKind() === SyntaxKind.ReturnStatement ||
+      thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0;
+    if (thenHasReturn) {
+      outputLines.push(`if (${condition}) {\n  ${nodeText(thenBlock)}\n}`);
+      outputLines.push(nodeText(elseClause));
     } else {
       const firstElseReturn = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
       const earlyReturnExpr = firstElseReturn?.getExpression()?.getText() ?? "undefined";
-      guardClauses.push(`if (!(${condition})) return ${earlyReturnExpr};`);
-      mainBody = nodeText(thenBlock);
+      outputLines.push(`if (!(${condition})) return ${earlyReturnExpr};`);
+      outputLines.push(nodeText(thenBlock));
     }
   }
 
-  return { guardClauses, mainBody, otherStatements };
+  return outputLines;
 }
 
 export const replaceNestedConditionalWithGuardClauses = defineRefactoring<FunctionContext>({
@@ -82,12 +77,9 @@ export const replaceNestedConditionalWithGuardClauses = defineRefactoring<Functi
       };
     }
 
-    const { guardClauses, mainBody, otherStatements } = processStatements(body.getStatements());
+    const outputLines = processStatements(body.getStatements());
 
-    const allLines = [...otherStatements.filter((s) => !s.includes("if (")), ...guardClauses];
-    if (mainBody) allLines.push(mainBody);
-
-    const newBodyText = allLines.map((s) => `  ${s}`).join("\n");
+    const newBodyText = outputLines.map((s) => `  ${s}`).join("\n");
     body.replaceWithText(`{\n${newBodyText}\n}`);
 
     cleanupUnused(ctx.sourceFile);
