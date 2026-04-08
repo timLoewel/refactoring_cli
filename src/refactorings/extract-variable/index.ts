@@ -504,8 +504,27 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
-    // Replace all occurrences in reverse order to avoid position shifts
-    const sortedMatches = [...scopedMatches].sort((a, b) => b.getStart() - a.getStart());
+    // When the expression contains a function call (impure), only replace the first
+    // occurrence. Multiple occurrences may depend on state changes between them, so
+    // caching the result in a variable would change semantics.
+    const IMPURE_KINDS = new Set([
+      SyntaxKind.CallExpression,
+      SyntaxKind.NewExpression,
+      SyntaxKind.TaggedTemplateExpression,
+      SyntaxKind.AwaitExpression,
+      SyntaxKind.YieldExpression,
+    ]);
+    const isImpure = scopedMatches.some(
+      (n) =>
+        IMPURE_KINDS.has(n.getKind()) ||
+        n.getDescendantsOfKind(SyntaxKind.CallExpression).length > 0 ||
+        n.getDescendantsOfKind(SyntaxKind.NewExpression).length > 0,
+    );
+    const firstMatch = scopedMatches[0];
+    const matchesToReplace = isImpure && firstMatch ? [firstMatch] : scopedMatches;
+
+    // Replace occurrences in reverse order to avoid position shifts
+    const sortedMatches = [...matchesToReplace].sort((a, b) => b.getStart() - a.getStart());
     for (const node of sortedMatches) {
       node.replaceWithText(varName);
     }
