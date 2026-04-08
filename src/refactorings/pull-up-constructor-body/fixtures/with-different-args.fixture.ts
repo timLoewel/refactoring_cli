@@ -1,7 +1,6 @@
-// No params: subclass constructor has parameters but parent has no constructor —
-// the implementation creates a malformed constructor parameter when joining param texts as a
-// single string. Known limitation: use pull-up-constructor-body only when parent already has
-// a constructor or when the subclass constructor takes no arguments.
+// Subclass constructor has params but parent has no constructor — known limitation.
+
+export const params = { file: "fixture.ts", target: "Dog", expectRejection: true };
 
 class Animal {
   sound: string = "";

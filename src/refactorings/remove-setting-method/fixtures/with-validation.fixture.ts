@@ -1,5 +1,11 @@
-// No params: the setter contains validation logic that would be silently
-// discarded by remove-setting-method; removing it changes observable behaviour.
+// Setter contains validation that would be silently discarded.
+
+export const params = {
+  file: "fixture.ts",
+  target: "Temperature",
+  field: "celsius",
+  expectRejection: true,
+};
 
 class Temperature {
   private _celsius: number = 0;

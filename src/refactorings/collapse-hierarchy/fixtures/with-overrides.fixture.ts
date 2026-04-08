@@ -1,5 +1,6 @@
-// No params: subclass overrides a parent method — collapse-hierarchy copies the member verbatim,
-// resulting in a duplicate method implementation in the parent. Known limitation.
+// Subclass overrides a parent method — duplicate method after collapse. Known limitation.
+
+export const params = { file: "fixture.ts", target: "PremiumService", expectRejection: true };
 
 class Service {
   describe(): string {

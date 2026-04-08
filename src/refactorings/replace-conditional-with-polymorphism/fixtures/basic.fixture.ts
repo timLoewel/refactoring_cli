@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "getSpeed" };
+
 function getSpeed(type: string): number {
   switch (type) {
     case "european":

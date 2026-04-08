@@ -1,5 +1,6 @@
-// No params: subclass overrides a parent method — remove-subclass copies the member into the parent
-// verbatim, resulting in a duplicate method implementation. Known limitation.
+// Subclass overrides a parent method — duplicate method after merge. Known limitation.
+
+export const params = { file: "fixture.ts", target: "ExpressShipping", expectRejection: true };
 
 class Shipping {
   label(): string {

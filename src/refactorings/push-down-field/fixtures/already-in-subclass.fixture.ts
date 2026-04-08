@@ -1,4 +1,12 @@
-// No params: field already exists in subclass — precondition refusal
+// Field already exists in subclass — precondition refusal.
+
+export const params = {
+  file: "fixture.ts",
+  target: "Shape",
+  field: "color",
+  subclass: "Circle",
+  expectRejection: true,
+};
 
 class Shape {
   color: string = "red";
