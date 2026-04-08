@@ -10,7 +10,10 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["scripts/test-real-codebase/*.ts"],
+          allowDefaultProject: [
+            "scripts/test-real-codebase/*.ts",
+            "src/refactorings/__tests__/*.test.ts",
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },

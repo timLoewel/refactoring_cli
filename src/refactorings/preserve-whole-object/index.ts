@@ -20,6 +20,15 @@ export const preserveWholeObject = defineRefactoring<FunctionContext>({
         `Function '${ctx.fn.getName()}' must have at least 2 parameters to apply preserve-whole-object`,
       );
     }
+
+    // Reject exported functions: this refactoring only updates same-file call sites,
+    // so cross-file callers would break.
+    if (ctx.fn.isExported()) {
+      errors.push(
+        `Function '${ctx.fn.getName()}' is exported. Changing its signature would break external callers.`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
