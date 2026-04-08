@@ -1137,7 +1137,9 @@ async function main(): Promise<void> {
   // Dry-run: clone + baseline each repo, report candidate counts, exit
   if (isDryRun) {
     for (const repo of selectedRepos) {
-      process.stderr.write(`\n=== ${repo.name} ===\n`);
+      const testMode =
+        skipTests || repo.testMode !== "compile-and-test" ? "compile-only" : "compile-and-test";
+      process.stderr.write(`\n=== ${repo.name} [${testMode}] ===\n`);
       const cacheDir = ensureCloned(repo);
       const projDir = effectiveProjectDir(repo, cacheDir);
       checkBaseline(repo, cacheDir);
@@ -1148,14 +1150,11 @@ async function main(): Promise<void> {
       }));
       if (isJson) {
         process.stdout.write(
-          JSON.stringify({ dryRun: true, repo: repo.name, refactorings: rows }, null, 2) + "\n",
+          JSON.stringify({ dryRun: true, repo: repo.name, testMode, refactorings: rows }, null, 2) +
+            "\n",
         );
       } else {
-        for (const row of rows) {
-          process.stdout.write(
-            `${repo.name}/${row.refactoring}: ${row.candidates} symbols to try\n`,
-          );
-        }
+        process.stdout.write(`${repo.name} [${testMode}]: ${candidates.length} symbols to try\n`);
       }
     }
     return;
