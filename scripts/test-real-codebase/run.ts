@@ -17,6 +17,7 @@ interface RepoConfig {
   installCmd?: string;
   testMode?: "compile-only" | "compile-and-test";
   testCmd?: string;
+  scopedTestCmd?: string;
   relatedTestsFlag?: string;
   testTimeout?: number;
   projectSubdir?: string;
@@ -30,7 +31,7 @@ const REPOS: RepoConfig[] = [
     ref: "v3.24.4",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "date-fns",
@@ -38,7 +39,7 @@ const REPOS: RepoConfig[] = [
     ref: "v4.1.0",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "inversify",
@@ -46,15 +47,15 @@ const REPOS: RepoConfig[] = [
     ref: "v6.2.2",
     testMode: "compile-and-test",
     testCmd: "npx jest",
-    relatedTestsFlag: "--findRelatedTests",
+    scopedTestCmd: "npx jest --findRelatedTests",
   },
   {
     name: "ts-pattern",
     url: "https://github.com/gvergnaud/ts-pattern.git",
     ref: "v5.9.0",
     testMode: "compile-and-test",
-    testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    testCmd: "npx jest",
+    scopedTestCmd: "npx jest --findRelatedTests",
   },
   {
     name: "superstruct",
@@ -62,7 +63,7 @@ const REPOS: RepoConfig[] = [
     ref: "v2.0.2",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "neverthrow",
@@ -70,7 +71,7 @@ const REPOS: RepoConfig[] = [
     ref: "v8.2.0",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "remeda",
@@ -78,7 +79,7 @@ const REPOS: RepoConfig[] = [
     ref: "v2.33.7",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
     projectSubdir: "packages/remeda",
   },
   {
@@ -87,7 +88,7 @@ const REPOS: RepoConfig[] = [
     ref: "v11.1.4",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "true-myth",
@@ -95,7 +96,7 @@ const REPOS: RepoConfig[] = [
     ref: "v9.3.1",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "purify-ts",
@@ -103,7 +104,7 @@ const REPOS: RepoConfig[] = [
     ref: "v2.1.4",
     testMode: "compile-and-test",
     testCmd: "npx vitest run",
-    relatedTestsFlag: "--related",
+    scopedTestCmd: "npx vitest related --run",
   },
   {
     name: "class-validator",
@@ -111,7 +112,7 @@ const REPOS: RepoConfig[] = [
     ref: "v0.15.1",
     testMode: "compile-and-test",
     testCmd: "npx jest",
-    relatedTestsFlag: "--findRelatedTests",
+    scopedTestCmd: "npx jest --findRelatedTests",
   },
   {
     name: "class-transformer",
@@ -119,7 +120,7 @@ const REPOS: RepoConfig[] = [
     ref: "v0.5.1",
     testMode: "compile-and-test",
     testCmd: "npx jest",
-    relatedTestsFlag: "--findRelatedTests",
+    scopedTestCmd: "npx jest --findRelatedTests",
   },
   // --- Compile-only repos ---
   {
@@ -675,10 +676,11 @@ async function applyAndCheck(
   let testError: string | null = null;
   let testMs = 0;
 
-  if (passed && runTests && repo.testCmd && repo.relatedTestsFlag) {
+  if (passed && runTests && repo.testCmd && (repo.scopedTestCmd || repo.relatedTestsFlag)) {
     const effectiveDir = repo.projectSubdir ? join(cacheDir, repo.projectSubdir) : cacheDir;
     const changedFilesRelative = result.filesChanged.map((f) => f.replace(cacheDir + "/", ""));
-    const testCommand = `${repo.testCmd} ${repo.relatedTestsFlag} ${changedFilesRelative.join(" ")}`;
+    const scopedCmd = repo.scopedTestCmd ?? `${repo.testCmd} ${repo.relatedTestsFlag}`;
+    const testCommand = `${scopedCmd} ${changedFilesRelative.join(" ")}`;
     const timeout = repo.testTimeout ?? 30_000;
     const t3 = Date.now();
     const testResult = spawnSync(testCommand, {
