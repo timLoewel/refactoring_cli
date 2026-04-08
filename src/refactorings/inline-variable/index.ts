@@ -44,6 +44,42 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    // Refuse to inline when the initializer references `this` and any usage site is
+    // inside a function expression/declaration (non-arrow), where `this` would differ.
+    const usesThis =
+      initializer.getDescendantsOfKind(SyntaxKind.ThisKeyword).length > 0 ||
+      initializer.getKind() === SyntaxKind.ThisKeyword;
+    if (usesThis) {
+      const nameNode = decl.getNameNode();
+      const REBINDING_KINDS = new Set([
+        SyntaxKind.FunctionExpression,
+        SyntaxKind.FunctionDeclaration,
+        SyntaxKind.MethodDeclaration,
+        SyntaxKind.GetAccessor,
+        SyntaxKind.SetAccessor,
+        SyntaxKind.Constructor,
+      ]);
+      const refs = Node.isIdentifier(nameNode)
+        ? nameNode
+            .findReferencesAsNodes()
+            .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
+        : [];
+      const declStart = decl.getStart();
+      for (const ref of refs) {
+        let ancestor = ref.getParent();
+        while (ancestor) {
+          if (ancestor.getStart() <= declStart) break;
+          if (REBINDING_KINDS.has(ancestor.getKind())) {
+            errors.push(
+              `Variable '${target}' uses \`this\` but is referenced inside a function expression where \`this\` differs`,
+            );
+            return { ok: false, errors };
+          }
+          ancestor = ancestor.getParent();
+        }
+      }
+    }
+
     // Refuse to inline a side-effect initializer (call expression) used more than once,
     // as that would change how many times the function is called.
     const hasSideEffect = initializer.getDescendantsOfKind(SyntaxKind.CallExpression).length > 0;
