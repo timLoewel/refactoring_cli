@@ -37,6 +37,21 @@ export const replaceErrorCodeWithException = defineRefactoring<FunctionContext>(
       );
     }
 
+    // If the function ALSO returns non-negative numeric values, the negative returns
+    // are likely result codes (e.g. -1/0/1 for comparison), not error codes.
+    const hasNonNegativeNumericReturn = returnStatements.some((ret) => {
+      const expr = ret.getExpression();
+      if (!expr) return false;
+      const text = expr.getText().trim();
+      return /^\d+$/.test(text);
+    });
+    if (hasNegativeReturn && hasNonNegativeNumericReturn) {
+      errors.push(
+        `Function '${fn.getName()}' returns both negative and non-negative numeric values, ` +
+          `suggesting a result code pattern (not error codes).`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
