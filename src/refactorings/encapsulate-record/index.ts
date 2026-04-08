@@ -1,5 +1,5 @@
-import { SyntaxKind } from "ts-morph";
-import type { ClassDeclaration } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
+import type { ClassDeclaration, SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
@@ -12,11 +12,13 @@ function buildGetterSetter(propName: string, propType: string): string {
   );
 }
 
-function encapsulateClassProperties(targetClass: ClassDeclaration): number {
+function encapsulateClassProperties(targetClass: ClassDeclaration, sf: SourceFile): number {
   const properties = targetClass.getProperties().filter((prop) => {
     const modifiers = prop.getModifiers().map((m) => m.getText());
     return !modifiers.includes("private") && !modifiers.includes("protected");
   });
+
+  const encapsulatedNames = properties.map((p) => p.getName());
 
   let count = 0;
   for (const prop of properties) {
@@ -37,6 +39,38 @@ function encapsulateClassProperties(targetClass: ClassDeclaration): number {
     targetClass.addMember(getterSetter);
     count++;
   }
+
+  // Update external access sites: obj.field → obj.getField() / obj.setField(value)
+  for (const propName of encapsulatedNames) {
+    const capitalized = propName.charAt(0).toUpperCase() + propName.slice(1);
+    const accesses = sf
+      .getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
+      .filter((pa) => pa.getName() === propName)
+      .sort((a, b) => b.getStart() - a.getStart());
+
+    for (const access of accesses) {
+      // Skip accesses inside the class itself (this._field references)
+      if (access.getFirstAncestorByKind(SyntaxKind.ClassDeclaration) === targetClass) continue;
+
+      const parent = access.getParent();
+      if (
+        parent &&
+        Node.isBinaryExpression(parent) &&
+        parent.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
+        parent.getLeft() === access
+      ) {
+        // Assignment: obj.field = value → obj.setField(value)
+        const rhs = parent.getRight().getText();
+        const objText = access.getExpression().getText();
+        parent.replaceWithText(`${objText}.set${capitalized}(${rhs})`);
+      } else {
+        // Read: obj.field → obj.getField()
+        const objText = access.getExpression().getText();
+        access.replaceWithText(`${objText}.get${capitalized}()`);
+      }
+    }
+  }
+
   return count;
 }
 
@@ -79,7 +113,7 @@ export const encapsulateRecord = defineRefactoring<SourceFileContext>({
       .find((c) => c.getName() === target);
 
     if (targetClass) {
-      const count = encapsulateClassProperties(targetClass);
+      const count = encapsulateClassProperties(targetClass, sf);
       return {
         success: true,
         filesChanged: [file],

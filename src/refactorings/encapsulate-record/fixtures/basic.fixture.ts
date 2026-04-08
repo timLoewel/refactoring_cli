@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "Organization" };
+
 class Organization {
   name: string = "";
   country: string = "";
