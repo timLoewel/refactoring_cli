@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "Money" };
+
 class Money {
   amount: number;
   currency: string;

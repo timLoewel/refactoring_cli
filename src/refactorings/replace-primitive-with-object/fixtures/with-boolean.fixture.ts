@@ -1,5 +1,4 @@
-// No params: same forward-declaration limitation as with-operations.
-// Documents wrapping a boolean flag.
+export const params = { file: "fixture.ts", target: "enabled", className: "Enabled" };
 
 const enabled: boolean = true;
 

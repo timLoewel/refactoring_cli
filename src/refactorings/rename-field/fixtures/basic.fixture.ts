@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "Product", field: "title", name: "label" };
+
 class Product {
   title: string = "";
   price: number = 0;

@@ -1,7 +1,4 @@
-// No params: the implementation appends the wrapper class after the variable declaration,
-// causing a TypeScript "Class used before its declaration" error. This is a known limitation
-// of the implementation's code generation order.
-// Documents the intended behavior: wrapping a numeric primitive in a class.
+export const params = { file: "fixture.ts", target: "score", className: "Score" };
 
 const score: number = 42;
 
