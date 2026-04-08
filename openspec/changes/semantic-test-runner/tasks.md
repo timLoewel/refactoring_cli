@@ -42,7 +42,7 @@
 ## 7. Dry-run and validation
 
 - [x] 7.1 Extend `--dry-run` to report which repos will use compile-and-test vs. compile-only
-- [ ] 7.2 Run `--dry-run` against all 18 repos to confirm clone, install, and baseline compilation
+- [x] 7.2 Run `--dry-run` against all 18 repos to confirm clone, install, and baseline compilation
 - [ ] 7.3 Run a small test (`--max-applies 5`) against each compile-and-test repo to confirm scoped test execution works
 
 ## 8. Run tests and fix — interleaved per refactoring×repo

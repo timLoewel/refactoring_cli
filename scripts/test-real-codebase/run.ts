@@ -157,7 +157,7 @@ const REPOS: RepoConfig[] = [
     url: "https://github.com/mobxjs/mobx.git",
     ref: "v6.0.2",
     testMode: "compile-only",
-    installCmd: "yarn install --frozen-lockfile",
+    installCmd: "npm install --ignore-scripts --legacy-peer-deps",
   },
 ];
 
