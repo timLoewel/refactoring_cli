@@ -1,5 +1,8 @@
-// No params: function throws multiple different exception types; a single
-// boolean precondition cannot guard all of them simultaneously.
+export const params = {
+  file: "fixture.ts",
+  target: "validate",
+  condition: "input.length > 0",
+};
 
 function validate(input: string, maxLen: number): void {
   if (input.length === 0) {

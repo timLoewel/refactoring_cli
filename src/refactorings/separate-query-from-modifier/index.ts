@@ -94,6 +94,48 @@ export const separateQueryFromModifier = defineRefactoring<FunctionContext>({
       }
     }
 
+    // Reject if the return expression references a local variable declared in a
+    // side-effect statement. Splitting the function would require duplicating the
+    // variable computation in both the query and modifier, which entangles the two
+    // and prevents a clean separation.
+    if (Node.isBlock(body)) {
+      const statements = body.getStatements();
+      const sideEffectStmts = statements.filter((s) => s.getKind() !== SyntaxKind.ReturnStatement);
+      const returnStmt = statements.find((s) => s.getKind() === SyntaxKind.ReturnStatement);
+      const returnExprNode = returnStmt?.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+
+      if (returnExprNode) {
+        const localDeclNames = new Set<string>();
+        for (const stmt of sideEffectStmts) {
+          for (const d of stmt.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+            localDeclNames.add(d.getName());
+          }
+        }
+
+        const referencedLocals: string[] = [];
+        for (const id of returnExprNode.getDescendantsOfKind(SyntaxKind.Identifier)) {
+          if (localDeclNames.has(id.getText()) && !referencedLocals.includes(id.getText())) {
+            referencedLocals.push(id.getText());
+          }
+        }
+        if (
+          returnExprNode.getKind() === SyntaxKind.Identifier &&
+          localDeclNames.has(returnExprNode.getText()) &&
+          !referencedLocals.includes(returnExprNode.getText())
+        ) {
+          referencedLocals.push(returnExprNode.getText());
+        }
+
+        if (referencedLocals.length > 0) {
+          const varList = referencedLocals.map((v) => `'${v}'`).join(", ");
+          errors.push(
+            `Return expression references local variable ${varList} declared in side-effect statements. ` +
+              `The query and modifier cannot be cleanly separated.`,
+          );
+        }
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {

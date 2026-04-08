@@ -1,16 +1,15 @@
-export function main(): string {
-  const cart = new ShoppingCart(5, 20);
-  return `Total: ${cart.total}`;
-}
+export const params = {
+  file: "fixture.ts",
+  target: "total",
+};
 
 class ShoppingCart {
-  quantity: number;
-  price: number;
-  total: number;
+  quantity: number = 5;
+  price: number = 20;
+  total: number = 5 * 20;
+}
 
-  constructor(quantity: number, price: number) {
-    this.quantity = quantity;
-    this.price = price;
-    this.total = quantity * price;
-  }
+export function main(): string {
+  const cart = new ShoppingCart();
+  return `Total: ${cart.total}`;
 }

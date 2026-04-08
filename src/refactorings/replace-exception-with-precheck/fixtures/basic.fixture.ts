@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "sqrt", condition: "value >= 0" };
+
 export function main(): string {
   try {
     const result = sqrt(16);

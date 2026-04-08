@@ -95,7 +95,7 @@ function apply(project: Project, params: Record<string, unknown>): RefactoringRe
     refreshedClass.addGetAccessor({
       name: typeField,
       returnType: "string",
-      statements: [`throw new Error("Subclass must override ${typeField}");`],
+      statements: [`return "${typeValue}";`],
     });
   }
 

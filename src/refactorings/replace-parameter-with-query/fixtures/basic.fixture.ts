@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "applyDiscount", param: "discount" };
+
 const BASE_PRICE = 100;
 
 function applyDiscount(price: number, discount: number): number {

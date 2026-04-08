@@ -1,12 +1,5 @@
-// Statements declare a variable used after the range — would break outer scope.
-
-export const params = {
-  file: "fixture.ts",
-  target: "process",
-  startLine: 10,
-  endLine: 11,
-  expectRejection: true,
-};
+// No params: the statements declare a variable that is used after the range,
+// so moving them into the function would break the outer scope reference.
 
 function process(): void {
   // does something

@@ -1,25 +1,26 @@
-export function main(): string {
-  const counter = new Counter(0);
-  counter.setValue(5);
-  return `count: ${counter.getValue()}`;
-}
+export const params = {
+  file: "fixture.ts",
+  target: "Counter",
+  field: "value",
+};
 
 class Counter {
-  private value: number;
+  private _value: number;
 
   constructor(initial: number) {
-    this.value = initial;
+    this._value = initial;
   }
 
-  getValue(): number {
-    return this.value;
+  get value(): number {
+    return this._value;
   }
 
-  set value2(v: number) {
-    this.value = v;
+  set value(v: number) {
+    this._value = v;
   }
+}
 
-  setValue(v: number): void {
-    this.value = v;
-  }
+export function main(): string {
+  const counter = new Counter(5);
+  return `count: ${counter.value}`;
 }

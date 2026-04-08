@@ -32,6 +32,15 @@ export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
       errors.push(`Parameter '${paramName}' already exists in function '${ctx.fn.getName()}'`);
     }
 
+    // Reject queries containing function calls — moving them to the call site
+    // changes evaluation order, which alters observable behaviour for impure
+    // expressions (e.g. Math.random()).
+    if (query.includes("(")) {
+      errors.push(
+        `Query '${query}' contains a function call; moving it to the call site would change evaluation order`,
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
@@ -42,8 +51,20 @@ export const replaceQueryWithParameter = defineRefactoring<FunctionContext>({
     const paramName = params["paramName"] as string;
     const { fn, body } = ctx;
 
+    // Infer the type of the query expression from its usage in the body
+    let paramType = "unknown";
+    const queryNodes = body
+      .getDescendantsOfKind(SyntaxKind.Identifier)
+      .filter((id) => id.getText() === query);
+    if (queryNodes.length > 0) {
+      const inferred = queryNodes[0].getType().getText(queryNodes[0]);
+      if (inferred && !inferred.includes("import(") && inferred !== "") {
+        paramType = inferred;
+      }
+    }
+
     // Add new parameter to function signature
-    fn.addParameter({ name: paramName, type: "unknown" });
+    fn.addParameter({ name: paramName, type: paramType });
 
     // Replace occurrences of the query expression in the body with the new param name
     const bodyText = body.getText();

@@ -49,7 +49,6 @@ export const replaceParameterWithQuery = defineRefactoring<FunctionContext>({
     // Get the index of the parameter to drop from call sites
     const paramIndex = fn.getParameters().findIndex((pr) => pr.getName() === paramName);
 
-    // Insert a local const at the top of the body as a placeholder query
     if (!Node.isBlock(body)) {
       return {
         success: false,
@@ -57,19 +56,36 @@ export const replaceParameterWithQuery = defineRefactoring<FunctionContext>({
         description: `Function '${target}' body is not a block`,
       };
     }
-    body.insertStatements(
-      0,
-      `const ${paramName}: ${paramType} = /* TODO: replace with actual query */ ${paramName} as unknown as ${paramType};`,
-    );
+
+    // Collect the argument expression from all call sites before removing anything
+    const callExprs = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+      return c.getExpression().getText() === target;
+    });
+
+    const argTexts = new Set<string>();
+    for (const call of callExprs) {
+      const args = call.getArguments();
+      if (paramIndex < args.length) {
+        argTexts.add(args[paramIndex].getText());
+      }
+    }
+
+    // Derive the query expression from call-site arguments
+    let queryExpr: string;
+    if (argTexts.size === 1) {
+      const [argText] = argTexts;
+      queryExpr = argText;
+    } else {
+      queryExpr = `undefined as unknown as ${paramType}`;
+    }
+
+    // Insert a local const at the top of the body using the derived query
+    body.insertStatements(0, `const ${paramName}: ${paramType} = ${queryExpr};`);
 
     // Remove the parameter from the function signature
     paramNode.remove();
 
     // Update all call sites to drop the corresponding argument
-    const callExprs = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
-      return c.getExpression().getText() === target;
-    });
-
     for (const call of callExprs) {
       const args = call.getArguments();
       if (paramIndex < args.length) {

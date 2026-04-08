@@ -1,16 +1,13 @@
-let alertCount = 0;
+export const params = { file: "fixture.ts", target: "recordAndReport" };
 
-function checkAndSetAlarm(readings: number[], threshold: number): string {
-  for (const r of readings) {
-    if (r > threshold) {
-      alertCount++;
-      return "alarm";
-    }
-  }
-  return "ok";
+let totalSaved = 0;
+
+function recordAndReport(amount: number): string {
+  totalSaved += amount;
+  return `saved: ${totalSaved}`;
 }
 
 export function main(): string {
-  const result = checkAndSetAlarm([10, 20, 30], 15);
-  return `${result}, alerts: ${alertCount}`;
+  const result = recordAndReport(42);
+  return result;
 }

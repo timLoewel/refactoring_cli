@@ -1,3 +1,10 @@
+export const params = {
+  file: "fixture.ts",
+  target: "calculateTotal",
+  query: "TAX_RATE",
+  paramName: "taxRate",
+};
+
 const TAX_RATE = 0.2;
 
 function calculateTotal(price: number): number {

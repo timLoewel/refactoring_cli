@@ -22,6 +22,24 @@ export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
     if (throwStatements.length === 0) {
       errors.push(`Function '${ctx.fn.getName()}' contains no throw statements to replace`);
     }
+
+    // A single precheck can only guard one conditional throw. If the function has
+    // multiple throw statements in separate conditional branches, a single boolean
+    // precondition cannot simultaneously guard all of them.
+    if (throwStatements.length > 1) {
+      const distinctParentIfs = new Set(
+        throwStatements.map((t) => {
+          const ifAncestor = t.getFirstAncestorByKind(SyntaxKind.IfStatement);
+          return ifAncestor ? ifAncestor.getStart() : -1;
+        }),
+      );
+      if (distinctParentIfs.size > 1) {
+        errors.push(
+          `Function '${ctx.fn.getName()}' has ${throwStatements.length} throw statements in separate conditional branches; a single precheck cannot guard all of them`,
+        );
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: FunctionContext, params: Record<string, unknown>): RefactoringResult {
@@ -40,8 +58,15 @@ export const replaceExceptionWithPrecheck = defineRefactoring<FunctionContext>({
       };
     }
 
-    // Prepend a guard precheck at the start of the function body
-    const precheckStatement = `if (!(${condition})) { return; }`;
+    // Prepend a guard precheck at the start of the function body.
+    // If the function returns non-void, throw instead of returning undefined.
+    const returnTypeNode = fn.getReturnTypeNode();
+    const returnType = returnTypeNode ? returnTypeNode.getText() : null;
+    const guardAction =
+      returnType && returnType !== "void"
+        ? `throw new Error("Precondition failed: ${condition}")`
+        : "return";
+    const precheckStatement = `if (!(${condition})) { ${guardAction}; }`;
 
     fn.addStatements(precheckStatement);
 

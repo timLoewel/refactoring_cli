@@ -1,3 +1,5 @@
+export const params = { file: "fixture.ts", target: "userAge >= 18", name: "isEligible" };
+
 function isEligible(age: number): boolean {
   return age >= 18;
 }

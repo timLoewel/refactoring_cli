@@ -1,11 +1,15 @@
+export const params = { file: "fixture.ts", target: "setup", startLine: 9, endLine: 10 };
+
+const config = { ready: false };
+
 function setup(): void {
-  // existing setup
+  config.ready = true;
 }
 
-const configA = "alpha";
-const configB = "beta";
+config.ready = false;
+config.ready = true;
 
 export function main(): string {
   setup();
-  return `${configA}-${configB}`;
+  return `ready: ${config.ready}`;
 }

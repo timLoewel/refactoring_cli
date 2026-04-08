@@ -1,5 +1,7 @@
+export const params = { file: "fixture.ts", target: "divide" };
+
 export function main(): string {
-  const result = divide(10, 0);
+  const result = divide(10, 2);
   return `result: ${result}`;
 }
 

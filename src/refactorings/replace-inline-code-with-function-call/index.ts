@@ -1,7 +1,85 @@
 import { Node, SyntaxKind } from "ts-morph";
+import type { SourceFile } from "ts-morph";
 import type { PreconditionResult, RefactoringResult } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
 import type { SourceFileContext } from "../../core/refactoring.types.js";
+
+/**
+ * Build the call expression text for replacing inline code.
+ * If the function `name` is declared in the file and has parameters, extract
+ * the free identifiers from `inlineExpr` that are not declared inside the
+ * function, and map them positionally to the function's parameters.
+ */
+function buildCallExpression(sf: SourceFile, name: string, inlineExpr: string): string {
+  const fnDecl = sf
+    .getDescendantsOfKind(SyntaxKind.FunctionDeclaration)
+    .find((f) => f.getName() === name);
+  if (!fnDecl) return `${name}()`;
+
+  const fnParams = fnDecl.getParameters();
+  if (fnParams.length === 0) return `${name}()`;
+
+  // Parse the inline expression to find its free identifiers
+  const body = fnDecl.getBody();
+  if (!body) return `${name}()`;
+
+  const paramNames = fnParams.map((p) => p.getName());
+
+  // For each function parameter, find what identifier in the inline expression
+  // corresponds to it. We do this by replacing each parameter name in the body
+  // expression with a placeholder and matching against the inline expression.
+  // Simpler approach: find identifiers in the inline expression that are not
+  // the function's parameter names but correspond to the same structural position.
+  //
+  // Extract the core expression from the function body (e.g., "age >= 18" from
+  // "{ return age >= 18; }"). Then align identifiers between body expr and inline expr.
+  const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+  if (returnStmts.length === 0) return `${name}()`;
+
+  const returnExpr = returnStmts[0].getExpression();
+  if (!returnExpr) return `${name}()`;
+
+  const bodyExprText = returnExpr.getText();
+
+  // Build a mapping: for each param, find what it maps to in the inline expression
+  // by replacing param names in the body expression pattern and matching.
+  const args: string[] = [];
+  const currentInline = inlineExpr;
+  const currentBody = bodyExprText;
+
+  for (const pName of paramNames) {
+    // Find where pName appears in the body expression
+    const paramRegex = new RegExp(`\\b${pName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    const bodyMatch = paramRegex.exec(currentBody);
+    if (!bodyMatch) {
+      args.push(pName);
+      continue;
+    }
+
+    // The corresponding text in the inline expression is at the same position
+    // Build a pattern from the body expression with param replaced by a capture group
+    const escapedBody = currentBody.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedParam = pName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const capturePattern = escapedBody.replace(
+      new RegExp(`\\\\b${escapedParam}\\\\b|${escapedParam}`),
+      "([a-zA-Z_$][a-zA-Z0-9_$]*)",
+    );
+
+    try {
+      const matchRegex = new RegExp(`^${capturePattern}$`);
+      const inlineMatch = matchRegex.exec(currentInline);
+      if (inlineMatch && inlineMatch[1]) {
+        args.push(inlineMatch[1]);
+      } else {
+        args.push(pName);
+      }
+    } catch {
+      args.push(pName);
+    }
+  }
+
+  return `${name}(${args.join(", ")})`;
+}
 
 /** Check if a node is in an expression position (safe to replace with a function call). */
 function isExpressionPosition(node: Node): boolean {
@@ -44,6 +122,9 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
     const target = params["target"] as string;
     const name = params["name"] as string;
 
+    // Look up the target function to determine its parameters
+    const callText = buildCallExpression(sf, name, target);
+
     // Find all expression nodes whose text matches the target and are in expression position
     const allNodes = sf.getDescendants();
     const matches = allNodes.filter(
@@ -54,7 +135,7 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
     let replacements = 0;
     for (const node of sorted) {
       try {
-        node.replaceWithText(`${name}()`);
+        node.replaceWithText(callText);
         replacements++;
       } catch {
         // Skip nodes that can't be replaced (e.g. in positions where a function call is invalid)
@@ -64,7 +145,7 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
     if (replacements === 0) {
       // Fall back to raw text replacement
       const fullText = sf.getFullText();
-      const newText = fullText.split(target).join(`${name}()`);
+      const newText = fullText.split(target).join(callText);
       sf.replaceWithText(newText);
       replacements = (
         fullText.match(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []

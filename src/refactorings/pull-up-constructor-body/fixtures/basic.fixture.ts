@@ -1,17 +1,20 @@
+export const params = {
+  file: "fixture.ts",
+  target: "Employee",
+};
+
+class Person {
+  name: string = "";
+}
+
+class Employee extends Person {
+  constructor() {
+    super();
+    this.name = "default";
+  }
+}
+
 export function main(): string {
-  class Person {
-    name: string = "";
-  }
-
-  class Employee extends Person {
-    role: string;
-    constructor(name: string, role: string) {
-      super();
-      this.name = name;
-      this.role = role;
-    }
-  }
-
-  const employee = new Employee("Alice", "Engineer");
-  return `${employee.name} is a ${employee.role}`;
+  const employee = new Employee();
+  return `${employee.name} is an employee`;
 }

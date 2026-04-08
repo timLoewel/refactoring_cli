@@ -1,4 +1,4 @@
-// No params: return expression references local variable from side-effect statements — precondition error
+export const params = { file: "fixture.ts", target: "processAndGet" };
 
 let counter = 0;
 

@@ -66,10 +66,14 @@ export const replaceErrorCodeWithException = defineRefactoring<FunctionContext>(
       };
     }
 
-    // Update return type if it was a number; set to void since all error paths now throw
-    const returnTypeNode = fn.getReturnTypeNode();
-    if (returnTypeNode && returnTypeNode.getText() === "number") {
-      fn.setReturnType("void");
+    // Only update return type to void if no remaining return statements return a value
+    const remainingReturns = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+    const hasValueReturn = remainingReturns.some((ret) => ret.getExpression() !== undefined);
+    if (!hasValueReturn) {
+      const returnTypeNode = fn.getReturnTypeNode();
+      if (returnTypeNode && returnTypeNode.getText() === "number") {
+        fn.setReturnType("void");
+      }
     }
 
     return {
