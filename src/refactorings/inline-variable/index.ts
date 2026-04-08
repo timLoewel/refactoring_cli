@@ -80,9 +80,18 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
-    // Refuse to inline a side-effect initializer (call expression) used more than once,
+    // Refuse to inline a side-effect initializer (call/new expression) used more than once,
     // as that would change how many times the function is called.
-    const hasSideEffect = initializer.getDescendantsOfKind(SyntaxKind.CallExpression).length > 0;
+    // Check both the initializer itself AND its descendants — getDescendantsOfKind
+    // does not include the node itself.
+    const initKind = initializer.getKind();
+    const hasSideEffect =
+      initKind === SyntaxKind.CallExpression ||
+      initKind === SyntaxKind.NewExpression ||
+      initKind === SyntaxKind.TaggedTemplateExpression ||
+      initializer.getDescendantsOfKind(SyntaxKind.CallExpression).length > 0 ||
+      initializer.getDescendantsOfKind(SyntaxKind.NewExpression).length > 0 ||
+      initializer.getDescendantsOfKind(SyntaxKind.TaggedTemplateExpression).length > 0;
     if (hasSideEffect) {
       const nameNode = decl.getNameNode();
       const refCount = Node.isIdentifier(nameNode)
