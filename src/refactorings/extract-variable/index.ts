@@ -209,6 +209,19 @@ function isStringLiteralPropertyName(node: Node): boolean {
 }
 
 /**
+ * Returns true if this PropertyAccessExpression is used as the callee of a CallExpression.
+ * Extracting `obj.method` from `obj.method(args)` into `const v = obj.method; v(args)`
+ * breaks the `this` binding — the method loses its receiver.
+ */
+function isMethodCallCallee(node: Node): boolean {
+  if (node.getKind() !== SyntaxKind.PropertyAccessExpression) return false;
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.CallExpression) return false;
+  const callExpr = parent as unknown as { getExpression?: () => Node };
+  return callExpr.getExpression?.() === node;
+}
+
+/**
  * Expression node kinds that can be matched as a target expression.
  */
 const EXPRESSION_KINDS = new Set<SyntaxKind>([
@@ -382,7 +395,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isAssignmentLHS(n))
       .filter((n) => !isContextuallyTypedCallArgument(n))
       .filter((n) => !isArgumentInDecorator(n))
-      .filter((n) => !isInitializerOfTypedDeclaration(n));
+      .filter((n) => !isInitializerOfTypedDeclaration(n))
+      .filter((n) => !isMethodCallCallee(n));
 
     if (matchingNodes.length === 0) {
       return {
@@ -545,6 +559,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isContextuallyTypedCallArgument(node)) continue;
         if (isArgumentInDecorator(node)) continue;
         if (isInitializerOfTypedDeclaration(node)) continue;
+        if (isMethodCallCallee(node)) continue;
         const text = node.getText().trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
