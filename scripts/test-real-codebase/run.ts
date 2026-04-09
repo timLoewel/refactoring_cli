@@ -603,6 +603,45 @@ async function applyAndCheck(
   // Capture diff before rollback
   const diff = gitDiff(cacheDir);
 
+  // Detect file truncation: if the diff ends with "No newline at end of file" and
+  // removes significantly more lines than it adds, the AST manipulation likely
+  // corrupted the file. Roll back early and mark as a type error.
+  if (diff.includes("\\ No newline at end of file")) {
+    const addedLines = (diff.match(/^\+[^+]/gm) ?? []).length;
+    const removedLines = (diff.match(/^-[^-]/gm) ?? []).length;
+    if (removedLines > addedLines + 3) {
+      const t2 = Date.now();
+      gitRollback(cacheDir);
+      for (const changedFile of result.filesChanged) {
+        const sf = tsProject.getSourceFile(changedFile);
+        if (!sf) continue;
+        try {
+          sf.refreshFromFileSystemSync();
+        } catch {
+          tsProject.removeSourceFile(sf);
+          tsProject.addSourceFileAtPath(changedFile);
+        }
+      }
+      await client.refresh(result.filesChanged);
+      return {
+        isTarget: true,
+        applied: true,
+        passed: false,
+        error: "File truncated by AST manipulation (ts-morph corruption)",
+        skipReason: null,
+        diff,
+        params,
+        applyMs,
+        tscMs: 0,
+        rollbackMs: Date.now() - t2,
+        scopeFileCount: 0,
+        testsPassed: null,
+        testError: null,
+        testMs: 0,
+      };
+    }
+  }
+
   // Compile check using in-process ts-morph (avoids per-check tsc process spawn overhead)
   const t1 = Date.now();
 
