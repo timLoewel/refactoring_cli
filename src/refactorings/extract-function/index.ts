@@ -304,12 +304,37 @@ export const extractFunction = defineRefactoring<SourceFileContext>({
 
     const functionText = `\n${asyncMod}function ${name}${typeParams}(${paramList}) {\n${bodyLines.join("\n")}\n}\n`;
 
-    // If the extracted statements include a return, the call site must also return.
+    // Check if the extracted statements contain return statements.
     const hasReturn = stmts.some(
       (s) =>
         s.getKind() === SyntaxKind.ReturnStatement ||
         s.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0,
     );
+
+    if (hasReturn) {
+      // When returns AND escaping variables coexist, the call site can't distinguish
+      // "early return value" from "normal escaping variable". Reject.
+      if (escapingVars.length > 0) {
+        return {
+          success: false,
+          filesChanged: [],
+          description: `Cannot extract: selection contains both return statements and variables used after the selection (${escapingVars.join(", ")}). These patterns are incompatible in an extracted function.`,
+        };
+      }
+
+      // Check if the return is conditional (inside an if without else). If so, the
+      // extracted function may or may not return, and the call site can't know which.
+      // Only safe if ALL statements are returns or the last statement is a return.
+      const lastStmt = stmts[stmts.length - 1];
+      const lastIsReturn = lastStmt?.getKind() === SyntaxKind.ReturnStatement;
+      if (!lastIsReturn) {
+        return {
+          success: false,
+          filesChanged: [],
+          description: `Cannot extract: selection contains a conditional return (the extracted function may fall through without returning, losing the original control flow).`,
+        };
+      }
+    }
 
     let callText: string;
     if (escapingVars.length === 1) {
