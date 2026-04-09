@@ -146,6 +146,58 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
       errors.push(`'${name}' is not a valid identifier`);
     }
 
+    // Reject if the variable is mutated after initialization (method calls on the
+    // object, property assignments, reassignment). Replacing with a function would
+    // create a fresh value at each call site, losing the mutations.
+    if (decl) {
+      const declKind = decl.getParent()?.getKind();
+      const isConst =
+        declKind === SyntaxKind.VariableDeclarationList &&
+        decl.getParent()?.getChildrenOfKind(SyntaxKind.ConstKeyword).length === 0 &&
+        decl.getParent()?.getText().startsWith("let");
+      if (isConst) {
+        errors.push(
+          `Variable '${target}' is declared with 'let' and may be reassigned. ` +
+            `Replace Temp with Query requires an immutable binding.`,
+        );
+      }
+
+      // Check if the variable is used as a method-call receiver (object mutation)
+      const declSymbol = decl.getSymbol();
+      if (declSymbol) {
+        const refs = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
+          if (id.getText() !== target) return false;
+          return id.getSymbol() === declSymbol && isValueReference(id);
+        });
+        const isMutated = refs.some((ref) => {
+          const parent = ref.getParent();
+          // foo.bar() — method call on the variable
+          if (parent && Node.isPropertyAccessExpression(parent) && parent.getExpression() === ref) {
+            const grandparent = parent.getParent();
+            if (
+              grandparent &&
+              Node.isCallExpression(grandparent) &&
+              grandparent.getExpression() === parent
+            ) {
+              return true;
+            }
+            // foo.bar = x — property assignment
+            const gp = parent.getParent();
+            if (gp && Node.isBinaryExpression(gp) && gp.getLeft() === parent) {
+              return true;
+            }
+          }
+          return false;
+        });
+        if (isMutated) {
+          errors.push(
+            `Variable '${target}' is mutated after initialization (method calls or property assignments). ` +
+              `Replacing with a function would create a fresh value at each call site, losing mutations.`,
+          );
+        }
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
