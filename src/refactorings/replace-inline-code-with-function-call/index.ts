@@ -127,11 +127,18 @@ export const replaceInlineCodeWithFunctionCall = defineRefactoring<SourceFileCon
     // Look up the target function to determine its parameters
     const callText = buildCallExpression(sf, name, target);
 
-    // Find all expression nodes whose text matches the target and are in expression position
+    // Find all expression nodes whose text matches the target and are in expression position.
+    // Skip identifiers that are call expression callees — replacing `fn` with `name()`
+    // when used as `fn(args)` would produce `name()(args)` (double invocation).
     const allNodes = sf.getDescendants();
-    const matches = allNodes.filter(
-      (node) => node.getText() === target && isExpressionPosition(node),
-    );
+    const matches = allNodes.filter((node) => {
+      if (node.getText() !== target || !isExpressionPosition(node)) return false;
+      const parent = node.getParent();
+      if (parent && Node.isCallExpression(parent) && parent.getExpression() === node) {
+        return false;
+      }
+      return true;
+    });
     const sorted = [...matches].sort((a, b) => b.getStart() - a.getStart());
 
     let replacements = 0;

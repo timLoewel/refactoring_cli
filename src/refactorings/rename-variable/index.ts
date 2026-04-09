@@ -68,6 +68,20 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       errors.push(`'${name}' is not a valid identifier`);
     }
 
+    // Reject if the new name already exists in the file — ts-morph's rename
+    // adds numeric suffixes (e.g. __reftest__2) to resolve collisions but
+    // doesn't update all references correctly, breaking runtime behavior.
+    if (name !== target) {
+      const nameCollision = sf
+        .getDescendantsOfKind(SyntaxKind.Identifier)
+        .some((id) => id.getText() === name);
+      if (nameCollision) {
+        errors.push(
+          `Name '${name}' already exists in the file. Renaming '${target}' to '${name}' would create a collision.`,
+        );
+      }
+    }
+
     return { ok: errors.length === 0, errors };
   },
   apply(ctx: SourceFileContext, params: Record<string, unknown>): RefactoringResult {
