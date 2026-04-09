@@ -25,17 +25,27 @@ function processStatements(statements: Node[]): string[] {
     const condition = ifStmt.getExpression().getText();
     const thenBlock = ifStmt.getThenStatement();
 
-    const thenHasReturn =
-      thenBlock.getKind() === SyntaxKind.ReturnStatement ||
-      thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement).length > 0;
-    if (thenHasReturn) {
+    // Only convert to guard clause when the then block is a PURE return (no other
+    // statements before it). If there's logic + return, the if/else must be preserved
+    // to keep the else branch gated.
+    const thenIsSimpleReturn = thenBlock.getKind() === SyntaxKind.ReturnStatement;
+    const thenBlockStmts =
+      thenBlock.getKind() === SyntaxKind.Block
+        ? thenBlock.asKindOrThrow(SyntaxKind.Block).getStatements()
+        : null;
+    const thenIsSingleReturn =
+      thenBlockStmts !== null &&
+      thenBlockStmts.length === 1 &&
+      thenBlockStmts[0]?.getKind() === SyntaxKind.ReturnStatement;
+
+    if (thenIsSimpleReturn || thenIsSingleReturn) {
+      // Safe: the entire then is just a return — the else can become the continuation
       outputLines.push(`if (${condition}) {\n  ${nodeText(thenBlock)}\n}`);
       outputLines.push(nodeText(elseClause));
     } else {
-      const firstElseReturn = elseClause.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
-      const earlyReturnExpr = firstElseReturn?.getExpression()?.getText() ?? "undefined";
-      outputLines.push(`if (!(${condition})) return ${earlyReturnExpr};`);
-      outputLines.push(nodeText(thenBlock));
+      // Then block has multiple statements (including a return) or else has different
+      // logic — keep the if/else intact to preserve control flow
+      outputLines.push(stmt.getText());
     }
   }
 
