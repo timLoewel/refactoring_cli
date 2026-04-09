@@ -38,15 +38,6 @@ export const replaceMagicLiteral = defineRefactoring<SourceFileContext>({
       errors.push(`Literal '${target}' not found in file: ${params["file"] as string}`);
     }
 
-    // A "magic literal" must appear more than once. Single-occurrence literals
-    // are not magic — they're just values (test descriptions, config strings, etc.)
-    if (matches.length < 2) {
-      errors.push(
-        `Literal '${target}' appears only once in the file. ` +
-          `Replace Magic Literal targets repeated values that should be named constants.`,
-      );
-    }
-
     if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
       errors.push(`'${name}' is not a valid identifier`);
     }
