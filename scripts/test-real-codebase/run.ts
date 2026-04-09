@@ -756,11 +756,11 @@ async function applyAndCheck(
         // Detect stale vitest/esbuild cache: if the error references a file that was
         // NOT changed by this refactoring (e.g. "Unexpected end of file" in a previously
         // truncated file), this is a false positive from cached corruption.
-        const transformErrorMatch = rawError.match(/Transform failed.*\n.*\/([^\s:]+\.ts):\d+/);
+        const transformErrorMatch = rawError.match(/Transform failed.*\n(\/[^\s:]+\.ts):\d+/);
         if (transformErrorMatch) {
-          const errorFile = transformErrorMatch[1] ?? "";
-          const changedBasenames = new Set(result.filesChanged.map((f) => f.split("/").pop()));
-          if (!changedBasenames.has(errorFile)) {
+          const errorFilePath = transformErrorMatch[1] ?? "";
+          const changedFileSet = new Set(result.filesChanged);
+          if (!changedFileSet.has(errorFilePath)) {
             // Error is in a file we didn't touch — stale cache, not a real failure
             testsPassed = true;
           } else {
