@@ -191,6 +191,12 @@ const repoFilter = ((): string | undefined => {
   return idx >= 0 ? scriptArgs[idx + 1] : undefined;
 })();
 
+// --seed N: random seed for candidate shuffling (default: 42)
+const shuffleSeed = ((): number => {
+  const idx = scriptArgs.indexOf("--seed");
+  return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : 42;
+})();
+
 function getSelectedRepos(): RepoConfig[] {
   if (!repoFilter || repoFilter === "all") return REPOS;
   const repo = REPOS.find((r) => r.name === repoFilter);
@@ -804,10 +810,10 @@ async function runRepo(
       const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
       return 1 / (importerCount + 1) ** 2;
     },
-    42,
+    shuffleSeed,
   );
   process.stderr.write(
-    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=42).${maxApplies !== undefined ? ` Will stop after ${maxApplies} applies per refactoring.` : ""}\n`,
+    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=${shuffleSeed}).${maxApplies !== undefined ? ` Will stop after ${maxApplies} applies per refactoring.` : ""}\n`,
   );
 
   // Start daemon for this repo
@@ -843,7 +849,7 @@ async function runRepo(
             const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
             return 1 / (importerCount + 1) ** 2;
           },
-          42,
+          shuffleSeed,
         )
       : shuffledCandidates;
     const source = definition?.enumerate ? "enumerate" : "generic";
