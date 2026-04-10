@@ -22,10 +22,10 @@
 
 ## 4. Test infrastructure migration
 
-- [ ] 4.1 Refactor `src/testing/fixture-runner.ts` — replace 6 throw sites with `FixtureResult<T>` returns
-- [ ] 4.2 Update `src/testing/fixture-runner.test.ts` — assert on `Result.err` values instead of expecting thrown errors
-- [ ] 4.3 Update `src/core/apply.test.ts` — adjust test assertions to match new Result-based returns
-- [ ] 4.4 Update `src/core/type-params.test.ts` — replace test-internal throws with assertions or Result unwraps
+- [x] 4.1 Refactor `src/testing/fixture-runner.ts` — replace 6 throw sites with `FixtureResult<T>` returns
+- [x] 4.2 Update `src/testing/fixture-runner.test.ts` — assert on `Result.err` values instead of expecting thrown errors
+- [x] 4.3 Update `src/core/apply.test.ts` — adjust test assertions to match new Result-based returns
+- [x] 4.4 Update `src/core/type-params.test.ts` — replace test-internal throws with assertions or Result unwraps
 
 ## 5. ESLint configuration
 
