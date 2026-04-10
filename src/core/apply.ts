@@ -3,7 +3,6 @@ import { Result } from "neverthrow";
 import type {
   RefactoringDefinition,
   ApplyResult,
-  RefactoringResult,
   FileDiff,
 } from "./refactoring.types.js";
 

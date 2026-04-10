@@ -12,7 +12,7 @@ import type {
   RefactoringResult,
   SourceFileContext,
 } from "./refactoring.types.js";
-import type { ParamError, ParamResult } from "./errors.js";
+import type { ParamResult } from "./errors.js";
 import { registry } from "./refactoring-registry.js";
 
 interface ParamHelper {
