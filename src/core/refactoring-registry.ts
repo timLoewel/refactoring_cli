@@ -1,15 +1,21 @@
+import { ok, err } from "neverthrow";
 import type { RefactoringDefinition } from "./refactoring.types.js";
+import type { RegistryResult } from "./errors.js";
 
 export class RefactoringRegistry {
   private readonly byKebabName = new Map<string, RefactoringDefinition>();
   private readonly byName = new Map<string, RefactoringDefinition>();
 
-  register(definition: RefactoringDefinition): void {
+  register(definition: RefactoringDefinition): RegistryResult<void> {
     if (this.byKebabName.has(definition.kebabName)) {
-      throw new Error(`Refactoring already registered: ${definition.kebabName}`);
+      return err({
+        kind: "registry",
+        message: `Refactoring already registered: ${definition.kebabName}`,
+      });
     }
     this.byKebabName.set(definition.kebabName, definition);
     this.byName.set(definition.name.toLowerCase(), definition);
+    return ok(undefined);
   }
 
   lookup(nameOrKebab: string): RefactoringDefinition | undefined {

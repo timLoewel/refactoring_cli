@@ -74,7 +74,13 @@ async function inProcessApply(
     return;
   }
 
-  const { project } = loadProject({ path: global.path, config: global.config });
+  const loadResult = loadProject({ path: global.path, config: global.config });
+  if (loadResult.isErr()) {
+    printOutput(errorOutput("apply", [loadResult.error.message]), isJson);
+    process.exitCode = 1;
+    return;
+  }
+  const { project } = loadResult.value;
   const result = applyRefactoring(def, project, params, { dryRun });
   printOutput(successOutput("apply", result), isJson);
   if (!result.success) {

@@ -9,16 +9,16 @@
 - [x] 2.1 Refactor `src/core/refactoring-builder.ts` param validators (`fileParam`, `stringParam`, `identifierParam`, `numberParam`) to return `ParamResult<T>` instead of throwing; update `buildParamSchema` and `ParamSchema.validate` to return `ParamResult`
 - [x] 2.2 Replace the ad-hoc `ResolveResult<T>` discriminated union in `refactoring-builder.ts` with `Result<T, CoreError>` from neverthrow
 - [x] 2.3 Update `defineRefactoring` internals (`preconditions`, `apply`) to unwrap param validation and resolver Results
-- [ ] 2.4 Refactor `src/core/project-model.ts` — `resolveTsConfig` and `loadProject` return `ProjectResult<ProjectModel>` instead of throwing
-- [ ] 2.5 Refactor `src/core/refactoring-registry.ts` — `register()` returns `RegistryResult<void>` instead of throwing on duplicates
-- [ ] 2.6 Refactor `src/core/refactor-client.ts` — `RefactorClient.connect()` returns `ConnectionResult<RefactorClient>` instead of throwing
-- [ ] 2.7 Refactor `src/core/apply.ts` — replace ad-hoc `tryApply`/`trySave` with `Result.fromThrowable()` wrappers, align return type with `Result`
+- [x] 2.4 Refactor `src/core/project-model.ts` — `resolveTsConfig` and `loadProject` return `ProjectResult<ProjectModel>` instead of throwing
+- [x] 2.5 Refactor `src/core/refactoring-registry.ts` — `register()` returns `RegistryResult<void>` instead of throwing on duplicates
+- [x] 2.6 Refactor `src/core/refactor-client.ts` — `RefactorClient.connect()` returns `ConnectionResult<RefactorClient>` instead of throwing
+- [x] 2.7 Refactor `src/core/apply.ts` — replace ad-hoc `tryApply`/`trySave` with `Result.fromThrowable()` wrappers, align return type with `Result`
 
 ## 3. CLI command handler updates
 
-- [ ] 3.1 Update `src/core/cli/commands/apply.ts` — `inProcessApply` unwraps `loadProject` Result, handle err cases with `errorOutput`
-- [ ] 3.2 Update remaining CLI commands (`search.ts`, `references.ts`, `unused.ts`, `fix-imports.ts`) to unwrap `loadProject` Result
-- [ ] 3.3 Update `src/core/cli/commands/apply.ts` — `tryDaemonApply` to handle `ConnectionResult`
+- [x] 3.1 Update `src/core/cli/commands/apply.ts` — `inProcessApply` unwraps `loadProject` Result, handle err cases with `errorOutput`
+- [x] 3.2 Update remaining CLI commands (`search.ts`, `references.ts`, `unused.ts`, `fix-imports.ts`) to unwrap `loadProject` Result
+- [x] 3.3 Update `src/core/cli/commands/apply.ts` — `tryDaemonApply` to handle `ConnectionResult`
 
 ## 4. Test infrastructure migration
 

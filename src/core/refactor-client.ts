@@ -1,6 +1,8 @@
+import { ResultAsync, okAsync, errAsync } from "neverthrow";
 import { frameMessage } from "./server/framing.js";
 import { connectOrSpawn, type DaemonConnection } from "./server/connect.js";
 import type { ApplyResult } from "./refactoring.types.js";
+import type { ConnectionError } from "./errors.js";
 
 export class RefactorClient {
   private conn: DaemonConnection;
@@ -28,12 +30,22 @@ export class RefactorClient {
     });
   }
 
-  static async connect(projectRoot: string): Promise<RefactorClient> {
-    const conn = await connectOrSpawn(projectRoot);
-    if (!conn) {
-      throw new Error("Failed to connect to refactoring daemon");
-    }
-    return new RefactorClient(conn);
+  static connect(projectRoot: string): ResultAsync<RefactorClient, ConnectionError> {
+    return ResultAsync.fromPromise(
+      connectOrSpawn(projectRoot),
+      (): ConnectionError => ({
+        kind: "connection",
+        message: "Failed to connect to refactoring daemon",
+      }),
+    ).andThen((conn) => {
+      if (!conn) {
+        return errAsync<RefactorClient, ConnectionError>({
+          kind: "connection",
+          message: "Failed to connect to refactoring daemon",
+        });
+      }
+      return okAsync<RefactorClient, ConnectionError>(new RefactorClient(conn));
+    });
   }
 
   async apply(

@@ -15,7 +15,13 @@ export function createUnusedCommand(): Command {
       const isJson = global.json ?? false;
 
       try {
-        const { project } = loadProject({ path: global.path, config: global.config });
+        const loadResult = loadProject({ path: global.path, config: global.config });
+        if (loadResult.isErr()) {
+          printOutput(errorOutput("unused", [loadResult.error.message]), isJson);
+          process.exitCode = 1;
+          return;
+        }
+        const { project } = loadResult.value;
         const symbols = findUnused(project, {
           ignoreTests: opts.ignoreTests,
           kind: opts.kind as UnusedOptions["kind"],

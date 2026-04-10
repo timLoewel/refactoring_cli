@@ -1,4 +1,5 @@
 import type { Project } from "ts-morph";
+import { Result } from "neverthrow";
 import type {
   RefactoringDefinition,
   ApplyResult,
@@ -14,31 +15,17 @@ function failedResult(description: string): ApplyResult {
   return { success: false, filesChanged: [], description, diff: [] };
 }
 
-function tryApply(
-  definition: RefactoringDefinition,
-  project: Project,
-  validatedParams: unknown,
-  beforeSnapshots: Map<string, string>,
-): RefactoringResult | ApplyResult {
-  try {
-    return definition.apply(project, validatedParams);
-  } catch (error) {
-    rollbackSnapshots(project, beforeSnapshots);
-    return failedResult(
-      `Transformation error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
+const safeApply = Result.fromThrowable(
+  (definition: RefactoringDefinition, project: Project, validatedParams: unknown) =>
+    definition.apply(project, validatedParams),
+  (error): string =>
+    `Transformation error: ${error instanceof Error ? error.message : String(error)}`,
+);
 
-function trySave(project: Project, beforeSnapshots: Map<string, string>): string | null {
-  try {
-    project.saveSync();
-    return null;
-  } catch (error) {
-    rollbackSnapshots(project, beforeSnapshots);
-    return error instanceof Error ? error.message : String(error);
-  }
-}
+const safeSave = Result.fromThrowable(
+  (project: Project) => project.saveSync(),
+  (error): string => (error instanceof Error ? error.message : String(error)),
+);
 
 export function applyRefactoring(
   definition: RefactoringDefinition,
@@ -59,8 +46,12 @@ export function applyRefactoring(
   }
 
   const beforeSnapshots = captureSnapshots(project);
-  const result = tryApply(definition, project, validatedParams, beforeSnapshots);
-  if ("diff" in result) return result; // error from tryApply
+  const applyResult = safeApply(definition, project, validatedParams);
+  if (applyResult.isErr()) {
+    rollbackSnapshots(project, beforeSnapshots);
+    return failedResult(applyResult.error);
+  }
+  const result = applyResult.value;
 
   if (!result.success) {
     rollbackSnapshots(project, beforeSnapshots);
@@ -79,8 +70,11 @@ export function applyRefactoring(
     };
   }
 
-  const saveError = trySave(project, beforeSnapshots);
-  if (saveError) return failedResult(`Failed to save files: ${saveError}`);
+  const saveResult = safeSave(project);
+  if (saveResult.isErr()) {
+    rollbackSnapshots(project, beforeSnapshots);
+    return failedResult(`Failed to save files: ${saveResult.error}`);
+  }
 
   return {
     success: true,

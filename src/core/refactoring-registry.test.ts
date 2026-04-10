@@ -38,9 +38,13 @@ describe("RefactoringRegistry", () => {
     expect(reg.lookup("nonexistent")).toBeUndefined();
   });
 
-  it("throws on duplicate registration", () => {
+  it("returns err on duplicate registration", () => {
     reg.register(makeDef());
-    expect(() => reg.register(makeDef())).toThrow("already registered");
+    const result = reg.register(makeDef());
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain("already registered");
+    }
   });
 
   it("lists all refactorings", () => {
