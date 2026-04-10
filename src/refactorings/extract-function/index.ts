@@ -63,7 +63,7 @@ function findTargetStatements(
   return sorted[0] ?? null;
 }
 
-/** True if the identifier is used as a value, not as a property/declaration name. */
+/** True if the identifier is used as a value, not as a property/declaration name or type. */
 function isValueReference(id: Identifier): boolean {
   const parent = id.getParent();
   if (!parent) return false;
@@ -72,6 +72,19 @@ function isValueReference(id: Identifier): boolean {
   if (Node.isBindingElement(parent) && parent.getNameNode() === id) return false;
   if (Node.isFunctionDeclaration(parent) && parent.getNameNode() === id) return false;
   if (Node.isMethodDeclaration(parent) && parent.getNameNode() === id) return false;
+
+  // Skip identifiers in type positions (type arguments, type annotations, etc.)
+  // Walk up the AST; if we hit a type node (but not TypeQuery, since `typeof x` IS
+  // a value reference) before reaching a statement, this identifier is type-only.
+  let ancestor: Node | undefined = parent;
+  while (ancestor) {
+    const kind = ancestor.getKind();
+    if (kind === SyntaxKind.TypeQuery) break;
+    if (kind >= SyntaxKind.FirstTypeNode && kind <= SyntaxKind.LastTypeNode) return false;
+    if (Node.isStatement(ancestor) || Node.isSourceFile(ancestor)) break;
+    ancestor = ancestor.getParent();
+  }
+
   return true;
 }
 
