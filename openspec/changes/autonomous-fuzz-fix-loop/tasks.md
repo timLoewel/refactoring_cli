@@ -83,4 +83,4 @@
 - [ ] 10.2 Verify: worktree created, run.ts invoked with correct flags, tried-set file written, dashboard renders, worktree cleaned up
 - [ ] 10.3 Run with `--workers 3` across 3 refactorings on a single repo to verify concurrent worker pool and merge-rebase coordination
 - [ ] 10.4 Verify findings report is generated with correct format
-- [ ] 10.5 Add `tmp/fuzz-state/` and `tmp/worktrees/` to `.gitignore`
+- [x] 10.5 Add `tmp/fuzz-state/` and `tmp/worktrees/` to `.gitignore` (already covered by existing `tmp/` entry)
