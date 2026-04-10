@@ -18,9 +18,9 @@
 
 ## 3. run.ts: expand repository list
 
-- [ ] 3.1 Research and select 10+ candidate repos (vitest/jest, scoped test support, pinned tag, moderate size)
-- [ ] 3.2 For each candidate: clone, install, verify `tsc --noEmit` passes, verify test suite passes, verify scoped test command works
-- [ ] 3.3 Add verified repos to the `REPOS` array in `run.ts` with testMode "compile-and-test"
+- [x] 3.1 Research and select 10+ candidate repos (vitest/jest, scoped test support, pinned tag, moderate size)
+- [x] 3.2 For each candidate: clone, install, verify `tsc --noEmit` passes, verify test suite passes, verify scoped test command works
+- [x] 3.3 Add verified repos to the `REPOS` array in `run.ts` with testMode "compile-and-test"
 - [ ] 3.4 Run `run.ts --dry-run` to confirm all new repos enumerate candidates successfully
 
 ## 4. Orchestrator: worker pool and worktree lifecycle
