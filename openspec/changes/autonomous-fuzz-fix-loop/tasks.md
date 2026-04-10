@@ -25,57 +25,57 @@
 
 ## 4. Orchestrator: worker pool and worktree lifecycle
 
-- [ ] 4.1 Create `scripts/fuzz-fix-loop/orchestrator.ts` with arg parsing (--refactoring, --repo, --workers, defaults)
-- [ ] 4.2 Implement `loadRefactorings()`: get the list of refactorings to assign (from `run.ts --dry-run` or CLI list)
-- [ ] 4.3 Implement worktree creation: `git worktree add tmp/worktrees/<name> -b fuzz-fix/<name>` from current main
-- [ ] 4.4 Implement worker pool: maintain up to N active workers, assign next refactoring when a slot opens
-- [ ] 4.5 Implement worktree cleanup: remove worktree and branch after worker completes all repos
+- [x] 4.1 Create `scripts/fuzz-fix-loop/orchestrator.ts` with arg parsing (--refactoring, --repo, --workers, defaults)
+- [x] 4.2 Implement `loadRefactorings()`: get the list of refactorings to assign (from `run.ts --dry-run` or CLI list)
+- [x] 4.3 Implement worktree creation: `git worktree add tmp/worktrees/<name> -b fuzz-fix/<name>` from current main
+- [x] 4.4 Implement worker pool: maintain up to N active workers, assign next refactoring when a slot opens
+- [x] 4.5 Implement worktree cleanup: remove worktree and branch after worker completes all repos
 - [ ] 4.6 Test: run orchestrator with `--workers 1 --refactoring extract-variable --repo zod` and verify worktree is created, run.ts is invoked, and worktree is cleaned up
 
 ## 5. Orchestrator: worker execution loop
 
-- [ ] 5.1 Implement the per-worker loop: for each repo, spawn `npx tsx run.ts --refactoring <name> --repo <repo> --stop-on-first-failure --tried-set-file <path> --json` as a child process in the worktree directory
-- [ ] 5.2 Parse child process stdout to detect exit 0 (move to next repo) vs exit 1 (FailureReport JSON)
-- [ ] 5.3 On failure: pass FailureReport to the fix agent flow (section 6), then re-invoke run.ts for the same repo after merge-rebase completes
-- [ ] 5.4 On clean exit for all repos: mark worker as complete, write findings JSON to `tmp/fuzz-state/<refactoring>.findings.json`
-- [ ] 5.5 Forward worker stderr to the orchestrator for dashboard updates
+- [x] 5.1 Implement the per-worker loop: for each repo, spawn `npx tsx run.ts --refactoring <name> --repo <repo> --stop-on-first-failure --tried-set-file <path> --json` as a child process in the worktree directory
+- [x] 5.2 Parse child process stdout to detect exit 0 (move to next repo) vs exit 1 (FailureReport JSON)
+- [x] 5.3 On failure: pass FailureReport to the fix agent flow (section 6), then re-invoke run.ts for the same repo after merge-rebase completes
+- [x] 5.4 On clean exit for all repos: mark worker as complete, write findings JSON to `tmp/fuzz-state/<refactoring>.findings.json`
+- [x] 5.5 Forward worker stderr to the orchestrator for dashboard updates
 
 ## 6. Fix agent prompt and invocation
 
-- [ ] 6.1 Create `scripts/fuzz-fix-loop/fix-agent-prompt.md` with the prompt template: failure JSON placeholder, fixture conventions, step-by-step instructions (create fixture → verify fails → fix code → verify passes → commit)
-- [ ] 6.2 Implement `spawnFixAgent(failureReport, worktreeDir)`: write temp prompt file with interpolated failure details, invoke `claude --print --dangerously-skip-permissions --output-format json`, parse JSON result
-- [ ] 6.3 Handle agent success: extract commitHash, fixturePath, filesChanged, fixSummary; append to worker findings
-- [ ] 6.4 Handle agent stuck: extract stuckReport; append unresolved finding; continue worker to next candidate
+- [x] 6.1 Create `scripts/fuzz-fix-loop/fix-agent-prompt.md` with the prompt template: failure JSON placeholder, fixture conventions, step-by-step instructions (create fixture → verify fails → fix code → verify passes → commit)
+- [x] 6.2 Implement `spawnFixAgent(failureReport, worktreeDir)`: write temp prompt file with interpolated failure details, invoke `claude --print --dangerously-skip-permissions --output-format json`, parse JSON result
+- [x] 6.3 Handle agent success: extract commitHash, fixturePath, filesChanged, fixSummary; append to worker findings
+- [x] 6.4 Handle agent stuck: extract stuckReport; append unresolved finding; continue worker to next candidate
 - [ ] 6.5 Test: craft a synthetic FailureReport JSON, run the fix agent in a test worktree, verify it creates a fixture and commits
 
 ## 7. Merge-rebase coordination
 
-- [ ] 7.1 Implement the global merge lock: when a worker signals a fix commit, prevent other workers from starting new run.ts or fix agent invocations
-- [ ] 7.2 Implement merge: `git -C <main-repo> merge fuzz-fix/<name> --ff-only` from the main repo working directory
-- [ ] 7.3 Implement rebase: for each other active worktree, `git -C <worktree> rebase main`
-- [ ] 7.4 On rebase conflict: create a conflict-resolution prompt (conflict markers, merged diff, pre-rebase diff), spawn headless Claude agent in the worktree
-- [ ] 7.5 On conflict resolution success: `git rebase --continue`, resume worker
-- [ ] 7.6 On conflict resolution failure (2 attempts): `git rebase --abort`, discard worker's commit, worker continues (failure will be re-discovered)
-- [ ] 7.7 Release the merge lock and resume all workers
+- [x] 7.1 Implement the global merge lock: when a worker signals a fix commit, prevent other workers from starting new run.ts or fix agent invocations
+- [x] 7.2 Implement merge: `git -C <main-repo> merge fuzz-fix/<name> --ff-only` from the main repo working directory
+- [x] 7.3 Implement rebase: for each other active worktree, `git -C <worktree> rebase main`
+- [x] 7.4 On rebase conflict: create a conflict-resolution prompt (conflict markers, merged diff, pre-rebase diff), spawn headless Claude agent in the worktree
+- [x] 7.5 On conflict resolution success: `git rebase --continue`, resume worker
+- [x] 7.6 On conflict resolution failure (2 attempts): `git rebase --abort`, discard worker's commit, worker continues (failure will be re-discovered)
+- [x] 7.7 Release the merge lock and resume all workers
 - [ ] 7.8 Test: simulate two worktrees with overlapping shared-code changes and verify the merge-rebase-conflict flow
 
 ## 8. Live dashboard
 
-- [ ] 8.1 Implement dashboard state: per-worker (refactoring, current repo, candidates tested, status), totals (pairs completed, errors found/fixed/unresolved)
-- [ ] 8.2 Implement dashboard rendering: ANSI escape codes to overwrite previous output on stderr — progress bar, per-worker rows, summary row
-- [ ] 8.3 Parse worker stderr lines to update dashboard state (match patterns like "Testing:", target counts, repo starts)
-- [ ] 8.4 Implement progress calculation: completed pairs / (total refactorings * total repos) * 100
-- [ ] 8.5 Add 1-second debounce to prevent flicker on rapid stderr output
-- [ ] 8.6 Print final summary on completion (per-refactoring stats table, total errors, total candidates)
+- [x] 8.1 Implement dashboard state: per-worker (refactoring, current repo, candidates tested, status), totals (pairs completed, errors found/fixed/unresolved)
+- [x] 8.2 Implement dashboard rendering: ANSI escape codes to overwrite previous output on stderr — progress bar, per-worker rows, summary row
+- [x] 8.3 Parse worker stderr lines to update dashboard state (match patterns like "Testing:", target counts, repo starts)
+- [x] 8.4 Implement progress calculation: completed pairs / (total refactorings * total repos) * 100
+- [x] 8.5 Add 1-second debounce to prevent flicker on rapid stderr output
+- [x] 8.6 Print final summary on completion (per-refactoring stats table, total errors, total candidates)
 
 ## 9. Findings report
 
-- [ ] 9.1 Define `Finding` interface (refactoring, repo, repoUrl, repoRef, errorType, candidate, exampleCode, error, diff, resolution, fixturePath, commitHash, fixSummary, stuckReport)
-- [ ] 9.2 After all workers complete: read `tmp/fuzz-state/*.findings.json`, merge into a single list
-- [ ] 9.3 Generate the markdown report: summary header (totals), then entries grouped by refactoring and ordered by repo
-- [ ] 9.4 Each entry includes: error type, example code block, GitHub permalink (`https://github.com/<owner>/<repo>/blob/<ref>/<file>#L<line>`), error description, fix summary + commit hash (or "UNRESOLVED" + stuck report), fixture path
-- [ ] 9.5 Write report to `tmp/fuzz-fix-loop/findings-report.md` and print to stdout
-- [ ] 9.6 Handle empty case: "No problems found" with total candidates and repos tested
+- [x] 9.1 Define `Finding` interface (refactoring, repo, repoUrl, repoRef, errorType, candidate, exampleCode, error, diff, resolution, fixturePath, commitHash, fixSummary, stuckReport)
+- [x] 9.2 After all workers complete: read `tmp/fuzz-state/*.findings.json`, merge into a single list
+- [x] 9.3 Generate the markdown report: summary header (totals), then entries grouped by refactoring and ordered by repo
+- [x] 9.4 Each entry includes: error type, example code block, GitHub permalink (`https://github.com/<owner>/<repo>/blob/<ref>/<file>#L<line>`), error description, fix summary + commit hash (or "UNRESOLVED" + stuck report), fixture path
+- [x] 9.5 Write report to `tmp/fuzz-fix-loop/findings-report.md` and print to stdout
+- [x] 9.6 Handle empty case: "No problems found" with total candidates and repos tested
 
 ## 10. End-to-end integration
 
