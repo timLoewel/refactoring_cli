@@ -30,7 +30,7 @@
 - [x] 4.3 Implement worktree creation: `git worktree add tmp/worktrees/<name> -b fuzz-fix/<name>` from current main
 - [x] 4.4 Implement worker pool: maintain up to N active workers, assign next refactoring when a slot opens
 - [x] 4.5 Implement worktree cleanup: remove worktree and branch after worker completes all repos
-- [ ] 4.6 Test: run orchestrator with `--workers 1 --refactoring extract-variable --repo zod` and verify worktree is created, run.ts is invoked, and worktree is cleaned up
+- [x] 4.6 Test: run orchestrator with `--workers 1 --refactoring extract-variable --repo zod` and verify worktree is created, run.ts is invoked, and worktree is cleaned up
 
 ## 5. Orchestrator: worker execution loop
 
@@ -46,7 +46,7 @@
 - [x] 6.2 Implement `spawnFixAgent(failureReport, worktreeDir)`: write temp prompt file with interpolated failure details, invoke `claude --print --dangerously-skip-permissions --output-format json`, parse JSON result
 - [x] 6.3 Handle agent success: extract commitHash, fixturePath, filesChanged, fixSummary; append to worker findings
 - [x] 6.4 Handle agent stuck: extract stuckReport; append unresolved finding; continue worker to next candidate
-- [ ] 6.5 Test: craft a synthetic FailureReport JSON, run the fix agent in a test worktree, verify it creates a fixture and commits
+- [ ] 6.5 Test: craft a synthetic FailureReport JSON, run the fix agent in a test worktree, verify it creates a fixture and commits (requires headless Claude session)
 
 ## 7. Merge-rebase coordination
 
@@ -57,7 +57,7 @@
 - [x] 7.5 On conflict resolution success: `git rebase --continue`, resume worker
 - [x] 7.6 On conflict resolution failure (2 attempts): `git rebase --abort`, discard worker's commit, worker continues (failure will be re-discovered)
 - [x] 7.7 Release the merge lock and resume all workers
-- [ ] 7.8 Test: simulate two worktrees with overlapping shared-code changes and verify the merge-rebase-conflict flow
+- [ ] 7.8 Test: simulate two worktrees with overlapping shared-code changes and verify the merge-rebase-conflict flow (requires multi-worker run with real failures)
 
 ## 8. Live dashboard
 
@@ -79,8 +79,8 @@
 
 ## 10. End-to-end integration
 
-- [ ] 10.1 Run the full orchestrator with `--workers 1 --refactoring extract-variable --repo zod --max-applies 20` as a smoke test
-- [ ] 10.2 Verify: worktree created, run.ts invoked with correct flags, tried-set file written, dashboard renders, worktree cleaned up
-- [ ] 10.3 Run with `--workers 3` across 3 refactorings on a single repo to verify concurrent worker pool and merge-rebase coordination
-- [ ] 10.4 Verify findings report is generated with correct format
+- [x] 10.1 Run the full orchestrator with `--workers 1 --refactoring extract-variable --repo zod --max-applies 20` as a smoke test
+- [x] 10.2 Verify: worktree created, run.ts invoked with correct flags, tried-set file written, dashboard renders, worktree cleaned up
+- [ ] 10.3 Run with `--workers 3` across 3 refactorings on a single repo to verify concurrent worker pool and merge-rebase coordination (requires multi-worker run)
+- [x] 10.4 Verify findings report is generated with correct format
 - [x] 10.5 Add `tmp/fuzz-state/` and `tmp/worktrees/` to `.gitignore` (already covered by existing `tmp/` entry)
