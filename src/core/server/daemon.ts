@@ -220,13 +220,12 @@ function handleMessage(
 
 export function startDaemon(projectRoot: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    let model;
-    try {
-      model = loadProject({ path: projectRoot });
-    } catch (err: unknown) {
-      reject(err);
+    const loadResult = loadProject({ path: projectRoot });
+    if (loadResult.isErr()) {
+      reject(new Error(loadResult.error.message));
       return;
     }
+    const model = loadResult.value;
 
     const token = randomBytes(16).toString("hex");
     const server = createServer();

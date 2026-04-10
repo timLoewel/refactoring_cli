@@ -1,7 +1,14 @@
 import type { ClassDeclaration, ConstructorDeclaration, Project } from "ts-morph";
 import { Node } from "ts-morph";
+import { ok, err } from "neverthrow";
 import type { RefactoringResult } from "../../core/refactoring.types.js";
-import { defineRefactoring, enumerate, param, resolve } from "../../core/refactoring-builder.js";
+import {
+  defineRefactoring,
+  enumerate,
+  param,
+  resolve,
+  type ResolveResult,
+} from "../../core/refactoring-builder.js";
 import type { ClassContext } from "../../core/refactoring.types.js";
 
 interface PullUpContext extends ClassContext {
@@ -9,54 +16,35 @@ interface PullUpContext extends ClassContext {
   parentClass: ClassDeclaration;
 }
 
+function failResult(description: string): RefactoringResult {
+  return { success: false, filesChanged: [], description };
+}
+
 function resolvePullUpContext(
   project: Project,
   params: Record<string, unknown>,
-): { ok: true; value: PullUpContext } | { ok: false; result: RefactoringResult } {
-  const classResult = resolve.class(project, params);
-  if (!classResult.ok) return classResult;
+): ResolveResult<PullUpContext> {
+  return resolve.class(project, params).andThen(({ sourceFile, cls }) => {
+    const target = params["target"] as string;
 
-  const { sourceFile, cls } = classResult.value;
-  const target = params["target"] as string;
+    const subConstructor = cls.getConstructors()[0];
+    if (!subConstructor) {
+      return err(failResult(`Class '${target}' has no constructor`));
+    }
 
-  const subConstructor = cls.getConstructors()[0];
-  if (!subConstructor) {
-    return {
-      ok: false,
-      result: {
-        success: false,
-        filesChanged: [],
-        description: `Class '${target}' has no constructor`,
-      },
-    };
-  }
+    const extendsClause = cls.getExtends();
+    if (!extendsClause) {
+      return err(failResult(`Class '${target}' does not extend any class`));
+    }
 
-  const extendsClause = cls.getExtends();
-  if (!extendsClause) {
-    return {
-      ok: false,
-      result: {
-        success: false,
-        filesChanged: [],
-        description: `Class '${target}' does not extend any class`,
-      },
-    };
-  }
+    const parentName = extendsClause.getExpression().getText();
+    const parentClass = sourceFile.getClass(parentName);
+    if (!parentClass) {
+      return err(failResult(`Parent class '${parentName}' not found in file`));
+    }
 
-  const parentName = extendsClause.getExpression().getText();
-  const parentClass = sourceFile.getClass(parentName);
-  if (!parentClass) {
-    return {
-      ok: false,
-      result: {
-        success: false,
-        filesChanged: [],
-        description: `Parent class '${parentName}' not found in file`,
-      },
-    };
-  }
-
-  return { ok: true, value: { sourceFile, cls, subConstructor, parentClass } };
+    return ok({ sourceFile, cls, subConstructor, parentClass });
+  });
 }
 
 function addStatementsToParent(

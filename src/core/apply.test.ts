@@ -1,4 +1,5 @@
 import { Project } from "ts-morph";
+import { ok } from "neverthrow";
 import { applyRefactoring } from "./apply.js";
 import type { RefactoringDefinition } from "./refactoring.types.js";
 
@@ -19,7 +20,7 @@ function makeDefinition(overrides: Partial<RefactoringDefinition> = {}): Refacto
     language: "typescript" as const,
     params: {
       definitions: [],
-      validate: (raw: unknown) => raw as Record<string, unknown>,
+      validate: (raw: unknown) => ok(raw as Record<string, unknown>),
     },
     preconditions: () => ({ ok: true, errors: [] }),
     apply: (project: Project) => {

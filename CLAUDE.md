@@ -92,6 +92,10 @@ Follow these conventions when writing code in this project:
 - **Classes:** Use `PascalCase` (100% of 1 classes)
 - **Imports:** Prefer absolute imports (100% are cross-directory)
 
+## Error Handling
+
+Use `neverthrow` Result types for all expected failure paths. Never throw exceptions for expected errors — return `err()` instead. Import named Result types from `src/core/errors.ts` (e.g. `ParamResult<T>`, `ProjectResult<T>`). Exceptions are only acceptable at system boundaries (CLI command handlers, daemon socket parsing, eval'd fixture code).
+
 ## Complexity Hotspots
 
 Average function complexity: 2.7 (168 functions analyzed)

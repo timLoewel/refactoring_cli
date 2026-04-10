@@ -54,7 +54,13 @@ export function createFixImportsCommand(): Command {
       const isJson = global.json ?? false;
 
       try {
-        const { project } = loadProject({ path: global.path, config: global.config });
+        const loadResult = loadProject({ path: global.path, config: global.config });
+        if (loadResult.isErr()) {
+          printOutput(errorOutput("fix-imports", [loadResult.error.message]), isJson);
+          process.exitCode = 1;
+          return;
+        }
+        const { project } = loadResult.value;
         const broken = findBrokenImports(project.getPreEmitDiagnostics());
 
         if (opts.list || !opts.auto) {

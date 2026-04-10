@@ -24,7 +24,9 @@ describe("loadProject", () => {
   });
 
   it("loads project from --path", () => {
-    const model = loadProject({ path: tempDir });
+    const result = loadProject({ path: tempDir });
+    expect(result.isOk()).toBe(true);
+    const model = result._unsafeUnwrap();
     expect(model.projectRoot).toBe(tempDir);
     expect(model.sourceFiles.length).toBeGreaterThanOrEqual(1);
     expect(model.sourceFiles.some((f) => f.endsWith("index.ts"))).toBe(true);
@@ -32,33 +34,40 @@ describe("loadProject", () => {
 
   it("loads project from --config", () => {
     const configPath = join(tempDir, "tsconfig.json");
-    const model = loadProject({ config: configPath });
-    expect(model.projectRoot).toBe(tempDir);
+    const result = loadProject({ config: configPath });
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap().projectRoot).toBe(tempDir);
   });
 
-  it("throws when tsconfig not found", () => {
-    expect(() => loadProject({ path: "/nonexistent/path" })).toThrow(
-      "tsconfig.json not found in /nonexistent/path or any parent directory",
-    );
+  it("returns err when tsconfig not found", () => {
+    const result = loadProject({ path: "/nonexistent/path" });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain(
+        "tsconfig.json not found in /nonexistent/path or any parent directory",
+      );
+    }
   });
 
-  it("throws when explicit config not found", () => {
-    expect(() => loadProject({ config: "/nonexistent/tsconfig.json" })).toThrow(
-      "tsconfig not found",
-    );
+  it("returns err when explicit config not found", () => {
+    const result = loadProject({ config: "/nonexistent/tsconfig.json" });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain("tsconfig not found");
+    }
   });
 
   it("excludes files matching .refactorignore", () => {
     writeFileSync(join(tempDir, "src", "foo.generated.ts"), "export const y = 2;\n");
     writeFileSync(join(tempDir, ".refactorignore"), "*.generated.ts\n");
 
-    const model = loadProject({ path: tempDir });
+    const model = loadProject({ path: tempDir })._unsafeUnwrap();
     expect(model.sourceFiles.some((f) => f.includes("generated"))).toBe(false);
     expect(model.sourceFiles.some((f) => f.endsWith("index.ts"))).toBe(true);
   });
 
   it("works without .refactorignore", () => {
-    const model = loadProject({ path: tempDir });
+    const model = loadProject({ path: tempDir })._unsafeUnwrap();
     expect(model.sourceFiles.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -66,7 +75,7 @@ describe("loadProject", () => {
     const subDir = join(tempDir, "src", "deep", "nested");
     mkdirSync(subDir, { recursive: true });
 
-    const model = loadProject({ path: subDir });
+    const model = loadProject({ path: subDir })._unsafeUnwrap();
     expect(model.projectRoot).toBe(tempDir);
   });
 
@@ -84,7 +93,7 @@ describe("loadProject", () => {
     const deepDir = join(nestedRoot, "deep");
     mkdirSync(deepDir, { recursive: true });
 
-    const model = loadProject({ path: deepDir });
+    const model = loadProject({ path: deepDir })._unsafeUnwrap();
     // Should find src/tsconfig.json, not the root one
     expect(model.projectRoot).toBe(nestedRoot);
   });

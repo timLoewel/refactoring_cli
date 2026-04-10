@@ -1,6 +1,8 @@
 import { Project, ts } from "ts-morph";
 import { readdirSync, existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { ok, err, type Result } from "neverthrow";
+import type { FixtureError } from "../core/errors.js";
 
 export interface FixtureResult {
   fixtureName: string;
@@ -79,15 +81,18 @@ export function runSingleFileFixture(filePath: string): string {
   return executeMain(jsCode);
 }
 
-export function runMultiFileFixture(fixtureDir: string): string {
+export function runMultiFileFixture(
+  fixtureDir: string,
+): Result<string, FixtureError> {
   const project = createInMemoryProject({ outDir: "/virtual-out" });
   loadFilesIntoProject(project, fixtureDir);
 
-  checkCompilation(project);
+  const compileResult = checkCompilation(project);
+  if (compileResult.isErr()) return compileResult;
 
   const entryFile = project.getSourceFile("entry.ts");
   if (!entryFile) {
-    throw new Error("Multi-file fixture must have entry.ts");
+    return err({ kind: "fixture", message: "Multi-file fixture must have entry.ts" });
   }
 
   const jsOutput = entryFile
@@ -95,11 +100,11 @@ export function runMultiFileFixture(fixtureDir: string): string {
     .getOutputFiles()
     .find((f) => f.getFilePath().endsWith(".js"));
   if (!jsOutput) {
-    throw new Error("Failed to emit entry.ts");
+    return err({ kind: "fixture", message: "Failed to emit entry.ts" });
   }
 
   const allEmitted = emitAllFiles(project, "/virtual-out/");
-  return executeMainWithModules(jsOutput.getText(), allEmitted);
+  return ok(executeMainWithModules(jsOutput.getText(), allEmitted));
 }
 
 export function runFixtureTest(
@@ -124,10 +129,16 @@ function runFixtureTestInner(
   fixture: Fixture,
   transform: (project: Project) => void,
 ): FixtureResult {
-  const beforeOutput =
-    fixture.type === "single"
-      ? runSingleFileFixture(fixture.path)
-      : runMultiFileFixture(fixture.path);
+  let beforeOutput: string;
+  if (fixture.type === "single") {
+    beforeOutput = runSingleFileFixture(fixture.path);
+  } else {
+    const result = runMultiFileFixture(fixture.path);
+    if (result.isErr()) {
+      return failResult(fixture.name, "", result.error.message, false);
+    }
+    beforeOutput = result.value;
+  }
 
   const project = createFixtureProject(fixture);
   const beforeTexts = captureTexts(project);
@@ -223,9 +234,10 @@ function hasStructuralChange(project: Project, beforeTexts: Map<string, string>)
   return false;
 }
 
-function checkCompilation(project: Project): void {
+function checkCompilation(project: Project): Result<void, FixtureError> {
   const error = getCompilationErrors(project);
-  if (error) throw new Error(error);
+  if (error) return err({ kind: "fixture", message: error });
+  return ok(undefined);
 }
 
 function getCompilationErrors(project: Project): string | null {

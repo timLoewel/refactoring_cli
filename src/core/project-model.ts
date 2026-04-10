@@ -1,7 +1,9 @@
 import { Project } from "ts-morph";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
+import { ok, err } from "neverthrow";
 import { parseIgnoreFile } from "../utils/ignore.js";
+import type { ProjectResult } from "./errors.js";
 
 export interface LoadProjectOptions {
   path?: string;
@@ -25,29 +27,34 @@ function findTsConfigUp(startDir: string): string | null {
   }
 }
 
-function resolveTsConfig(options: LoadProjectOptions): string {
+function resolveTsConfig(options: LoadProjectOptions): ProjectResult<string> {
   if (options.config) {
     const configPath = resolve(options.config);
     if (!existsSync(configPath)) {
-      throw new Error(`tsconfig not found: ${configPath}`);
+      return err({ kind: "project", message: `tsconfig not found: ${configPath}` });
     }
-    return configPath;
+    return ok(configPath);
   }
 
   const dir = options.path ? resolve(options.path) : process.cwd();
   const found = findTsConfigUp(dir);
 
   if (!found) {
-    throw new Error(`tsconfig.json not found in ${dir} or any parent directory`);
+    return err({
+      kind: "project",
+      message: `tsconfig.json not found in ${dir} or any parent directory`,
+    });
   }
 
-  return found;
+  return ok(found);
 }
 
 const DEFAULT_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/build/**"];
 
-export function loadProject(options: LoadProjectOptions = {}): ProjectModel {
-  const tsConfigPath = resolveTsConfig(options);
+export function loadProject(options: LoadProjectOptions = {}): ProjectResult<ProjectModel> {
+  const configResult = resolveTsConfig(options);
+  if (configResult.isErr()) return err(configResult.error);
+  const tsConfigPath = configResult.value;
   const projectRoot = dirname(tsConfigPath);
 
   const project = new Project({ tsConfigFilePath: tsConfigPath });
@@ -64,7 +71,7 @@ export function loadProject(options: LoadProjectOptions = {}): ProjectModel {
     .map((sf) => sf.getFilePath())
     .filter((filePath) => !allPatterns.some((pattern) => matchesGlob(filePath, pattern)));
 
-  return { project, projectRoot, sourceFiles };
+  return ok({ project, projectRoot, sourceFiles });
 }
 
 function matchesGlob(filePath: string, pattern: string): boolean {

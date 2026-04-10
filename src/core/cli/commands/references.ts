@@ -14,7 +14,13 @@ export function createReferencesCommand(): Command {
       const isJson = global.json ?? false;
 
       try {
-        const { project } = loadProject({ path: global.path, config: global.config });
+        const loadResult = loadProject({ path: global.path, config: global.config });
+        if (loadResult.isErr()) {
+          printOutput(errorOutput("references", [loadResult.error.message]), isJson);
+          process.exitCode = 1;
+          return;
+        }
+        const { project } = loadResult.value;
         const references = findReferences(project, name, { transitive: opts.transitive });
         printOutput(successOutput("references", { name, references }), isJson);
       } catch (error) {

@@ -1,3 +1,4 @@
+import { ok } from "neverthrow";
 import { RefactoringRegistry } from "./refactoring-registry.js";
 import type { RefactoringDefinition } from "./refactoring.types.js";
 
@@ -8,7 +9,7 @@ function makeDef(overrides: Partial<RefactoringDefinition> = {}): RefactoringDef
     description: "A test refactoring",
     tier: 1,
     language: "typescript" as const,
-    params: { definitions: [], validate: (raw) => raw as Record<string, unknown> },
+    params: { definitions: [], validate: (raw) => ok(raw as Record<string, unknown>) },
     preconditions: () => ({ ok: true, errors: [] }),
     apply: () => ({ success: true, filesChanged: [], description: "done" }),
     ...overrides,
@@ -37,9 +38,13 @@ describe("RefactoringRegistry", () => {
     expect(reg.lookup("nonexistent")).toBeUndefined();
   });
 
-  it("throws on duplicate registration", () => {
+  it("returns err on duplicate registration", () => {
     reg.register(makeDef());
-    expect(() => reg.register(makeDef())).toThrow("already registered");
+    const result = reg.register(makeDef());
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain("already registered");
+    }
   });
 
   it("lists all refactorings", () => {
