@@ -5,7 +5,7 @@
 - [x] 1.3 In the candidate loop, when `--stop-on-first-failure` is active and a syntax or semantic failure occurs: build the FailureReport JSON, write to stdout, and exit with code 1
 - [x] 1.4 On clean exit with `--stop-on-first-failure`: output `{ success: true, candidatesTested: N }` to stdout and exit 0
 - [x] 1.5 When `--stop-on-first-failure` is set and `--max-applies` is not explicitly provided, default `--max-applies` to 500
-- [ ] 1.6 Test: run `run.ts --refactoring <name> --repo zod --stop-on-first-failure --max-applies 5` and verify JSON output on both success and failure paths
+- [x] 1.6 Test: run `run.ts --refactoring <name> --repo zod --stop-on-first-failure --max-applies 5` and verify JSON output on both success and failure paths
 
 ## 2. run.ts: candidate tried-set persistence
 
@@ -14,14 +14,14 @@
 - [x] 2.3 Before shuffling, filter out candidates whose `"repo::file::target"` key is in the tried-set
 - [x] 2.4 After each candidate is processed (skip, pass, or fail), append its key as a line to the tried-set file
 - [x] 2.5 When all candidates for a refactoring on a repo are in the tried-set, log "no untried candidates remain" and exit 0
-- [ ] 2.6 Test: run twice with the same tried-set file and verify no candidates are re-drawn
+- [x] 2.6 Test: run twice with the same tried-set file and verify no candidates are re-drawn
 
 ## 3. run.ts: expand repository list
 
 - [x] 3.1 Research and select 10+ candidate repos (vitest/jest, scoped test support, pinned tag, moderate size)
 - [x] 3.2 For each candidate: clone, install, verify `tsc --noEmit` passes, verify test suite passes, verify scoped test command works
 - [x] 3.3 Add verified repos to the `REPOS` array in `run.ts` with testMode "compile-and-test"
-- [ ] 3.4 Run `run.ts --dry-run` to confirm all new repos enumerate candidates successfully
+- [x] 3.4 Run `run.ts --dry-run` to confirm all new repos enumerate candidates successfully
 
 ## 4. Orchestrator: worker pool and worktree lifecycle
 
