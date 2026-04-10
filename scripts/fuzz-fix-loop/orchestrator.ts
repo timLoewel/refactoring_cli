@@ -1,13 +1,5 @@
-import { spawn, spawnSync, execSync } from "child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  unlinkSync,
-  rmSync,
-} from "fs";
+import { spawn, spawnSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -96,12 +88,12 @@ const repoFilter = ((): string[] | undefined => {
 
 const maxWorkers = ((): number => {
   const idx = scriptArgs.indexOf("--workers");
-  return idx >= 0 ? parseInt(scriptArgs[idx + 1]!, 10) : 3;
+  return idx >= 0 ? parseInt(scriptArgs[idx + 1] ?? "3", 10) : 3;
 })();
 
 const maxApplies = ((): number => {
   const idx = scriptArgs.indexOf("--max-applies");
-  return idx >= 0 ? parseInt(scriptArgs[idx + 1]!, 10) : 500;
+  return idx >= 0 ? parseInt(scriptArgs[idx + 1] ?? "500", 10) : 500;
 })();
 
 // --- Repo list (mirrors run.ts — used for progress tracking) ---
@@ -154,9 +146,7 @@ function loadRefactorings(): string[] {
     const all = (parsed.data?.refactorings ?? parsed.refactorings ?? []) as {
       kebabName: string;
     }[];
-    const names = all
-      .map((r) => r.kebabName)
-      .filter((n) => !n.endsWith("-python"));
+    const names = all.map((r) => r.kebabName).filter((n) => !n.endsWith("-python"));
 
     if (refactoringFilter) {
       return names.filter((n) => refactoringFilter.includes(n));
@@ -227,22 +217,16 @@ function releaseMergeLock(): void {
   }
 }
 
-async function mergeAndRebase(
-  fixWorker: WorkerState,
-  allWorkers: WorkerState[],
-): Promise<void> {
+async function mergeAndRebase(fixWorker: WorkerState, allWorkers: WorkerState[]): Promise<void> {
   await acquireMergeLock();
   try {
     // Merge fix worker's branch into main (ff-only)
-    const mergeResult = spawnSync(
-      "git",
-      ["merge", fixWorker.branchName, "--ff-only"],
-      { cwd: ROOT, encoding: "utf8" },
-    );
+    const mergeResult = spawnSync("git", ["merge", fixWorker.branchName, "--ff-only"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
     if (mergeResult.status !== 0) {
-      process.stderr.write(
-        `Merge failed for ${fixWorker.branchName}: ${mergeResult.stderr}\n`,
-      );
+      process.stderr.write(`Merge failed for ${fixWorker.branchName}: ${mergeResult.stderr}\n`);
       return;
     }
 
@@ -277,7 +261,7 @@ async function mergeAndRebase(
 
 async function resolveRebaseConflict(
   conflictWorker: WorkerState,
-  mergedWorker: WorkerState,
+  _mergedWorker: WorkerState,
 ): Promise<boolean> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     process.stderr.write(
@@ -354,7 +338,7 @@ If you cannot resolve the conflict, output: STUCK`;
 
 // --- Fix agent ---
 
-function buildFixAgentPrompt(failure: FailureReport, worktreeDir: string): string {
+function buildFixAgentPrompt(failure: FailureReport, _worktreeDir: string): string {
   return `You are a fix agent for the refactoring-cli project. A real-world codebase test has found a failure.
 
 ## Failure Details
@@ -396,10 +380,7 @@ After completing (or if stuck), output a JSON block:
 \`\`\``;
 }
 
-async function spawnFixAgent(
-  failure: FailureReport,
-  worktreeDir: string,
-): Promise<FixAgentResult> {
+async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promise<FixAgentResult> {
   const prompt = buildFixAgentPrompt(failure, worktreeDir);
   const promptFile = join(FUZZ_STATE_DIR, `fix-${failure.refactoring}-${Date.now()}.md`);
   mkdirSync(FUZZ_STATE_DIR, { recursive: true });
@@ -494,11 +475,15 @@ function spawnRunTs(
     const args = [
       "tsx",
       RUN_TS,
-      "--refactoring", refactoring,
-      "--repo", repo,
+      "--refactoring",
+      refactoring,
+      "--repo",
+      repo,
       "--stop-on-first-failure",
-      "--tried-set-file", triedSetFile,
-      "--max-applies", String(maxApplies),
+      "--tried-set-file",
+      triedSetFile,
+      "--max-applies",
+      String(maxApplies),
       "--json",
     ];
 
@@ -692,10 +677,13 @@ function renderDashboard(state: DashboardState): void {
   // Per-worker rows
   for (const worker of state.workers) {
     const statusIcon =
-      worker.status === "running" ? "▶" :
-      worker.status === "fixing" ? "🔧" :
-      worker.status === "waiting" ? "⏸" :
-      "✓";
+      worker.status === "running"
+        ? "▶"
+        : worker.status === "fixing"
+          ? "🔧"
+          : worker.status === "waiting"
+            ? "⏸"
+            : "✓";
     lines.push(
       `  ${statusIcon} ${worker.refactoring} | ${worker.currentRepo || "-"} | ${worker.candidatesTested} candidates | ${worker.status}`,
     );
@@ -729,9 +717,7 @@ function printFinalSummary(
     rows.push([r, String(findings.length), String(fixed), String(unresolved)]);
   }
 
-  const widths = headers.map((h, i) =>
-    Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)),
-  );
+  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));
   const fmt = (row: string[]): string =>
     row.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join("  ");
 
@@ -914,7 +900,11 @@ async function main(): Promise<void> {
       const findings = JSON.parse(content) as Finding[];
       // Deduplicate (in-memory findings already collected)
       for (const f of findings) {
-        if (!allFindings.some((af) => af.commitHash === f.commitHash && af.candidate.target === f.candidate.target)) {
+        if (
+          !allFindings.some(
+            (af) => af.commitHash === f.commitHash && af.candidate.target === f.candidate.target,
+          )
+        ) {
           allFindings.push(f);
         }
       }

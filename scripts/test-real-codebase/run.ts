@@ -914,7 +914,6 @@ async function runRepo(
   if (triedSetFile && untriedCandidates.length === 0) {
     process.stderr.write(`No untried candidates remain for ${repo.name} — skipping.\n`);
     if (stopOnFirstFailure) {
-      const effectiveMax = maxApplies ?? (stopOnFirstFailure && !maxAppliesExplicit ? 500 : undefined);
       process.stdout.write(JSON.stringify({ success: true, candidatesTested: 0 }) + "\n");
       process.exit(0);
     }
@@ -937,7 +936,8 @@ async function runRepo(
   );
 
   // Effective max-applies: default to 500 when --stop-on-first-failure is set
-  const effectiveMaxApplies = maxApplies ?? (stopOnFirstFailure && !maxAppliesExplicit ? 500 : undefined);
+  const effectiveMaxApplies =
+    maxApplies ?? (stopOnFirstFailure && !maxAppliesExplicit ? 500 : undefined);
 
   process.stderr.write(
     `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=${shuffleSeed}).${effectiveMaxApplies !== undefined ? ` Will stop after ${effectiveMaxApplies} applies per refactoring.` : ""}\n`,
