@@ -1,4 +1,5 @@
 import type { Block, ClassDeclaration, FunctionDeclaration, Project, SourceFile } from "ts-morph";
+import type { ParamResult } from "./errors.js";
 
 export interface ParamDefinition {
   name: string;
@@ -9,7 +10,7 @@ export interface ParamDefinition {
 
 export interface ParamSchema {
   definitions: ParamDefinition[];
-  validate: (raw: unknown) => unknown;
+  validate: (raw: unknown) => ParamResult<unknown>;
 }
 
 export interface FileDiff {

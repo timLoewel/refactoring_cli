@@ -46,7 +46,12 @@ export function applyRefactoring(
   params: Record<string, unknown>,
   options: ApplyOptions = {},
 ): ApplyResult {
-  const validatedParams = definition.params.validate(params);
+  const validationResult = definition.params.validate(params);
+  if (validationResult.isErr()) {
+    const e = validationResult.error;
+    return failedResult(`param '${e.param}': ${e.message}`);
+  }
+  const validatedParams = validationResult.value;
 
   const preconditionResult = definition.preconditions(project, validatedParams);
   if (!preconditionResult.ok) {

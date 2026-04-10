@@ -6,9 +6,9 @@
 
 ## 2. Core module migration
 
-- [ ] 2.1 Refactor `src/core/refactoring-builder.ts` param validators (`fileParam`, `stringParam`, `identifierParam`, `numberParam`) to return `ParamResult<T>` instead of throwing; update `buildParamSchema` and `ParamSchema.validate` to return `ParamResult`
-- [ ] 2.2 Replace the ad-hoc `ResolveResult<T>` discriminated union in `refactoring-builder.ts` with `Result<T, CoreError>` from neverthrow
-- [ ] 2.3 Update `defineRefactoring` internals (`preconditions`, `apply`) to unwrap param validation and resolver Results
+- [x] 2.1 Refactor `src/core/refactoring-builder.ts` param validators (`fileParam`, `stringParam`, `identifierParam`, `numberParam`) to return `ParamResult<T>` instead of throwing; update `buildParamSchema` and `ParamSchema.validate` to return `ParamResult`
+- [x] 2.2 Replace the ad-hoc `ResolveResult<T>` discriminated union in `refactoring-builder.ts` with `Result<T, CoreError>` from neverthrow
+- [x] 2.3 Update `defineRefactoring` internals (`preconditions`, `apply`) to unwrap param validation and resolver Results
 - [ ] 2.4 Refactor `src/core/project-model.ts` — `resolveTsConfig` and `loadProject` return `ProjectResult<ProjectModel>` instead of throwing
 - [ ] 2.5 Refactor `src/core/refactoring-registry.ts` — `register()` returns `RegistryResult<void>` instead of throwing on duplicates
 - [ ] 2.6 Refactor `src/core/refactor-client.ts` — `RefactorClient.connect()` returns `ConnectionResult<RefactorClient>` instead of throwing

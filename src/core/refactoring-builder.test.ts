@@ -25,7 +25,9 @@ describe("param helpers", () => {
   describe("param.file", () => {
     it("validates a non-empty string", () => {
       const helper = param.file();
-      expect(helper.validate({ file: "src/foo.ts" })).toBe("src/foo.ts");
+      const result = helper.validate({ file: "src/foo.ts" });
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("src/foo.ts");
     });
 
     it("uses default name and description", () => {
@@ -44,97 +46,121 @@ describe("param helpers", () => {
       expect(helper.definition.description).toBe("Target file");
     });
 
-    it("throws on missing value", () => {
+    it("returns err on missing value", () => {
       const helper = param.file();
-      expect(() => helper.validate({})).toThrow("param 'file' must be a non-empty string");
+      const result = helper.validate({});
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a non-empty string");
     });
 
-    it("throws on empty string", () => {
+    it("returns err on empty string", () => {
       const helper = param.file();
-      expect(() => helper.validate({ file: "  " })).toThrow(
-        "param 'file' must be a non-empty string",
-      );
+      const result = helper.validate({ file: "  " });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a non-empty string");
     });
   });
 
   describe("param.string", () => {
     it("validates a required string", () => {
       const helper = param.string("target", "expression");
-      expect(helper.validate({ target: "x + 1" })).toBe("x + 1");
+      const result = helper.validate({ target: "x + 1" });
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("x + 1");
     });
 
-    it("throws on missing required string", () => {
+    it("returns err on missing required string", () => {
       const helper = param.string("target", "expression");
-      expect(() => helper.validate({})).toThrow("param 'target' must be a non-empty string");
+      const result = helper.validate({});
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a non-empty string");
     });
 
     it("allows undefined for optional param", () => {
       const helper = param.string("note", "optional note", false);
-      expect(helper.validate({})).toBeUndefined();
+      const result = helper.validate({});
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBeUndefined();
     });
 
-    it("throws on wrong type for optional param", () => {
+    it("returns err on wrong type for optional param", () => {
       const helper = param.string("note", "optional note", false);
-      expect(() => helper.validate({ note: 42 })).toThrow("param 'note' must be a string");
+      const result = helper.validate({ note: 42 });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a string");
     });
   });
 
   describe("param.identifier", () => {
     it("validates a valid identifier", () => {
       const helper = param.identifier("name", "variable name");
-      expect(helper.validate({ name: "myVar" })).toBe("myVar");
+      const result = helper.validate({ name: "myVar" });
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("myVar");
     });
 
     it("accepts identifiers starting with $ or _", () => {
       const helper = param.identifier("name", "variable name");
-      expect(helper.validate({ name: "$ref" })).toBe("$ref");
-      expect(helper.validate({ name: "_private" })).toBe("_private");
+      expect(helper.validate({ name: "$ref" })._unsafeUnwrap()).toBe("$ref");
+      expect(helper.validate({ name: "_private" })._unsafeUnwrap()).toBe("_private");
     });
 
-    it("throws on invalid identifier", () => {
+    it("returns err on invalid identifier", () => {
       const helper = param.identifier("name", "variable name");
-      expect(() => helper.validate({ name: "123abc" })).toThrow(
-        "param 'name' must be a valid identifier",
-      );
+      const result = helper.validate({ name: "123abc" });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a valid identifier");
     });
 
-    it("throws on identifier with spaces", () => {
+    it("returns err on identifier with spaces", () => {
       const helper = param.identifier("name", "variable name");
-      expect(() => helper.validate({ name: "my var" })).toThrow(
-        "param 'name' must be a valid identifier",
-      );
+      const result = helper.validate({ name: "my var" });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a valid identifier");
     });
 
-    it("throws on missing required identifier", () => {
+    it("returns err on missing required identifier", () => {
       const helper = param.identifier("name", "variable name");
-      expect(() => helper.validate({})).toThrow("param 'name' must be a non-empty string");
+      const result = helper.validate({});
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a non-empty string");
     });
   });
 
   describe("param.number", () => {
     it("validates a number", () => {
       const helper = param.number("line", "line number");
-      expect(helper.validate({ line: 42 })).toBe(42);
+      const result = helper.validate({ line: 42 });
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe(42);
     });
 
-    it("throws on missing required number", () => {
+    it("returns err on missing required number", () => {
       const helper = param.number("line", "line number");
-      expect(() => helper.validate({})).toThrow("param 'line' must be a number");
+      const result = helper.validate({});
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a number");
     });
 
-    it("throws on NaN", () => {
+    it("returns err on NaN", () => {
       const helper = param.number("line", "line number");
-      expect(() => helper.validate({ line: NaN })).toThrow("param 'line' must be a number");
+      const result = helper.validate({ line: NaN });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a number");
     });
 
     it("allows undefined for optional param", () => {
       const helper = param.number("line", "line number", false);
-      expect(helper.validate({})).toBeUndefined();
+      const result = helper.validate({});
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBeUndefined();
     });
 
-    it("throws on wrong type for optional param", () => {
+    it("returns err on wrong type for optional param", () => {
       const helper = param.number("line", "line number", false);
-      expect(() => helper.validate({ line: "42" })).toThrow("param 'line' must be a number");
+      const result = helper.validate({ line: "42" });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("must be a number");
     });
   });
 });
@@ -148,8 +174,8 @@ describe("shared resolvers", () => {
     it("returns sourceFile on success", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
       const result = resolve.sourceFile(project, { file: "src/foo.ts" });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
         expect(result.value.sourceFile.getFilePath()).toContain("src/foo.ts");
       }
     });
@@ -157,10 +183,10 @@ describe("shared resolvers", () => {
     it("returns failure when file not found", () => {
       const project = makeProject({});
       const result = resolve.sourceFile(project, { file: "missing.ts" });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.result.success).toBe(false);
-        expect(result.result.description).toContain("missing.ts");
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.success).toBe(false);
+        expect(result.error.description).toContain("missing.ts");
       }
     });
   });
@@ -171,8 +197,8 @@ describe("shared resolvers", () => {
         "src/foo.ts": "export function greet() { return 'hi'; }",
       });
       const result = resolve.function(project, { file: "src/foo.ts", target: "greet" });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
         expect(result.value.fn.getName()).toBe("greet");
         expect(result.value.body).toBeDefined();
       }
@@ -181,16 +207,16 @@ describe("shared resolvers", () => {
     it("returns failure when function not found", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
       const result = resolve.function(project, { file: "src/foo.ts", target: "greet" });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.result.description).toContain("greet");
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.description).toContain("greet");
       }
     });
 
     it("returns failure when file not found", () => {
       const project = makeProject({});
       const result = resolve.function(project, { file: "missing.ts", target: "greet" });
-      expect(result.ok).toBe(false);
+      expect(result.isErr()).toBe(true);
     });
   });
 
@@ -200,8 +226,8 @@ describe("shared resolvers", () => {
         "src/foo.ts": "export class MyClass { method() {} }",
       });
       const result = resolve.class(project, { file: "src/foo.ts", target: "MyClass" });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
         expect(result.value.cls.getName()).toBe("MyClass");
       }
     });
@@ -209,9 +235,9 @@ describe("shared resolvers", () => {
     it("returns failure when class not found", () => {
       const project = makeProject({ "src/foo.ts": "export const x = 1;" });
       const result = resolve.class(project, { file: "src/foo.ts", target: "MyClass" });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.result.description).toContain("MyClass");
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.description).toContain("MyClass");
       }
     });
   });
@@ -266,11 +292,13 @@ describe("defineRefactoring", () => {
       apply: () => ({ success: true, filesChanged: [], description: "done" }),
     });
 
-    expect(() => def.params.validate({ file: "foo.ts", name: "myVar" })).not.toThrow();
-    expect(() => def.params.validate({})).toThrow();
-    expect(() => def.params.validate({ file: "foo.ts", name: "123bad" })).toThrow(
-      "valid identifier",
-    );
+    expect(def.params.validate({ file: "foo.ts", name: "myVar" }).isOk()).toBe(true);
+    expect(def.params.validate({}).isErr()).toBe(true);
+    const badResult = def.params.validate({ file: "foo.ts", name: "123bad" });
+    expect(badResult.isErr()).toBe(true);
+    if (badResult.isErr()) {
+      expect(badResult.error.message).toContain("valid identifier");
+    }
   });
 
   it("apply works without resolver (receives project directly)", () => {
