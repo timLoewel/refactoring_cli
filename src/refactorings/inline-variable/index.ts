@@ -1,4 +1,4 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, ts } from "ts-morph";
 import type { Project } from "ts-morph";
 import type {
   EnumerateCandidate,
@@ -44,6 +44,20 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    // Refuse to inline when the source file already has type errors. Pre-existing
+    // errors can interact unpredictably with the transformation and may be
+    // misattributed to the refactoring by downstream tooling.
+    const fileErrors = sf
+      .getPreEmitDiagnostics()
+      .filter((d) => d.getCategory() === ts.DiagnosticCategory.Error);
+    if (fileErrors.length > 0) {
+      errors.push(
+        `Source file has ${fileErrors.length} pre-existing type error(s). ` +
+          `Resolve them before inlining to ensure correctness.`,
+      );
+      return { ok: false, errors };
+    }
+
     // Refuse to inline a variable that is reassigned after initialization.
     const nameNode = decl.getNameNode();
     if (Node.isIdentifier(nameNode)) {
@@ -64,11 +78,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           return { ok: false, errors };
         }
         // Also check compound assignments (+=, -=, etc.) and prefix/postfix update expressions
-        if (
-          parent &&
-          Node.isBinaryExpression(parent) &&
-          parent.getLeft() === ref
-        ) {
+        if (parent && Node.isBinaryExpression(parent) && parent.getLeft() === ref) {
           const opKind = parent.getOperatorToken().getKind();
           if (
             opKind === SyntaxKind.PlusEqualsToken ||
@@ -97,10 +107,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           (Node.isPrefixUnaryExpression(parent) || Node.isPostfixUnaryExpression(parent))
         ) {
           const opKind = parent.getOperatorToken();
-          if (
-            opKind === SyntaxKind.PlusPlusToken ||
-            opKind === SyntaxKind.MinusMinusToken
-          ) {
+          if (opKind === SyntaxKind.PlusPlusToken || opKind === SyntaxKind.MinusMinusToken) {
             errors.push(
               `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
             );
@@ -110,19 +117,30 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
         // Check for mutation via method calls (e.g. arr.push(...), set.add(...)).
         // Inlining would replace each reference with a fresh literal, so mutations
         // would go to throwaway copies and later reads would see empty values.
-        if (
-          parent &&
-          Node.isPropertyAccessExpression(parent) &&
-          parent.getExpression() === ref
-        ) {
+        if (parent && Node.isPropertyAccessExpression(parent) && parent.getExpression() === ref) {
           const methodName = parent.getName();
           const MUTATING_METHODS = new Set([
-            "push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin",
-            "add", "set", "delete", "clear",
+            "push",
+            "pop",
+            "shift",
+            "unshift",
+            "splice",
+            "sort",
+            "reverse",
+            "fill",
+            "copyWithin",
+            "add",
+            "set",
+            "delete",
+            "clear",
           ]);
           if (MUTATING_METHODS.has(methodName)) {
             const grandparent = parent.getParent();
-            if (grandparent && Node.isCallExpression(grandparent) && grandparent.getExpression() === parent) {
+            if (
+              grandparent &&
+              Node.isCallExpression(grandparent) &&
+              grandparent.getExpression() === parent
+            ) {
               errors.push(
                 `Variable '${target}' is mutated via .${methodName}() and cannot be safely inlined`,
               );
@@ -131,11 +149,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           }
         }
         // Check for element access mutation (e.g. arr[0] = ..., obj["key"] = ...)
-        if (
-          parent &&
-          Node.isElementAccessExpression(parent) &&
-          parent.getExpression() === ref
-        ) {
+        if (parent && Node.isElementAccessExpression(parent) && parent.getExpression() === ref) {
           const grandparent = parent.getParent();
           if (
             grandparent &&
@@ -244,11 +258,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       for (const ref of narrowRefs) {
         const parent = ref.getParent();
         // Is this reference the object of a property access? (e.g. `effect.type`)
-        if (
-          !parent ||
-          !Node.isPropertyAccessExpression(parent) ||
-          parent.getExpression() !== ref
-        )
+        if (!parent || !Node.isPropertyAccessExpression(parent) || parent.getExpression() !== ref)
           continue;
 
         // Walk up to find an if-statement or switch-statement whose condition contains this ref
@@ -406,6 +416,11 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
+    // Snapshot error count before transformation so we can detect regressions.
+    const errorsBefore = sf
+      .getPreEmitDiagnostics()
+      .filter((d) => d.getCategory() === ts.DiagnosticCategory.Error).length;
+
     const initText = initializer.getText();
     // Wrap in parens if initializer is a complex expression that could change
     // semantics when inlined into a surrounding expression (e.g. `a + b` inlined
@@ -536,6 +551,19 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           break; // restart scan since positions shifted
         }
       }
+    }
+
+    // Check whether inlining introduced new type errors (e.g. excess property checks
+    // on object literals, or changed generic inference from type predicates).
+    const errorsAfter = sf
+      .getPreEmitDiagnostics()
+      .filter((d) => d.getCategory() === ts.DiagnosticCategory.Error).length;
+    if (errorsAfter > errorsBefore) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Inlining '${target}' introduces type errors (${errorsAfter - errorsBefore} new)`,
+      };
     }
 
     // Remove named imports that are now unused (e.g. a type annotation import that was
