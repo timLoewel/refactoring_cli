@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { existsSync, mkdirSync, readFileSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Project } from "ts-morph";
@@ -180,6 +180,7 @@ const refactoringFilter = ((): string | undefined => {
 })();
 
 // --max-applies N: stop after N valid (applied) candidates per refactoring
+const maxAppliesExplicit = scriptArgs.includes("--max-applies");
 const maxApplies = ((): number | undefined => {
   const idx = scriptArgs.indexOf("--max-applies");
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : undefined;
@@ -196,6 +197,49 @@ const shuffleSeed = ((): number => {
   const idx = scriptArgs.indexOf("--seed");
   return idx >= 0 ? parseInt(scriptArgs[idx + 1], 10) : 42;
 })();
+
+// --stop-on-first-failure: stop on first syntax/semantic failure, output FailureReport JSON, exit 1
+const stopOnFirstFailure = scriptArgs.includes("--stop-on-first-failure");
+
+// --tried-set-file <path>: persist tried candidates across runs (NDJSON, one key per line)
+const triedSetFile = ((): string | undefined => {
+  const idx = scriptArgs.indexOf("--tried-set-file");
+  return idx >= 0 ? scriptArgs[idx + 1] : undefined;
+})();
+
+// --- FailureReport: structured output for --stop-on-first-failure ---
+interface FailureReport {
+  refactoring: string;
+  repo: string;
+  candidate: { file: string; target: string };
+  params: Record<string, unknown>;
+  sourceBefore: string;
+  diff: string;
+  error: string;
+  errorType: "syntax" | "semantic";
+  candidatesTestedSoFar: number;
+}
+
+// --- Tried-set helpers ---
+function loadTriedSet(filePath: string): Set<string> {
+  const set = new Set<string>();
+  if (!existsSync(filePath)) return set;
+  const content = readFileSync(filePath, "utf8").trim();
+  if (!content) return set;
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed) set.add(trimmed);
+  }
+  return set;
+}
+
+function triedSetKey(repo: string, file: string, target: string): string {
+  return `${repo}::${file}::${target}`;
+}
+
+function appendTriedKey(filePath: string, key: string): void {
+  appendFileSync(filePath, key + "\n");
+}
 
 function getSelectedRepos(): RepoConfig[] {
   if (!repoFilter || repoFilter === "all") return REPOS;
@@ -860,16 +904,43 @@ async function runRepo(
     reverseImportMap,
     project: tsProject,
   } = enumerateCandidates(projDir);
+
+  // Load tried-set and filter out already-tried candidates before shuffling
+  const triedSet = triedSetFile ? loadTriedSet(triedSetFile) : new Set<string>();
+  const untriedCandidates = triedSetFile
+    ? allCandidates.filter((c) => !triedSet.has(triedSetKey(repo.name, c.file, c.target)))
+    : allCandidates;
+
+  if (triedSetFile && untriedCandidates.length === 0) {
+    process.stderr.write(`No untried candidates remain for ${repo.name} — skipping.\n`);
+    if (stopOnFirstFailure) {
+      const effectiveMax = maxApplies ?? (stopOnFirstFailure && !maxAppliesExplicit ? 500 : undefined);
+      process.stdout.write(JSON.stringify({ success: true, candidatesTested: 0 }) + "\n");
+      process.exit(0);
+    }
+    return { repo: repo.name, stats: [] };
+  }
+
+  if (triedSetFile && untriedCandidates.length < allCandidates.length) {
+    process.stderr.write(
+      `Filtered ${allCandidates.length - untriedCandidates.length} already-tried candidates (${untriedCandidates.length} remain).\n`,
+    );
+  }
+
   const shuffledCandidates = weightedShuffle(
-    allCandidates,
+    untriedCandidates,
     (c) => {
       const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
       return 1 / (importerCount + 1) ** 2;
     },
     shuffleSeed,
   );
+
+  // Effective max-applies: default to 500 when --stop-on-first-failure is set
+  const effectiveMaxApplies = maxApplies ?? (stopOnFirstFailure && !maxAppliesExplicit ? 500 : undefined);
+
   process.stderr.write(
-    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=${shuffleSeed}).${maxApplies !== undefined ? ` Will stop after ${maxApplies} applies per refactoring.` : ""}\n`,
+    `${shuffledCandidates.length} symbol candidates found (small-scope-biased shuffle, seed=${shuffleSeed}).${effectiveMaxApplies !== undefined ? ` Will stop after ${effectiveMaxApplies} applies per refactoring.` : ""}\n`,
   );
 
   // Start daemon for this repo
@@ -895,7 +966,7 @@ async function runRepo(
       semanticFailures: [],
     };
 
-    const limit = maxApplies ?? shuffledCandidates.length;
+    const limit = effectiveMaxApplies ?? shuffledCandidates.length;
 
     const definition = registry.lookup(refactoring.kebabName);
     const candidateList: Candidate[] = definition?.enumerate
@@ -945,6 +1016,11 @@ async function runRepo(
         runTests,
       );
       checked++;
+
+      // Append to tried-set file after each candidate (regardless of outcome)
+      if (triedSetFile) {
+        appendTriedKey(triedSetFile, triedSetKey(repo.name, candidate.file, candidate.target));
+      }
 
       if (!result.isTarget) {
         const rawReason = result.skipReason ?? "precondition failed";
@@ -1005,6 +1081,24 @@ async function runRepo(
             diff: result.diff ?? "",
             testError: result.testError ?? "",
           });
+
+          // --stop-on-first-failure: semantic error → output FailureReport and exit 1
+          if (stopOnFirstFailure) {
+            const report: FailureReport = {
+              refactoring: refactoring.kebabName,
+              repo: repo.name,
+              candidate: { file: candidate.file, target: candidate.target },
+              params: result.params,
+              sourceBefore: sourceSnippet,
+              diff: result.diff ?? "",
+              error: result.testError ?? "",
+              errorType: "semantic",
+              candidatesTestedSoFar: checked,
+            };
+            await client.shutdown();
+            process.stdout.write(JSON.stringify(report) + "\n");
+            process.exit(1);
+          }
         } else {
           stat.failed++;
           process.stderr.write(
@@ -1037,6 +1131,28 @@ async function runRepo(
               error: result.error,
             });
           }
+
+          // --stop-on-first-failure: syntax error → output FailureReport and exit 1
+          if (stopOnFirstFailure) {
+            const lines = beforeContent.split("\n");
+            const targetLineIdx = lines.findIndex((l) => l.includes(candidate.target));
+            const start = Math.max(0, targetLineIdx >= 0 ? targetLineIdx - 5 : 0);
+            const end = Math.min(lines.length, targetLineIdx >= 0 ? targetLineIdx + 15 : 20);
+            const report: FailureReport = {
+              refactoring: refactoring.kebabName,
+              repo: repo.name,
+              candidate: { file: candidate.file, target: candidate.target },
+              params: result.params,
+              sourceBefore: lines.slice(start, end).join("\n"),
+              diff: result.diff ?? "",
+              error: result.error ?? "",
+              errorType: "syntax",
+              candidatesTestedSoFar: checked,
+            };
+            await client.shutdown();
+            process.stdout.write(JSON.stringify(report) + "\n");
+            process.exit(1);
+          }
         }
       } else {
         stat.failed++;
@@ -1062,7 +1178,7 @@ async function runRepo(
       }
 
       if (stat.targets >= limit) break;
-      if (maxApplies !== undefined && checked >= limit * 20) break;
+      if (effectiveMaxApplies !== undefined && checked >= limit * 20) break;
     }
 
     process.stderr.write(
@@ -1097,6 +1213,14 @@ async function runRepo(
   }
 
   await client.shutdown();
+
+  // --stop-on-first-failure: if we got through all candidates without failure, exit cleanly
+  if (stopOnFirstFailure) {
+    const totalTested = stats.reduce((sum, s) => sum + s.targets, 0);
+    process.stdout.write(JSON.stringify({ success: true, candidatesTested: totalTested }) + "\n");
+    process.exit(0);
+  }
+
   return { repo: repo.name, stats };
 }
 
