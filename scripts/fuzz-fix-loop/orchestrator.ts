@@ -339,7 +339,7 @@ If you cannot resolve the conflict, output: STUCK`;
 // --- Fix agent ---
 
 function buildFixAgentPrompt(failure: FailureReport, _worktreeDir: string): string {
-  return `You are a fix agent for the refactoring-cli project. A real-world codebase test has found a failure.
+  return `You are a fix agent for the refactoring-cli project. A real-world codebase test has found a failure. You have about 25 tool calls — spend them wisely, but do understand the problem before fixing it.
 
 ## Failure Details
 \`\`\`json
@@ -348,26 +348,28 @@ ${JSON.stringify(failure, null, 2)}
 
 ## Instructions
 
-1. **Create a minimal fixture** that reproduces this failure:
-   - Location: \`src/refactorings/${failure.refactoring}/fixtures/<descriptive-name>.fixture.ts\`
-   - The fixture must export \`params\` and a \`main()\` function that returns a deterministic value
-   - Use the source context and error to understand what triggered the failure
-   - Keep it minimal — only the code needed to trigger the bug
+1. **Understand the failure**: Read the error, source context, and diff. Look at the refactoring implementation in \`src/refactorings/${failure.refactoring}/\` to understand what went wrong. Form a hypothesis before writing any code.
 
-2. **Verify the fixture fails**: Run \`npx vitest run src/refactorings/${failure.refactoring}\` and confirm the new fixture test fails with the expected error category (${failure.errorType})
+2. **Create a minimal fixture** at \`src/refactorings/${failure.refactoring}/fixtures/<descriptive-name>.fixture.ts\`
+   - Export \`params\` (with \`file\` and \`target\`) and a \`main()\` function returning a deterministic value
+   - Distill the real-world code to the minimal case that triggers the bug
 
-3. **Fix the refactoring code**: Modify the implementation in \`src/refactorings/${failure.refactoring}/\` to handle this edge case. The fix should either:
-   - Correctly handle the case (transformation produces valid code)
-   - Add a precondition that rejects the case (use \`expectRejection: true\` in fixture params)
+3. **Verify the fixture fails**: \`npx vitest run src/refactorings/${failure.refactoring}\`
 
-4. **Verify the fix**: Run \`npx vitest run src/refactorings/${failure.refactoring}\` and confirm ALL fixtures pass (new and existing)
+4. **Fix the refactoring code** in \`src/refactorings/${failure.refactoring}/\`:
+   - Either fix the transformation to produce correct output
+   - Or add a precondition that rejects the case (\`expectRejection: true\` in fixture params)
 
-5. **Run full quality checks**: \`npm run lint && npm run build && npm test\`
+5. **Verify all tests pass**: \`npx vitest run src/refactorings/${failure.refactoring}\`
 
-6. **Commit**: Stage only relevant files and commit with message: \`fix(${failure.refactoring}): <description of edge case>\`
+6. **Quality checks**: \`npm run lint && npm run build && npm test\`
+
+7. **Commit**: \`fix(${failure.refactoring}): <edge case description>\`
+
+If you cannot fix it after 3 attempts at step 4, stop and output a stuck report rather than looping.
 
 ## Output
-After completing (or if stuck), output a JSON block:
+When done (or stuck), output exactly one JSON block:
 \`\`\`json
 {
   "success": true/false,
@@ -380,25 +382,95 @@ After completing (or if stuck), output a JSON block:
 \`\`\``;
 }
 
+const FIX_AGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const FIX_AGENT_MAX_TURNS = 25;
+
 async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promise<FixAgentResult> {
   const prompt = buildFixAgentPrompt(failure, worktreeDir);
   const promptFile = join(FUZZ_STATE_DIR, `fix-${failure.refactoring}-${Date.now()}.md`);
   mkdirSync(FUZZ_STATE_DIR, { recursive: true });
   writeFileSync(promptFile, prompt);
 
+  // Resolve paths for bwrap bind mounts
+  const homeDir = process.env.HOME ?? "/home";
+  const claudeConfigDir = join(homeDir, ".claude");
+  const nodeDir = spawnSync("which", ["node"], { encoding: "utf8" }).stdout.trim();
+  const nodeBase = dirname(dirname(nodeDir)); // e.g. /home/user/.local/share/mise/installs/node/25.2.1
+
   return new Promise<FixAgentResult>((resolve) => {
-    const child = spawn(
+    // Sandbox the agent with bubblewrap: read-write access to the worktree only,
+    // read-only access to node, npm, claude CLI, and system libs
+    const bwrapArgs = [
+      "--die-with-parent",
+      "--unshare-net", // no network (all deps are already installed)
+      // System essentials (read-only)
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/lib",
+      "/lib",
+      "--ro-bind",
+      "/lib64",
+      "/lib64",
+      "--ro-bind",
+      "/bin",
+      "/bin",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      // Node runtime (read-only)
+      "--ro-bind",
+      nodeBase,
+      nodeBase,
+      // Claude CLI config (read-only)
+      "--ro-bind",
+      claudeConfigDir,
+      claudeConfigDir,
+      // The worktree itself (read-write — this is where the agent works)
+      "--bind",
+      worktreeDir,
+      worktreeDir,
+      // Fuzz state dir (read-write — for the prompt file)
+      "--bind",
+      FUZZ_STATE_DIR,
+      FUZZ_STATE_DIR,
+      // Working directory
+      "--chdir",
+      worktreeDir,
+      // The command to run inside the sandbox
       "claude",
-      ["--print", "--dangerously-skip-permissions", "--output-format", "json"],
-      {
-        cwd: worktreeDir,
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env },
-      },
-    );
+      "--print",
+      "--dangerously-skip-permissions",
+      "--output-format",
+      "json",
+      "--max-turns",
+      String(FIX_AGENT_MAX_TURNS),
+    ];
+
+    const child = spawn("bwrap", bwrapArgs, {
+      cwd: worktreeDir,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env },
+    });
 
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+
+    // Hard timeout — kill the agent after 5 minutes
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      // Give it 5s to exit gracefully, then force kill
+      setTimeout(() => child.kill("SIGKILL"), 5000);
+    }, FIX_AGENT_TIMEOUT_MS);
 
     child.stdin.write(readFileSync(promptFile, "utf8"));
     child.stdin.end();
@@ -411,10 +483,19 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
     });
 
     child.on("close", (code) => {
+      clearTimeout(timeout);
       try {
         unlinkSync(promptFile);
       } catch {
         // ignore
+      }
+
+      if (timedOut) {
+        resolve({
+          success: false,
+          stuckReport: `Agent timed out after ${FIX_AGENT_TIMEOUT_MS / 1000}s. Partial stderr: ${stderr.slice(-500)}`,
+        });
+        return;
       }
 
       // Parse agent output to find the JSON result
