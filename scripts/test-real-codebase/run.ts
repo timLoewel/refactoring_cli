@@ -1026,7 +1026,12 @@ async function runRepo(
   const { RefactorClient } = await import("../../src/core/refactor-client.js");
   const { startDaemon } = await import("../../src/core/server/daemon.js");
   await startDaemon(cacheDir);
-  const client = await RefactorClient.connect(cacheDir);
+  const connectResult = await RefactorClient.connect(cacheDir);
+  if (connectResult.isErr()) {
+    process.stderr.write(`Failed to connect to daemon: ${connectResult.error.message}\n`);
+    process.exit(1);
+  }
+  const client = connectResult.value;
   process.stderr.write("Daemon ready.\n");
 
   const baselineCache = { baselined: new Set<string>(), keys: new Set<string>() };
