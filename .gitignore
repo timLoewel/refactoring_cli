@@ -15,3 +15,7 @@ coverage/
 src/core/cli/version.ts
 __pycache__/
 .refactoring-server
+
+# temp files
+.claude/worktrees/ 
+tmp/
