@@ -105,27 +105,27 @@ interface RepoInfo {
 }
 
 function getRepoList(): RepoInfo[] {
-  // Get repo list from run.ts --dry-run output
+  // If repos are explicitly filtered, use those directly (avoids slow dry-run)
+  if (repoFilter) {
+    return repoFilter.map((name) => ({ name, url: "", ref: "" }));
+  }
+
+  // Otherwise, get repo list from run.ts --dry-run output
   const result = spawnSync("npx", ["tsx", RUN_TS, "--dry-run", "--json"], {
     encoding: "utf8",
     cwd: ROOT,
     maxBuffer: 10 * 1024 * 1024,
-    timeout: 120_000,
+    timeout: 600_000,
   });
 
-  // Parse repos from dry-run output (each line is a JSON object with repo field)
   const repos: RepoInfo[] = [];
-  const lines = result.stdout.trim().split("\n");
   const seen = new Set<string>();
-  for (const line of lines) {
-    try {
-      const data = JSON.parse(line);
-      if (data.repo && !seen.has(data.repo)) {
-        seen.add(data.repo);
-        repos.push({ name: data.repo, url: "", ref: "" });
-      }
-    } catch {
-      // skip non-JSON lines
+  const repoMatches = result.stdout.matchAll(/"repo"\s*:\s*"([^"]+)"/g);
+  for (const match of repoMatches) {
+    const name = match[1] ?? "";
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      repos.push({ name, url: "", ref: "" });
     }
   }
   return repos;
