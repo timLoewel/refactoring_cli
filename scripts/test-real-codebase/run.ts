@@ -1052,9 +1052,14 @@ async function runRepo(
     const limit = effectiveMaxApplies ?? shuffledCandidates.length;
 
     const definition = registry.lookup(refactoring.kebabName);
-    const candidateList: Candidate[] = definition?.enumerate
+    const rawEnumerated = definition?.enumerate ? definition.enumerate(tsProject) : null;
+    const filteredEnumerated =
+      rawEnumerated && triedSetFile
+        ? rawEnumerated.filter((c) => !triedSet.has(triedSetKey(repo.name, c.file, c.target)))
+        : rawEnumerated;
+    const candidateList: Candidate[] = filteredEnumerated
       ? weightedShuffle(
-          definition.enumerate(tsProject),
+          filteredEnumerated,
           (c) => {
             const importerCount = reverseImportMap.get(c.file)?.size ?? 0;
             return 1 / (importerCount + 1) ** 2;
@@ -1062,7 +1067,7 @@ async function runRepo(
           shuffleSeed,
         )
       : shuffledCandidates;
-    const source = definition?.enumerate ? "enumerate" : "generic";
+    const source = filteredEnumerated ? "enumerate" : "generic";
     process.stderr.write(
       `\nTesting: ${refactoring.kebabName} (up to ${limit} applies from ${candidateList.length} candidates [${source}])\n`,
     );
