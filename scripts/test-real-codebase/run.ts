@@ -776,15 +776,23 @@ async function applyAndCheck(
     }
   }
 
-  // Baseline pre-existing diagnostics for importer files (BEFORE refreshing changed files,
-  // so the type checker still has the original versions). Only done once per file.
+  // Baseline pre-existing diagnostics BEFORE refreshing changed files,
+  // so the type checker still has the original versions. Only done once per file.
+  // For changed files, use position-independent keys (code + message) because
+  // positions shift after edits. For importer files, use position-based keys.
   for (const filePath of scopeSet) {
-    if (changedFileSet.has(filePath) || baselineCache.baselined.has(filePath)) continue;
+    if (baselineCache.baselined.has(filePath)) continue;
     baselineCache.baselined.add(filePath);
     const sf = tsProject.getSourceFile(filePath);
     if (!sf) continue;
     for (const d of sf.getPreEmitDiagnostics()) {
-      baselineCache.keys.add(`${filePath}:${d.getStart() ?? -1}:${d.getCode()}`);
+      if (changedFileSet.has(filePath)) {
+        const msg = d.getMessageText();
+        const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
+        baselineCache.keys.add(`${filePath}:msg:${d.getCode()}:${msgStr}`);
+      } else {
+        baselineCache.keys.add(`${filePath}:${d.getStart() ?? -1}:${d.getCode()}`);
+      }
     }
   }
 
@@ -810,7 +818,13 @@ async function applyAndCheck(
   const diagnostics = allDiagnostics.filter((d) => {
     const diagFile = d.getSourceFile()?.getFilePath();
     if (!diagFile) return true; // keep if no file info
-    if (changedFileSet.has(diagFile)) return true; // always keep errors from changed files
+    if (changedFileSet.has(diagFile)) {
+      // For changed files: filter out pre-existing errors using position-independent keys
+      const msg = d.getMessageText();
+      const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
+      const key = `${diagFile}:msg:${d.getCode()}:${msgStr}`;
+      return !baselineCache.keys.has(key);
+    }
     // For importer files: keep only if NOT pre-existing
     const key = `${diagFile}:${d.getStart() ?? -1}:${d.getCode()}`;
     return !baselineCache.keys.has(key);
