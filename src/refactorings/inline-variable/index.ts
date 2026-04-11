@@ -308,6 +308,19 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
+    // Reject when multiple declarations share the same name in the file.
+    // The params {file, target} cannot disambiguate which one to inline,
+    // so the result would be non-deterministic.
+    const sameNameCount = sf
+      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+      .filter((d) => d.getName() === target).length;
+    if (sameNameCount > 1) {
+      errors.push(
+        `Multiple declarations of '${target}' found in file. Inline is ambiguous without positional context to disambiguate.`,
+      );
+      return { ok: false, errors };
+    }
+
     // Refuse to inline a side-effect initializer (call/new expression) used more than once,
     // as that would change how many times the function is called.
     // Check both the initializer itself AND its descendants — getDescendantsOfKind
@@ -504,12 +517,24 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
     const candidates: EnumerateCandidate[] = [];
     for (const sf of project.getSourceFiles()) {
       const file = sf.getFilePath();
+
+      // Count declarations per name so we can skip ambiguous targets
+      const declCounts = new Map<string, number>();
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        const name = decl.getName();
+        if (name) declCounts.set(name, (declCounts.get(name) ?? 0) + 1);
+      }
+
+      const seen = new Set<string>();
       for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
         if (!decl.getInitializer()) continue;
         const varStmt = decl.getParent()?.getParent();
         if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) continue;
         const name = decl.getName();
-        if (name) candidates.push({ file, target: name });
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        if ((declCounts.get(name) ?? 0) > 1) continue;
+        candidates.push({ file, target: name });
       }
     }
     return candidates;
