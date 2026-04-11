@@ -393,8 +393,8 @@ ${testCmd}
 3. **Verify the fixture fails**: run the test command above
 
 4. **Fix the refactoring code** in \`src/refactorings/${failure.refactoring}/\`:
-   - Either fix the transformation to produce correct output
-   - Or add a precondition that rejects the case (\`expectRejection: true\` in fixture params)
+   - **Strongly prefer fixing the transformation** to produce correct output. The whole point of this tool is to apply refactorings — rejecting valid code is a last resort, not a convenience.
+   - Only add a precondition rejection (\`expectRejection: true\` in fixture params) when the case is **genuinely unsupported** — e.g. the language semantics make a correct transformation impossible, or it would require whole-program analysis that the tool doesn't have. "This is hard to handle" is not a good reason to reject.
 
 5. **Verify all tests pass**: run the test command above
 
