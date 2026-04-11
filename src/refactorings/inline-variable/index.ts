@@ -466,6 +466,50 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
+    // Remove local type declarations (type aliases and interfaces) that are now
+    // unreferenced after removing the variable declaration. This prevents
+    // "declared but never used" errors in projects with noUnusedLocals.
+    // Scan all descendants (not just top-level) since types may be nested inside
+    // callbacks, test blocks, etc. Iterate because removing one may orphan another.
+    let removedType = true;
+    while (removedType) {
+      removedType = false;
+      const typeDecls = [
+        ...sf.getDescendantsOfKind(SyntaxKind.TypeAliasDeclaration),
+        ...sf.getDescendantsOfKind(SyntaxKind.InterfaceDeclaration),
+      ];
+      for (const node of typeDecls) {
+        // Never remove exported type declarations — other files may depend on them
+        const parent = node.getParent();
+        if (parent && Node.isVariableStatement(parent) && parent.isExported()) continue;
+        if (Node.isTypeAliasDeclaration(node) && node.isExported()) continue;
+        if (Node.isInterfaceDeclaration(node) && node.isExported()) continue;
+
+        const typeName = node.getName();
+        if (!typeName) continue;
+        const declStart = node.getStart();
+        const declEnd = node.getEnd();
+        const isUsed = sf.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => {
+          if (id.getText() !== typeName) return false;
+          const pos = id.getStart();
+          if (pos >= declStart && pos < declEnd) return false;
+          let ancestor: ReturnType<typeof id.getParent> = id.getParent();
+          while (ancestor) {
+            if (Node.isImportDeclaration(ancestor)) return false;
+            const next = ancestor.getParent();
+            if (!next) break;
+            ancestor = next;
+          }
+          return true;
+        });
+        if (!isUsed) {
+          node.remove();
+          removedType = true;
+          break; // restart scan since positions shifted
+        }
+      }
+    }
+
     // Remove named imports that are now unused (e.g. a type annotation import that was
     // only referenced in the removed declaration).
     // Build the set of names still used OUTSIDE of import declarations — identifiers
