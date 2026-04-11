@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 const RUN_TS = join(ROOT, "scripts/test-real-codebase/run.ts");
-const FUZZ_STATE_DIR = join(ROOT, "tmp/fuzz-state");
+const STATE_DIR = join(ROOT, "tmp/auto-fix-state");
 const WORKTREES_DIR = join(ROOT, "tmp/worktrees");
 
 // --- Interfaces ---
@@ -162,7 +162,7 @@ function loadRefactorings(): string[] {
 
 function createWorktree(refactoring: string): string {
   const worktreePath = join(WORKTREES_DIR, refactoring);
-  const branchName = `fuzz-fix/${refactoring}`;
+  const branchName = `auto-fix/${refactoring}`;
 
   // Clean up existing worktree/branch if present
   if (existsSync(worktreePath)) {
@@ -301,7 +301,7 @@ ${conflictDiff}
 
 If you cannot resolve the conflict, output: STUCK`;
 
-    const promptFile = join(FUZZ_STATE_DIR, `conflict-${conflictWorker.refactoring}.md`);
+    const promptFile = join(STATE_DIR, `conflict-${conflictWorker.refactoring}.md`);
     writeFileSync(promptFile, prompt);
 
     const agentResult = spawnSync(
@@ -387,8 +387,8 @@ const FIX_AGENT_MAX_TURNS = 25;
 
 async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promise<FixAgentResult> {
   const prompt = buildFixAgentPrompt(failure, worktreeDir);
-  const promptFile = join(FUZZ_STATE_DIR, `fix-${failure.refactoring}-${Date.now()}.md`);
-  mkdirSync(FUZZ_STATE_DIR, { recursive: true });
+  const promptFile = join(STATE_DIR, `fix-${failure.refactoring}-${Date.now()}.md`);
+  mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(promptFile, prompt);
 
   // Resolve paths for bwrap bind mounts
@@ -439,8 +439,8 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
       worktreeDir,
       // Fuzz state dir (read-write — for the prompt file)
       "--bind",
-      FUZZ_STATE_DIR,
-      FUZZ_STATE_DIR,
+      STATE_DIR,
+      STATE_DIR,
       // Working directory
       "--chdir",
       worktreeDir,
@@ -606,9 +606,9 @@ async function runWorker(
   dashboard: DashboardState,
 ): Promise<Finding[]> {
   const worktreePath = createWorktree(refactoring);
-  const branchName = `fuzz-fix/${refactoring}`;
-  const triedSetFile = join(FUZZ_STATE_DIR, `${refactoring}.tried.ndjson`);
-  mkdirSync(FUZZ_STATE_DIR, { recursive: true });
+  const branchName = `auto-fix/${refactoring}`;
+  const triedSetFile = join(STATE_DIR, `${refactoring}.tried.ndjson`);
+  mkdirSync(STATE_DIR, { recursive: true });
 
   const worker: WorkerState = {
     refactoring,
@@ -720,7 +720,7 @@ async function runWorker(
     renderDashboard(dashboard);
 
     // Write findings to disk
-    const findingsPath = join(FUZZ_STATE_DIR, `${refactoring}.findings.json`);
+    const findingsPath = join(STATE_DIR, `${refactoring}.findings.json`);
     writeFileSync(findingsPath, JSON.stringify(worker.findings, null, 2));
 
     // Cleanup worktree
@@ -816,7 +816,7 @@ function printFinalSummary(
 
 function generateFindingsReport(findings: Finding[], totalCandidates: number): string {
   if (findings.length === 0) {
-    return `# Fuzz-Fix Loop Findings Report
+    return `# Auto-Fix Loop Findings Report
 
 **No problems found.**
 
@@ -829,7 +829,7 @@ function generateFindingsReport(findings: Finding[], totalCandidates: number): s
   const unresolved = findings.filter((f) => f.resolution === "unresolved").length;
 
   const lines: string[] = [
-    "# Fuzz-Fix Loop Findings Report",
+    "# Auto-Fix Loop Findings Report",
     "",
     `**Total problems:** ${findings.length}`,
     `**Fixed:** ${fixed}`,
@@ -902,10 +902,10 @@ function generateFindingsReport(findings: Finding[], totalCandidates: number): s
 // --- Main ---
 
 async function main(): Promise<void> {
-  process.stderr.write("=== Fuzz-Fix Loop Orchestrator ===\n\n");
+  process.stderr.write("=== Auto-Fix Loop Orchestrator ===\n\n");
 
   // Setup state directories
-  mkdirSync(FUZZ_STATE_DIR, { recursive: true });
+  mkdirSync(STATE_DIR, { recursive: true });
   mkdirSync(WORKTREES_DIR, { recursive: true });
 
   // Load refactorings
@@ -974,10 +974,10 @@ async function main(): Promise<void> {
   }
 
   // Collect any remaining findings from disk
-  const findingsFiles = readdirSync(FUZZ_STATE_DIR).filter((f) => f.endsWith(".findings.json"));
+  const findingsFiles = readdirSync(STATE_DIR).filter((f) => f.endsWith(".findings.json"));
   for (const file of findingsFiles) {
     try {
-      const content = readFileSync(join(FUZZ_STATE_DIR, file), "utf8");
+      const content = readFileSync(join(STATE_DIR, file), "utf8");
       const findings = JSON.parse(content) as Finding[];
       // Deduplicate (in-memory findings already collected)
       for (const f of findings) {
@@ -1001,7 +1001,7 @@ async function main(): Promise<void> {
   const totalCandidates = allWorkers.reduce((sum, w) => sum + w.candidatesTested, 0);
   const report = generateFindingsReport(allFindings, totalCandidates);
 
-  const reportDir = join(ROOT, "tmp/fuzz-fix-loop");
+  const reportDir = join(ROOT, "tmp/auto-fix-loop");
   mkdirSync(reportDir, { recursive: true });
   const reportPath = join(reportDir, "findings-report.md");
   writeFileSync(reportPath, report);

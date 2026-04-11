@@ -14,7 +14,7 @@ export default tseslint.config(
         projectService: {
           allowDefaultProject: [
             "scripts/test-real-codebase/*.ts",
-            "scripts/fuzz-fix-loop/*.ts",
+            "scripts/auto-fix-loop/*.ts",
             "src/refactorings/__tests__/*.test.ts",
           ],
         },
