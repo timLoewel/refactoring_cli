@@ -361,7 +361,18 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       Node.isAsExpression(initializer) ||
       Node.isSpreadElement(initializer) ||
       initializer.getKind() === SyntaxKind.CommaToken;
-    const inlineText = needsParens ? `(${initText})` : initText;
+
+    // When the variable has an explicit type annotation, preserve it via a type
+    // assertion so that inlining doesn't lose type information (e.g. `any`
+    // widening that suppresses type errors on the resulting expression).
+    const typeNode = decl.getTypeNode();
+    const typeAnnotation = typeNode ? typeNode.getText() : null;
+    let inlineText: string;
+    if (typeAnnotation) {
+      inlineText = `(${initText} as ${typeAnnotation})`;
+    } else {
+      inlineText = needsParens ? `(${initText})` : initText;
+    }
 
     // Use TypeScript's symbol-based reference finder to correctly handle shadowed names
     // (e.g. a callback parameter with the same name as the outer variable).
