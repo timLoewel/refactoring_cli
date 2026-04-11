@@ -1,5 +1,13 @@
 import { spawn, spawnSync } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  unlinkSync,
+  symlinkSync,
+} from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -183,6 +191,14 @@ function createWorktree(refactoring: string): string {
     process.stderr.write(`Failed to create worktree for ${refactoring}: ${result.stderr}\n`);
     throw new Error(`Worktree creation failed: ${result.stderr}`);
   }
+
+  // Symlink node_modules from main repo (worktrees don't include gitignored dirs)
+  const nodeModulesSrc = join(ROOT, "node_modules");
+  const nodeModulesDst = join(worktreePath, "node_modules");
+  if (existsSync(nodeModulesSrc) && !existsSync(nodeModulesDst)) {
+    symlinkSync(nodeModulesSrc, nodeModulesDst);
+  }
+
   return worktreePath;
 }
 
@@ -338,13 +354,33 @@ If you cannot resolve the conflict, output: STUCK`;
 
 // --- Fix agent ---
 
+function kebabToTitleCase(kebab: string): string {
+  return kebab
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function buildFixAgentPrompt(failure: FailureReport, _worktreeDir: string): string {
+  const testName = kebabToTitleCase(failure.refactoring);
+  const testCmd = `node --experimental-vm-modules node_modules/.bin/jest --forceExit --testNamePattern='${testName}'`;
+
   return `You are a fix agent for the refactoring-cli project. A real-world codebase test has found a failure. You have about 25 tool calls — spend them wisely, but do understand the problem before fixing it.
 
 ## Failure Details
 \`\`\`json
 ${JSON.stringify(failure, null, 2)}
 \`\`\`
+
+## Testing
+
+This project uses **jest** (not vitest). To run tests for this refactoring ONLY:
+
+\`\`\`
+${testCmd}
+\`\`\`
+
+**IMPORTANT**: Always use exactly this command. Do NOT run the full test suite, do NOT use \`npm test\`, do NOT run \`all-fixtures.test.ts\` directly. The targeted command takes ~15 seconds; the full suite takes 4+ minutes and you will run out of time.
 
 ## Instructions
 
@@ -354,15 +390,15 @@ ${JSON.stringify(failure, null, 2)}
    - Export \`params\` (with \`file\` and \`target\`) and a \`main()\` function returning a deterministic value
    - Distill the real-world code to the minimal case that triggers the bug
 
-3. **Verify the fixture fails**: \`npx vitest run src/refactorings/${failure.refactoring}\`
+3. **Verify the fixture fails**: run the test command above
 
 4. **Fix the refactoring code** in \`src/refactorings/${failure.refactoring}/\`:
    - Either fix the transformation to produce correct output
    - Or add a precondition that rejects the case (\`expectRejection: true\` in fixture params)
 
-5. **Verify all tests pass**: \`npx vitest run src/refactorings/${failure.refactoring}\`
+5. **Verify all tests pass**: run the test command above
 
-6. **Quality checks**: \`npm run lint && npm run build && npm test\`
+6. **Quality checks**: \`npm run build\` (type check, ~4 seconds)
 
 7. **Commit**: \`fix(${failure.refactoring}): <edge case description>\`
 
@@ -382,7 +418,7 @@ When done (or stuck), output exactly one JSON block:
 \`\`\``;
 }
 
-const FIX_AGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const FIX_AGENT_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const FIX_AGENT_MAX_TURNS = 25;
 
 async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promise<FixAgentResult> {
@@ -393,16 +429,12 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
 
   // Resolve paths for bwrap bind mounts
   const homeDir = process.env.HOME ?? "/home";
-  const claudeConfigDir = join(homeDir, ".claude");
-  const nodeDir = spawnSync("which", ["node"], { encoding: "utf8" }).stdout.trim();
-  const nodeBase = dirname(dirname(nodeDir)); // e.g. /home/user/.local/share/mise/installs/node/25.2.1
 
   return new Promise<FixAgentResult>((resolve) => {
-    // Sandbox the agent with bubblewrap: read-write access to the worktree only,
-    // read-only access to node, npm, claude CLI, and system libs
+    // Sandbox the agent with bubblewrap: read-only system, writable worktree + home
+    // NOTE: Claude CLI needs /run (DNS resolution), $HOME/.claude.json, $HOME/.claude/
     const bwrapArgs = [
       "--die-with-parent",
-      "--unshare-net", // no network (all deps are already installed)
       // System essentials (read-only)
       "--ro-bind",
       "/usr",
@@ -419,28 +451,19 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
       "--ro-bind",
       "/etc",
       "/etc",
+      "--ro-bind",
+      "/run",
+      "/run",
       "--proc",
       "/proc",
       "--dev",
       "/dev",
       "--tmpfs",
       "/tmp",
-      // Node runtime (read-only)
-      "--ro-bind",
-      nodeBase,
-      nodeBase,
-      // Claude CLI config (read-only)
-      "--ro-bind",
-      claudeConfigDir,
-      claudeConfigDir,
-      // The worktree itself (read-write — this is where the agent works)
+      // Home directory (read-write — Claude needs to write config/state)
       "--bind",
-      worktreeDir,
-      worktreeDir,
-      // Fuzz state dir (read-write — for the prompt file)
-      "--bind",
-      STATE_DIR,
-      STATE_DIR,
+      homeDir,
+      homeDir,
       // Working directory
       "--chdir",
       worktreeDir,
