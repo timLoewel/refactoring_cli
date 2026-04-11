@@ -100,7 +100,22 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    nameNode.rename(name);
+    // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
+    // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
+    const refs = nameNode.findReferencesAsNodes();
+    for (const ref of refs) {
+      const parent = ref.getParent();
+      if (Node.isShorthandPropertyAssignment(parent)) {
+        const propName = parent.getName();
+        parent.replaceWithText(propName + ": " + propName);
+      }
+    }
+
+    // Re-resolve the name node since tree mutations may have invalidated it
+    const freshNameNode = findNameNode(sf, target);
+    if (freshNameNode) {
+      freshNameNode.rename(name);
+    }
 
     return {
       success: true,
