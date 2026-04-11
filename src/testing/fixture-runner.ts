@@ -1,8 +1,9 @@
 import { Project, ts } from "ts-morph";
 import { readdirSync, existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { ok, err, type Result } from "neverthrow";
 import type { FixtureError } from "../core/errors.js";
+import { registry } from "../core/refactoring-registry.js";
 
 export interface FixtureResult {
   fixtureName: string;
@@ -338,4 +339,110 @@ function executeMainWithModules(entryJs: string, allModules: Map<string, string>
     throw new Error("Entry fixture must export a main() function");
   }
   return String((entryExports["main"] as () => string)());
+}
+
+// --- Test generation helper ---
+
+/**
+ * Call from a per-refactoring test file to generate fixture tests.
+ * The test file should import its own `index.ts` for side-effect registration
+ * before calling this, so that `jest --findRelatedTests` only traces to that
+ * one test file — not to the entire registry via register-all.ts.
+ *
+ * Usage (e.g. `src/refactorings/split-variable/split-variable.test.ts`):
+ * ```ts
+ * import "./index.js";
+ * import { describeFixtures } from "../../testing/fixture-runner.js";
+ * describeFixtures(import.meta.url);
+ * ```
+ */
+export function describeFixtures(importMetaUrl: string): void {
+  const testFile = new URL(importMetaUrl).pathname;
+  const refactoringDir = dirname(testFile);
+  const kebabName = refactoringDir.split("/").pop()!;
+
+  const definition = registry.lookup(kebabName);
+  const fixtures = discoverFixtures(join(refactoringDir, "fixtures"));
+
+  describe(definition?.name ?? kebabName, () => {
+    if (!definition) {
+      it("has a registered refactoring", () => {
+        expect(definition).toBeDefined();
+      });
+      return;
+    }
+
+    for (const fixture of fixtures) {
+      const params = loadFixtureParams(fixture);
+
+      if (!params) {
+        it(`preserves semantics: ${fixture.name}`, () => {
+          throw new Error(
+            `Fixture "${fixture.name}" does not export params. ` +
+              `Add: export const params = { file: "fixture.ts", target: "...", ... }`,
+          );
+        });
+        continue;
+      }
+
+      if (params.expectRejection) {
+        it(`rejects precondition: ${fixture.name}`, () => {
+          const precondProject = new Project({
+            compilerOptions: {
+              target: ts.ScriptTarget.ES2022,
+              module: ts.ModuleKind.CommonJS,
+              strict: true,
+            },
+            useInMemoryFileSystem: true,
+          });
+
+          if (fixture.type === "single") {
+            const content = readFileSync(fixture.path, "utf-8");
+            precondProject.createSourceFile("fixture.ts", content);
+          } else {
+            const dir = fixture.path;
+            for (const file of readdirSync(dir).filter(
+              (f: string) => f.endsWith(".ts") && f !== "tsconfig.json",
+            )) {
+              const content = readFileSync(join(dir, file), "utf-8");
+              precondProject.createSourceFile(file, content);
+            }
+          }
+
+          const precondResult = definition.preconditions(precondProject, params);
+          if (precondResult.ok) {
+            const result = runFixtureTest(fixture, (project) => {
+              definition.apply(project, params);
+            });
+
+            if (result.passed) {
+              throw new Error(
+                `Expected refactoring to reject, but precondition passed (ok: true) ` +
+                  `and the refactoring applied successfully preserving semantics. ` +
+                  `The precondition is insufficient for this case.`,
+              );
+            }
+
+            const threwError = result.error !== undefined && !result.error.includes("no-op");
+            const wasNoOp = !result.structurallyChanged;
+            expect(threwError || wasNoOp).toBe(true);
+          } else {
+            expect(precondResult.ok).toBe(false);
+          }
+        });
+      } else {
+        it(`preserves semantics: ${fixture.name}`, () => {
+          const result = runFixtureTest(fixture, (project) => {
+            definition.apply(project, params);
+          });
+
+          if (!result.passed) {
+            throw new Error(result.error ?? "Fixture test failed");
+          }
+
+          expect(result.passed).toBe(true);
+        });
+      }
+    }
+  });
 }
