@@ -44,6 +44,72 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    // Refuse to inline a variable that is reassigned after initialization.
+    const nameNode = decl.getNameNode();
+    if (Node.isIdentifier(nameNode)) {
+      const refs = nameNode
+        .findReferencesAsNodes()
+        .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart());
+      for (const ref of refs) {
+        const parent = ref.getParent();
+        if (
+          parent &&
+          Node.isBinaryExpression(parent) &&
+          parent.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
+          parent.getLeft() === ref
+        ) {
+          errors.push(
+            `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
+          );
+          return { ok: false, errors };
+        }
+        // Also check compound assignments (+=, -=, etc.) and prefix/postfix update expressions
+        if (
+          parent &&
+          Node.isBinaryExpression(parent) &&
+          parent.getLeft() === ref
+        ) {
+          const opKind = parent.getOperatorToken().getKind();
+          if (
+            opKind === SyntaxKind.PlusEqualsToken ||
+            opKind === SyntaxKind.MinusEqualsToken ||
+            opKind === SyntaxKind.AsteriskEqualsToken ||
+            opKind === SyntaxKind.SlashEqualsToken ||
+            opKind === SyntaxKind.PercentEqualsToken ||
+            opKind === SyntaxKind.AmpersandEqualsToken ||
+            opKind === SyntaxKind.BarEqualsToken ||
+            opKind === SyntaxKind.CaretEqualsToken ||
+            opKind === SyntaxKind.LessThanLessThanEqualsToken ||
+            opKind === SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+            opKind === SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+            opKind === SyntaxKind.BarBarEqualsToken ||
+            opKind === SyntaxKind.AmpersandAmpersandEqualsToken ||
+            opKind === SyntaxKind.QuestionQuestionEqualsToken
+          ) {
+            errors.push(
+              `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
+            );
+            return { ok: false, errors };
+          }
+        }
+        if (
+          parent &&
+          (Node.isPrefixUnaryExpression(parent) || Node.isPostfixUnaryExpression(parent))
+        ) {
+          const opKind = parent.getOperatorToken();
+          if (
+            opKind === SyntaxKind.PlusPlusToken ||
+            opKind === SyntaxKind.MinusMinusToken
+          ) {
+            errors.push(
+              `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
+            );
+            return { ok: false, errors };
+          }
+        }
+      }
+    }
+
     // Refuse to inline when the initializer references `this` and any usage site is
     // inside a function expression/declaration (non-arrow), where `this` would differ.
     const usesThis =
