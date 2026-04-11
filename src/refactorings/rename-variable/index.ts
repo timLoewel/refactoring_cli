@@ -155,7 +155,23 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       // Type-level parameters (in function types, call signatures, etc.) have no
       // value references — skip findReferencesAsNodes / rename which trigger
       // expensive type resolution that can time out on complex type files.
+      const oldName = nameNode.getText();
       nameNode.replaceWithText(name);
+
+      // If the parent function type has a type predicate return type
+      // (e.g. `(value: unknown) => value is string`), the predicate's
+      // parameter name must also be updated to match the renamed parameter.
+      const paramDecl = nameNode.getParent();
+      const sigNode = paramDecl?.getParent();
+      if (sigNode) {
+        const predicate = sigNode.getDescendantsOfKind(SyntaxKind.TypePredicate)[0];
+        if (predicate) {
+          const predIdent = predicate.getFirstChildByKind(SyntaxKind.Identifier);
+          if (predIdent && predIdent.getText() === oldName) {
+            predIdent.replaceWithText(name);
+          }
+        }
+      }
     } else {
       // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
       // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
