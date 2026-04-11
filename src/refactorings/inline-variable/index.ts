@@ -107,6 +107,48 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
             return { ok: false, errors };
           }
         }
+        // Check for mutation via method calls (e.g. arr.push(...), set.add(...)).
+        // Inlining would replace each reference with a fresh literal, so mutations
+        // would go to throwaway copies and later reads would see empty values.
+        if (
+          parent &&
+          Node.isPropertyAccessExpression(parent) &&
+          parent.getExpression() === ref
+        ) {
+          const methodName = parent.getName();
+          const MUTATING_METHODS = new Set([
+            "push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin",
+            "add", "set", "delete", "clear",
+          ]);
+          if (MUTATING_METHODS.has(methodName)) {
+            const grandparent = parent.getParent();
+            if (grandparent && Node.isCallExpression(grandparent) && grandparent.getExpression() === parent) {
+              errors.push(
+                `Variable '${target}' is mutated via .${methodName}() and cannot be safely inlined`,
+              );
+              return { ok: false, errors };
+            }
+          }
+        }
+        // Check for element access mutation (e.g. arr[0] = ..., obj["key"] = ...)
+        if (
+          parent &&
+          Node.isElementAccessExpression(parent) &&
+          parent.getExpression() === ref
+        ) {
+          const grandparent = parent.getParent();
+          if (
+            grandparent &&
+            Node.isBinaryExpression(grandparent) &&
+            grandparent.getLeft() === parent &&
+            grandparent.getOperatorToken().getKind() === SyntaxKind.EqualsToken
+          ) {
+            errors.push(
+              `Variable '${target}' is mutated via element access assignment and cannot be safely inlined`,
+            );
+            return { ok: false, errors };
+          }
+        }
       }
     }
 
@@ -141,6 +183,109 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
             );
             return { ok: false, errors };
           }
+          ancestor = ancestor.getParent();
+        }
+      }
+    }
+
+    // Refuse to inline when the initializer contains function expressions (non-arrow) that
+    // use `this`. TypeScript infers the `this` type for object literal methods from the
+    // variable's structural type. Inlining removes that context, causing `this` to become
+    // `{}` and producing type errors (e.g. `Property 'x' does not exist on type '{}'`).
+    const THIS_REBINDING_KINDS = new Set([
+      SyntaxKind.FunctionExpression,
+      SyntaxKind.FunctionDeclaration,
+      SyntaxKind.MethodDeclaration,
+      SyntaxKind.GetAccessor,
+      SyntaxKind.SetAccessor,
+    ]);
+    for (const thisKw of initializer.getDescendantsOfKind(SyntaxKind.ThisKeyword)) {
+      let ancestor: Node | undefined = thisKw.getParent();
+      while (ancestor && ancestor !== initializer) {
+        if (THIS_REBINDING_KINDS.has(ancestor.getKind())) {
+          errors.push(
+            `Variable '${target}' contains a function expression that uses \`this\`. ` +
+              `Inlining would change TypeScript's type inference for the \`this\` binding.`,
+          );
+          return { ok: false, errors };
+        }
+        ancestor = ancestor.getParent();
+      }
+    }
+
+    // Refuse to inline when the variable has a union type and is used for
+    // discriminated-union narrowing (e.g. `if (x.kind === "foo") { x.fooOnly; }`).
+    // TypeScript narrows the local variable inside the branch, but after inlining
+    // the raw expression, the narrowing is lost and previously-valid property
+    // accesses become type errors.
+    const varType = decl.getType();
+    if (varType.isUnion() && Node.isIdentifier(nameNode)) {
+      const narrowRefs = nameNode
+        .findReferencesAsNodes()
+        .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart());
+
+      for (const ref of narrowRefs) {
+        const parent = ref.getParent();
+        // Is this reference the object of a property access? (e.g. `effect.type`)
+        if (
+          !parent ||
+          !Node.isPropertyAccessExpression(parent) ||
+          parent.getExpression() !== ref
+        )
+          continue;
+
+        // Walk up to find an if-statement or switch-statement whose condition contains this ref
+        let ancestor: Node | undefined = parent;
+        while (ancestor) {
+          if (Node.isIfStatement(ancestor)) {
+            const cond = ancestor.getExpression();
+            if (ref.getStart() >= cond.getStart() && ref.getEnd() <= cond.getEnd()) {
+              // Reference is in the if-condition — check if any other ref is in the body
+              const bodyStart = ancestor.getThenStatement().getStart();
+              const bodyEnd = ancestor.getEnd();
+              if (
+                narrowRefs.some(
+                  (r) => r !== ref && r.getStart() >= bodyStart && r.getStart() < bodyEnd,
+                )
+              ) {
+                errors.push(
+                  `Variable '${target}' is used for discriminated-union narrowing in a ` +
+                    `condition and cannot be safely inlined without breaking TypeScript's type narrowing.`,
+                );
+                return { ok: false, errors };
+              }
+            }
+            break;
+          }
+          if (Node.isSwitchStatement(ancestor)) {
+            const discrim = ancestor.getExpression();
+            if (parent.getStart() >= discrim.getStart() && parent.getEnd() <= discrim.getEnd()) {
+              const caseBlock = ancestor.getCaseBlock();
+              if (
+                narrowRefs.some(
+                  (r) =>
+                    r !== ref &&
+                    r.getStart() >= caseBlock.getStart() &&
+                    r.getStart() < caseBlock.getEnd(),
+                )
+              ) {
+                errors.push(
+                  `Variable '${target}' is used for discriminated-union narrowing in a ` +
+                    `switch and cannot be safely inlined without breaking TypeScript's type narrowing.`,
+                );
+                return { ok: false, errors };
+              }
+            }
+            break;
+          }
+          // Don't cross function boundaries
+          if (
+            Node.isFunctionDeclaration(ancestor) ||
+            Node.isArrowFunction(ancestor) ||
+            Node.isFunctionExpression(ancestor) ||
+            Node.isMethodDeclaration(ancestor)
+          )
+            break;
           ancestor = ancestor.getParent();
         }
       }
@@ -245,7 +390,27 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       if (list && Node.isVariableDeclarationList(list)) {
         const stmt = list.getParent();
         if (stmt && Node.isVariableStatement(stmt)) {
-          stmt.remove();
+          // Remove TS directive comments (suppress-error, ignore) that would
+          // become orphaned and cause compilation errors after removal.
+          const tsDirectiveRe = /^\s*\/\/\s*@ts-(expect-error|ignore)\b/;
+          for (const comment of stmt.getLeadingCommentRanges()) {
+            if (tsDirectiveRe.test(comment.getText())) {
+              const pos = comment.getPos();
+              let end = comment.getEnd();
+              const fullText = sf.getFullText();
+              if (fullText[end] === "\n") end++;
+              sf.replaceText([pos, end], "");
+            }
+          }
+          // Re-find after possible text mutations from comment removal
+          const freshStmt = sf
+            .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+            .find((d) => d.getName() === target)
+            ?.getParent()
+            ?.getParent();
+          if (freshStmt && Node.isVariableStatement(freshStmt)) {
+            freshStmt.remove();
+          }
         }
       }
     }
