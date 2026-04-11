@@ -1,5 +1,5 @@
 import type { Identifier, Node as TsNode, Project, SourceFile } from "ts-morph";
-import { Node, SyntaxKind, ts } from "ts-morph";
+import { Node, SyntaxKind, VariableDeclarationKind, ts } from "ts-morph";
 import type {
   EnumerateCandidate,
   PreconditionResult,
@@ -27,6 +27,126 @@ function isTypeOnlyParameter(node: TsNode): boolean {
   if (!paramDecl || !Node.isParameterDeclaration(paramDecl)) return false;
   const parentKind = paramDecl.getParent()?.getKind();
   return parentKind !== undefined && TYPE_ONLY_PARAM_PARENTS.has(parentKind);
+}
+
+/**
+ * Returns the body (Block node) of the nearest enclosing function/method, or
+ * undefined if the node is at module level.
+ */
+function getEnclosingFunctionBody(node: TsNode): TsNode | undefined {
+  let current = node.getParent();
+  while (current) {
+    if (Node.isFunctionDeclaration(current)) return current.getBody();
+    if (Node.isMethodDeclaration(current)) return current.getBody();
+    if (Node.isFunctionExpression(current)) return current.getBody();
+    if (Node.isArrowFunction(current)) return current.getBody();
+    if (Node.isConstructorDeclaration(current)) return current.getBody();
+    if (Node.isGetAccessorDeclaration(current)) return current.getBody();
+    if (Node.isSetAccessorDeclaration(current)) return current.getBody();
+    current = current.getParent();
+  }
+  return undefined;
+}
+
+/**
+ * Returns the enclosing function body if the identifier is a block-scoped
+ * local variable (const/let inside a function), or undefined otherwise.
+ */
+function getLocalVariableScope(nameNode: Identifier): TsNode | undefined {
+  const decl = nameNode.getParent();
+  if (!Node.isVariableDeclaration(decl)) return undefined;
+  const declList = decl.getParent();
+  if (!declList || !Node.isVariableDeclarationList(declList)) return undefined;
+  if (declList.getDeclarationKind() === VariableDeclarationKind.Var) return undefined;
+  return getEnclosingFunctionBody(nameNode);
+}
+
+/**
+ * Whether there is another declaration (variable or parameter) with the same
+ * name in the scope, which would make AST-walk renaming incorrect.
+ */
+function hasLocalShadowing(scope: TsNode, name: string, declNode: Identifier): boolean {
+  for (const varDecl of scope.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    const nameNode = varDecl.getNameNode();
+    if (Node.isIdentifier(nameNode) && nameNode !== declNode && nameNode.getText() === name) {
+      return true;
+    }
+  }
+  for (const paramDecl of scope.getDescendantsOfKind(SyntaxKind.Parameter)) {
+    const nameNode = paramDecl.getNameNode();
+    if (Node.isIdentifier(nameNode) && nameNode.getText() === name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Rename a block-scoped local variable by walking the AST instead of using
+ * the TypeScript language service. This avoids the expensive type resolution
+ * that can time out on projects with complex types (e.g. ts-pattern).
+ */
+function renameBlockScopedLocal(
+  sf: SourceFile,
+  scope: TsNode,
+  target: string,
+  newName: string,
+): void {
+  const replacements: { start: number; end: number; text: string }[] = [];
+
+  for (const id of scope.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    if (id.getText() !== target) continue;
+
+    const parent = id.getParent();
+
+    // Skip property access names (obj.handler)
+    if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === id) continue;
+
+    // Skip non-shorthand property assignment names ({ handler: value })
+    if (Node.isPropertyAssignment(parent) && parent.getNameNode() === id) continue;
+
+    // Skip property name in binding pattern ({ handler: alias })
+    if (Node.isBindingElement(parent) && parent.getPropertyNameNode() === id) continue;
+
+    // Skip member names in type/class declarations
+    if (Node.isPropertySignature(parent) && parent.getNameNode() === id) continue;
+    if (Node.isPropertyDeclaration(parent) && parent.getNameNode() === id) continue;
+    if (
+      (Node.isMethodDeclaration(parent) ||
+        Node.isMethodSignature(parent) ||
+        Node.isGetAccessorDeclaration(parent) ||
+        Node.isSetAccessorDeclaration(parent)) &&
+      parent.getNameNode() === id
+    ) continue;
+
+    // Skip labels (different namespace from variables)
+    const parentKind = parent?.getKind();
+    if (
+      parentKind === SyntaxKind.LabeledStatement ||
+      parentKind === SyntaxKind.BreakStatement ||
+      parentKind === SyntaxKind.ContinueStatement
+    ) continue;
+
+    // Shorthand property assignment ({ handler }) → ({ handler: newName })
+    if (Node.isShorthandPropertyAssignment(parent)) {
+      replacements.push({
+        start: parent.getStart(),
+        end: parent.getEnd(),
+        text: `${parent.getName()}: ${newName}`,
+      });
+      continue;
+    }
+
+    replacements.push({ start: id.getStart(), end: id.getEnd(), text: newName });
+  }
+
+  // Apply replacements in reverse order to preserve positions
+  replacements.sort((a, b) => b.start - a.start);
+  let text = sf.getFullText();
+  for (const r of replacements) {
+    text = text.substring(0, r.start) + r.text + text.substring(r.end);
+  }
+  sf.replaceWithText(text);
 }
 
 function removeUnusedTsExpectErrorDirectives(sf: SourceFile): void {
@@ -173,21 +293,29 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         }
       }
     } else {
-      // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
-      // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
-      const refs = nameNode.findReferencesAsNodes();
-      for (const ref of refs) {
-        const parent = ref.getParent();
-        if (Node.isShorthandPropertyAssignment(parent)) {
-          const propName = parent.getName();
-          parent.replaceWithText(propName + ": " + propName);
+      // For block-scoped local variables (const/let inside a function body)
+      // without shadowing, use a fast AST-walk rename instead of the language
+      // service, which can time out on projects with complex types.
+      const localScope = getLocalVariableScope(nameNode);
+      if (localScope && !hasLocalShadowing(localScope, target, nameNode)) {
+        renameBlockScopedLocal(sf, localScope, target, name);
+      } else {
+        // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
+        // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
+        const refs = nameNode.findReferencesAsNodes();
+        for (const ref of refs) {
+          const parent = ref.getParent();
+          if (Node.isShorthandPropertyAssignment(parent)) {
+            const propName = parent.getName();
+            parent.replaceWithText(propName + ": " + propName);
+          }
         }
-      }
 
-      // Re-resolve the name node since tree mutations may have invalidated it
-      const freshNameNode = findNameNode(sf, target);
-      if (freshNameNode) {
-        freshNameNode.rename(name);
+        // Re-resolve the name node since tree mutations may have invalidated it
+        const freshNameNode = findNameNode(sf, target);
+        if (freshNameNode) {
+          freshNameNode.rename(name);
+        }
       }
     }
 
