@@ -379,13 +379,23 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       Node.isSpreadElement(initializer) ||
       initializer.getKind() === SyntaxKind.CommaToken;
 
-    // When the variable has an explicit type annotation, preserve it via a type
-    // assertion so that inlining doesn't lose type information (e.g. `any`
-    // widening that suppresses type errors on the resulting expression).
+    // When the variable has an explicit type annotation that *changes* the type,
+    // preserve it via a type assertion so inlining doesn't lose type information
+    // (e.g. `any` widening that suppresses type errors on the resulting expression).
+    // However, when the annotation merely repeats the initializer's inferred type,
+    // skip the assertion — it is redundant and defeats TypeScript's control-flow
+    // narrowing (e.g. truthiness checks: `if (x) { x.prop }` — an `as T | undefined`
+    // assertion prevents TypeScript from narrowing away `undefined` inside the block).
     const typeNode = decl.getTypeNode();
     const typeAnnotation = typeNode ? typeNode.getText() : null;
-    let inlineText: string;
+    let useTypeAssertion = false;
     if (typeAnnotation) {
+      const declaredTypeText = decl.getType().getText(decl);
+      const initTypeText = initializer.getType().getText(decl);
+      useTypeAssertion = declaredTypeText !== initTypeText;
+    }
+    let inlineText: string;
+    if (useTypeAssertion) {
       inlineText = `(${initText} as ${typeAnnotation})`;
     } else {
       inlineText = needsParens ? `(${initText})` : initText;
