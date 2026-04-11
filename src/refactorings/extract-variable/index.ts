@@ -154,6 +154,33 @@ function isContextuallyTypedCallArgument(node: Node): boolean {
 }
 
 /**
+ * Returns true if this expression is the right-hand side of an assignment expression
+ * (`=` operator in a BinaryExpression) and is a contextually-typed node kind.
+ * The LHS (e.g. `this.prop`, `obj["key"]`) provides contextual typing to the RHS;
+ * extracting the RHS into a standalone `const` loses that context, breaking
+ * implicit parameter types in arrow functions and type compatibility.
+ */
+function isContextuallyTypedAssignmentRHS(node: Node): boolean {
+  const kind = node.getKind();
+  if (
+    kind !== SyntaxKind.ArrowFunction &&
+    kind !== SyntaxKind.FunctionExpression &&
+    kind !== SyntaxKind.ObjectLiteralExpression &&
+    kind !== SyntaxKind.ArrayLiteralExpression
+  )
+    return false;
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.BinaryExpression) return false;
+  const binary = parent as unknown as {
+    getOperatorToken?: () => Node;
+    getRight?: () => Node;
+  };
+  const op = binary.getOperatorToken?.();
+  if (!op || op.getKind() !== ts.SyntaxKind.EqualsToken) return false;
+  return binary.getRight?.() === node;
+}
+
+/**
  * Returns true if this expression is the initializer of a variable declaration that has an
  * explicit type annotation. In that case the type annotation provides contextual typing
  * (e.g. `const xs: Foo[] = []` gives `[]` type `Foo[]`). Extracting it loses that context,
@@ -433,6 +460,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isModuleSpecifier(n))
       .filter((n) => !isAssignmentLHS(n))
       .filter((n) => !isContextuallyTypedCallArgument(n))
+      .filter((n) => !isContextuallyTypedAssignmentRHS(n))
       .filter((n) => !isArgumentInDecorator(n))
       .filter((n) => !isInitializerOfTypedDeclaration(n))
       .filter((n) => !isMethodCallCallee(n));
@@ -627,6 +655,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isModuleSpecifier(node)) continue;
         if (isAssignmentLHS(node)) continue;
         if (isContextuallyTypedCallArgument(node)) continue;
+        if (isContextuallyTypedAssignmentRHS(node)) continue;
         if (isArgumentInDecorator(node)) continue;
         if (isInitializerOfTypedDeclaration(node)) continue;
         if (isMethodCallCallee(node)) continue;
