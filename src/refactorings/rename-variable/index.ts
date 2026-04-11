@@ -62,6 +62,30 @@ function getLocalVariableScope(nameNode: Identifier): TsNode | undefined {
 }
 
 /**
+ * Returns the enclosing function node (not just the body) if the identifier is
+ * a parameter of a function-like declaration. The full function node is returned
+ * so that the parameter declaration itself is within the rename scope.
+ */
+function getParameterFunctionScope(nameNode: Identifier): TsNode | undefined {
+  const decl = nameNode.getParent();
+  if (!Node.isParameterDeclaration(decl)) return undefined;
+  const funcNode = decl.getParent();
+  if (!funcNode) return undefined;
+  if (
+    Node.isFunctionDeclaration(funcNode) ||
+    Node.isMethodDeclaration(funcNode) ||
+    Node.isFunctionExpression(funcNode) ||
+    Node.isArrowFunction(funcNode) ||
+    Node.isConstructorDeclaration(funcNode) ||
+    Node.isGetAccessorDeclaration(funcNode) ||
+    Node.isSetAccessorDeclaration(funcNode)
+  ) {
+    return funcNode;
+  }
+  return undefined;
+}
+
+/**
  * Whether there is another declaration (variable or parameter) with the same
  * name in the scope, which would make AST-walk renaming incorrect.
  */
@@ -74,7 +98,7 @@ function hasLocalShadowing(scope: TsNode, name: string, declNode: Identifier): b
   }
   for (const paramDecl of scope.getDescendantsOfKind(SyntaxKind.Parameter)) {
     const nameNode = paramDecl.getNameNode();
-    if (Node.isIdentifier(nameNode) && nameNode.getText() === name) {
+    if (Node.isIdentifier(nameNode) && nameNode !== declNode && nameNode.getText() === name) {
       return true;
     }
   }
@@ -313,11 +337,14 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       }
     } else {
       // For block-scoped local variables (const/let inside a function body)
-      // without shadowing, use a fast AST-walk rename instead of the language
-      // service, which can time out on projects with complex types.
+      // or function parameters, without shadowing, use a fast AST-walk rename
+      // instead of the language service, which can time out on projects with
+      // complex types.
       const localScope = getLocalVariableScope(nameNode);
-      if (localScope && !hasLocalShadowing(localScope, target, nameNode)) {
-        renameBlockScopedLocal(sf, localScope, target, name);
+      const paramScope = localScope ? undefined : getParameterFunctionScope(nameNode);
+      const fastScope = localScope ?? paramScope;
+      if (fastScope && !hasLocalShadowing(fastScope, target, nameNode)) {
+        renameBlockScopedLocal(sf, fastScope, target, name);
       } else {
         // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
         // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
