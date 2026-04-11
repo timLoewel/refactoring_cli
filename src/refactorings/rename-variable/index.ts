@@ -1,4 +1,4 @@
-import type { Identifier, Project, SourceFile } from "ts-morph";
+import type { Identifier, Node as TsNode, Project, SourceFile } from "ts-morph";
 import { Node, SyntaxKind, ts } from "ts-morph";
 import type {
   EnumerateCandidate,
@@ -7,6 +7,27 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+
+/**
+ * SyntaxKind values whose parameters are type-level only (no value references).
+ * Renaming these parameters doesn't require the expensive language-service
+ * operations (findReferencesAsNodes / rename) that trigger full type resolution.
+ */
+const TYPE_ONLY_PARAM_PARENTS = new Set([
+  SyntaxKind.FunctionType,
+  SyntaxKind.ConstructorType,
+  SyntaxKind.CallSignature,
+  SyntaxKind.ConstructSignature,
+  SyntaxKind.MethodSignature,
+  SyntaxKind.IndexSignature,
+]);
+
+function isTypeOnlyParameter(node: TsNode): boolean {
+  const paramDecl = Node.isParameterDeclaration(node) ? node : node.getParent();
+  if (!paramDecl || !Node.isParameterDeclaration(paramDecl)) return false;
+  const parentKind = paramDecl.getParent()?.getKind();
+  return parentKind !== undefined && TYPE_ONLY_PARAM_PARENTS.has(parentKind);
+}
 
 function removeUnusedTsExpectErrorDirectives(sf: SourceFile): void {
   const TS2578_UNUSED_EXPECT_ERROR = 2578;
@@ -130,21 +151,28 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
-    // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
-    const refs = nameNode.findReferencesAsNodes();
-    for (const ref of refs) {
-      const parent = ref.getParent();
-      if (Node.isShorthandPropertyAssignment(parent)) {
-        const propName = parent.getName();
-        parent.replaceWithText(propName + ": " + propName);
+    if (isTypeOnlyParameter(nameNode)) {
+      // Type-level parameters (in function types, call signatures, etc.) have no
+      // value references — skip findReferencesAsNodes / rename which trigger
+      // expensive type resolution that can time out on complex type files.
+      nameNode.replaceWithText(name);
+    } else {
+      // Expand shorthand property assignments (e.g. `{ message }`) before renaming,
+      // so the property key is preserved: `{ message }` → `{ message: message }` → `{ message: newName }`
+      const refs = nameNode.findReferencesAsNodes();
+      for (const ref of refs) {
+        const parent = ref.getParent();
+        if (Node.isShorthandPropertyAssignment(parent)) {
+          const propName = parent.getName();
+          parent.replaceWithText(propName + ": " + propName);
+        }
       }
-    }
 
-    // Re-resolve the name node since tree mutations may have invalidated it
-    const freshNameNode = findNameNode(sf, target);
-    if (freshNameNode) {
-      freshNameNode.rename(name);
+      // Re-resolve the name node since tree mutations may have invalidated it
+      const freshNameNode = findNameNode(sf, target);
+      if (freshNameNode) {
+        freshNameNode.rename(name);
+      }
     }
 
     // Clean up any unused ts-expect-error directives that would cause
@@ -175,6 +203,7 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         candidates.push({ file, target: name });
       }
       for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
+        if (isTypeOnlyParameter(p)) continue;
         const nameNode = p.getNameNode();
         if (Node.isIdentifier(nameNode)) {
           candidates.push({ file, target: nameNode.getText() });
