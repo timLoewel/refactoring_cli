@@ -152,6 +152,23 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
+    // Refuse to inline when the declaration has a @ts-expect-error or @ts-ignore directive.
+    // These directives suppress type errors on the initializer expression. Inlining would
+    // move the expression to usage sites without the directive, surfacing the suppressed error.
+    const varStmt2 = decl.getParent()?.getParent();
+    if (varStmt2 && Node.isVariableStatement(varStmt2)) {
+      const tsDirectiveRe = /^\s*\/\/\s*@ts-(expect-error|ignore)\b/;
+      for (const comment of varStmt2.getLeadingCommentRanges()) {
+        if (tsDirectiveRe.test(comment.getText())) {
+          errors.push(
+            `Variable '${target}' declaration has a @ts-expect-error or @ts-ignore directive. ` +
+              `Inlining would remove the directive and expose the suppressed type error at usage sites.`,
+          );
+          return { ok: false, errors };
+        }
+      }
+    }
+
     // Refuse to inline when the initializer references `this` and any usage site is
     // inside a function expression/declaration (non-arrow), where `this` would differ.
     const usesThis =
