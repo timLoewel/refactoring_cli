@@ -222,6 +222,45 @@ function isMethodCallCallee(node: Node): boolean {
 }
 
 /**
+ * Returns true if this node is inside the consequent or alternate branch of a
+ * ConditionalExpression and shares an identifier with the condition.
+ * Extracting such a node above the ternary loses type narrowing provided by the condition.
+ */
+function isInNarrowedTernaryBranch(node: Node): boolean {
+  let current: Node | undefined = node;
+  while (current) {
+    const parent = current.getParent();
+    if (!parent) break;
+    if (parent.getKind() === ts.SyntaxKind.ConditionalExpression) {
+      const condExpr = parent.asKindOrThrow(ts.SyntaxKind.ConditionalExpression);
+      const whenTrue = condExpr.getWhenTrue();
+      const whenFalse = condExpr.getWhenFalse();
+      if (current === whenTrue || current === whenFalse) {
+        const condition = condExpr.getCondition();
+        const condNames = collectIdentifierNames(condition);
+        const nodeNames = collectIdentifierNames(node);
+        for (const name of nodeNames) {
+          if (condNames.has(name)) return true;
+        }
+      }
+    }
+    current = parent;
+  }
+  return false;
+}
+
+function collectIdentifierNames(node: Node): Set<string> {
+  const names = new Set<string>();
+  if (node.getKind() === SyntaxKind.Identifier) {
+    names.add(node.getText());
+  }
+  for (const id of node.getDescendantsOfKind(SyntaxKind.Identifier)) {
+    names.add(id.getText());
+  }
+  return names;
+}
+
+/**
  * Expression node kinds that can be matched as a target expression.
  */
 const EXPRESSION_KINDS = new Set<SyntaxKind>([
@@ -448,6 +487,18 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         filesChanged: [],
         description: `Precondition failed: '${targetText}' only occurs as a reference to a locally-scoped parameter not accessible at the extraction scope`,
       };
+    }
+
+    // Reject if any match is inside a ternary branch that shares identifiers with
+    // the condition — extracting it above the ternary loses type narrowing.
+    for (const matchNode of scopedMatches) {
+      if (isInNarrowedTernaryBranch(matchNode)) {
+        return {
+          success: false,
+          filesChanged: [],
+          description: `Precondition failed: '${targetText}' relies on type narrowing from a conditional expression and cannot be extracted`,
+        };
+      }
     }
 
     // Record the position of the first statement (at scopeParent level) before any AST mutations.
