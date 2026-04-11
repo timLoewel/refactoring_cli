@@ -233,6 +233,25 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
           );
         }
       }
+
+      // Reject when the target name maps to multiple declaration sites (variables
+      // and/or parameters) in the file. findNameNode returns the first match, so
+      // the caller cannot control which declaration gets renamed.
+      const varDeclCount = sf
+        .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+        .filter((d) => d.getName() === target).length;
+      const paramDeclCount = sf
+        .getDescendantsOfKind(SyntaxKind.Parameter)
+        .filter((p) => {
+          if (isTypeOnlyParameter(p)) return false;
+          const n = p.getNameNode();
+          return Node.isIdentifier(n) && n.getText() === target;
+        }).length;
+      if (varDeclCount + paramDeclCount > 1) {
+        errors.push(
+          `Multiple declarations of '${target}' found in file. Rename is ambiguous without positional context to disambiguate.`,
+        );
+      }
     }
 
     if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
@@ -339,9 +358,28 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
     const candidates: EnumerateCandidate[] = [];
     for (const sf of project.getSourceFiles()) {
       const file = sf.getFilePath();
+
+      // Count declaration sites per name so we can skip ambiguous targets
+      const declCounts = new Map<string, number>();
       for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
         const name = decl.getName();
-        if (!name) continue;
+        if (name) declCounts.set(name, (declCounts.get(name) ?? 0) + 1);
+      }
+      for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
+        if (isTypeOnlyParameter(p)) continue;
+        const nameNode = p.getNameNode();
+        if (Node.isIdentifier(nameNode)) {
+          const name = nameNode.getText();
+          declCounts.set(name, (declCounts.get(name) ?? 0) + 1);
+        }
+      }
+
+      const seen = new Set<string>();
+      for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+        const name = decl.getName();
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        if ((declCounts.get(name) ?? 0) > 1) continue;
         const varStmt = decl.getParent()?.getParent();
         if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) continue;
         candidates.push({ file, target: name });
@@ -350,7 +388,11 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         if (isTypeOnlyParameter(p)) continue;
         const nameNode = p.getNameNode();
         if (Node.isIdentifier(nameNode)) {
-          candidates.push({ file, target: nameNode.getText() });
+          const name = nameNode.getText();
+          if (seen.has(name)) continue;
+          seen.add(name);
+          if ((declCounts.get(name) ?? 0) > 1) continue;
+          candidates.push({ file, target: name });
         }
       }
     }
