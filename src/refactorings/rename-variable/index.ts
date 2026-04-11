@@ -1,5 +1,5 @@
 import type { Identifier, Project, SourceFile } from "ts-morph";
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, ts } from "ts-morph";
 import type {
   EnumerateCandidate,
   PreconditionResult,
@@ -7,6 +7,36 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+
+function removeUnusedTsExpectErrorDirectives(sf: SourceFile): void {
+  const TS2578_UNUSED_EXPECT_ERROR = 2578;
+  const diagnostics = sf.getPreEmitDiagnostics();
+  const fullText = sf.getFullText();
+  const lines = fullText.split("\n");
+  const linesToRemove = new Set<number>();
+
+  for (const d of diagnostics) {
+    if (
+      d.getCategory() === ts.DiagnosticCategory.Error &&
+      d.getCode() === TS2578_UNUSED_EXPECT_ERROR
+    ) {
+      const start = d.getStart();
+      if (start !== undefined) {
+        const { line } = sf.getLineAndColumnAtPos(start);
+        const lineIdx = line - 1;
+        const lineText = lines[lineIdx];
+        if (lineIdx >= 0 && lineIdx < lines.length && lineText !== undefined && lineText.trim().startsWith("//")) {
+          linesToRemove.add(lineIdx);
+        }
+      }
+    }
+  }
+
+  if (linesToRemove.size > 0) {
+    const newText = lines.filter((_, i) => !linesToRemove.has(i)).join("\n");
+    sf.replaceWithText(newText);
+  }
+}
 
 function findNameNode(sf: SourceFile, target: string): Identifier | undefined {
   const varDecl = sf
@@ -115,6 +145,16 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
     const freshNameNode = findNameNode(sf, target);
     if (freshNameNode) {
       freshNameNode.rename(name);
+    }
+
+    // Clean up any unused ts-expect-error directives that would cause
+    // compilation errors — these may be pre-existing or caused by the rename.
+    // Guard: only call getPreEmitDiagnostics when the file actually contains
+    // such directives, since diagnostics triggers a full type-check that can
+    // take tens of seconds on projects with complex types (e.g. ts-pattern).
+    const TS_EXPECT_ERROR_DIRECTIVE = "@ts-expect-" + "error";
+    if (sf.getFullText().includes(TS_EXPECT_ERROR_DIRECTIVE)) {
+      removeUnusedTsExpectErrorDirectives(sf);
     }
 
     return {
