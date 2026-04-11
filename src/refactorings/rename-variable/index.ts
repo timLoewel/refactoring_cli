@@ -132,6 +132,13 @@ function renameBlockScopedLocal(
     // Skip property name in binding pattern ({ handler: alias })
     if (Node.isBindingElement(parent) && parent.getPropertyNameNode() === id) continue;
 
+    // Skip function declaration/expression names (renaming a parameter that
+    // shadows the enclosing function name must not alter the function name itself)
+    if (
+      (Node.isFunctionDeclaration(parent) || Node.isFunctionExpression(parent)) &&
+      parent.getNameNode() === id
+    ) continue;
+
     // Skip member names in type/class declarations
     if (Node.isPropertySignature(parent) && parent.getNameNode() === id) continue;
     if (Node.isPropertyDeclaration(parent) && parent.getNameNode() === id) continue;
