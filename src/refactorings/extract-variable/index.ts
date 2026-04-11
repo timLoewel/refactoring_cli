@@ -195,6 +195,27 @@ function isInitializerOfTypedDeclaration(node: Node): boolean {
 }
 
 /**
+ * Returns true if this ArrowFunction/FunctionExpression is a property value inside an
+ * object literal AND has at least one parameter without an explicit type annotation.
+ * The object literal's expected type provides contextual typing to property values;
+ * extracting the function into a standalone `const` loses that context, causing
+ * "Parameter implicitly has an 'any' type" errors.
+ */
+function isContextuallyTypedPropertyValue(node: Node): boolean {
+  const kind = node.getKind();
+  if (kind !== SyntaxKind.ArrowFunction && kind !== SyntaxKind.FunctionExpression) return false;
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.PropertyAssignment) return false;
+  // Check that the node is the initializer (value), not the name
+  const propAssign = parent as unknown as { getInitializer?: () => Node | undefined };
+  if (propAssign.getInitializer?.() !== node) return false;
+  // Only problematic when at least one parameter lacks an explicit type annotation
+  const fn = node.asKind(ts.SyntaxKind.ArrowFunction) ?? node.asKind(ts.SyntaxKind.FunctionExpression);
+  if (!fn) return false;
+  return fn.getParameters().some((p) => p.getTypeNode() === undefined);
+}
+
+/**
  * Returns true if this expression is used as an argument inside a decorator call.
  * Decorator overloads rely on contextual typing; extracting the argument breaks overload resolution.
  */
@@ -463,7 +484,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isContextuallyTypedAssignmentRHS(n))
       .filter((n) => !isArgumentInDecorator(n))
       .filter((n) => !isInitializerOfTypedDeclaration(n))
-      .filter((n) => !isMethodCallCallee(n));
+      .filter((n) => !isMethodCallCallee(n))
+      .filter((n) => !isContextuallyTypedPropertyValue(n));
 
     if (matchingNodes.length === 0) {
       return {
@@ -659,6 +681,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isArgumentInDecorator(node)) continue;
         if (isInitializerOfTypedDeclaration(node)) continue;
         if (isMethodCallCallee(node)) continue;
+        if (isContextuallyTypedPropertyValue(node)) continue;
         const text = node.getText().trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
