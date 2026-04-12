@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "child_process";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -16,6 +17,7 @@ const ROOT = resolve(__dirname, "../..");
 const RUN_TS = join(ROOT, "scripts/test-real-codebase/run.ts");
 const STATE_DIR = join(ROOT, "tmp/auto-fix-state");
 const WORKTREES_DIR = join(ROOT, "tmp/worktrees");
+const LOGS_DIR = join(ROOT, "tmp/auto-fix-logs");
 
 // --- Interfaces ---
 
@@ -66,6 +68,7 @@ interface WorkerState {
   status: "running" | "fixing" | "waiting" | "done";
   findings: Finding[];
   triedSetFile: string;
+  logFile: string;
 }
 
 interface DashboardState {
@@ -574,6 +577,7 @@ function spawnRunTs(
   repo: string,
   triedSetFile: string,
   worktreeDir: string,
+  logFile: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const args = [
@@ -606,8 +610,12 @@ function spawnRunTs(
     child.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
       stderr += text;
-      // Forward to orchestrator stderr for dashboard parsing
-      process.stderr.write(text);
+      // Write to per-worker log file instead of terminal
+      try {
+        appendFileSync(logFile, text);
+      } catch {
+        // ignore write errors
+      }
     });
 
     child.on("close", (code) => {
@@ -631,7 +639,10 @@ async function runWorker(
   const worktreePath = createWorktree(refactoring);
   const branchName = `auto-fix/${refactoring}`;
   const triedSetFile = join(STATE_DIR, `${refactoring}.tried.ndjson`);
+  const logFile = join(LOGS_DIR, `${refactoring}.log`);
   mkdirSync(STATE_DIR, { recursive: true });
+  mkdirSync(LOGS_DIR, { recursive: true });
+  writeFileSync(logFile, `=== ${refactoring} worker started at ${new Date().toISOString()} ===\n`);
 
   const worker: WorkerState = {
     refactoring,
@@ -642,6 +653,7 @@ async function runWorker(
     status: "running",
     findings: [],
     triedSetFile,
+    logFile,
   };
   allWorkers.push(worker);
 
@@ -666,7 +678,13 @@ async function runWorker(
         worker.status = "running";
         renderDashboard(dashboard);
 
-        const result = await spawnRunTs(refactoring, repo.name, triedSetFile, worktreePath);
+        const result = await spawnRunTs(
+          refactoring,
+          repo.name,
+          triedSetFile,
+          worktreePath,
+          logFile,
+        );
 
         if (result.code === 0) {
           // Clean exit — no failures, move to next repo
@@ -753,55 +771,30 @@ async function runWorker(
   return worker.findings;
 }
 
-// --- Dashboard ---
+// --- Dashboard (append-only to avoid ANSI escape interleaving) ---
 
-let lastDashboardLines = 0;
 let lastDashboardTime = 0;
+let lastDashboardSnapshot = "";
 
 function renderDashboard(state: DashboardState): void {
   const now = Date.now();
-  if (now - lastDashboardTime < 1000) return; // 1-second debounce
+  if (now - lastDashboardTime < 2000) return; // 2-second debounce
   lastDashboardTime = now;
 
-  // Move cursor up to overwrite previous dashboard
-  if (lastDashboardLines > 0) {
-    process.stderr.write(`\x1b[${lastDashboardLines}A`);
-  }
-
-  const lines: string[] = [];
-
-  // Progress bar
   const totalPairs = state.totalRefactorings * state.totalRepos;
   const pct = totalPairs > 0 ? Math.round((state.completedPairs / totalPairs) * 100) : 0;
-  const barWidth = 30;
-  const filled = Math.round((pct / 100) * barWidth);
-  const bar = "█".repeat(filled) + "░".repeat(barWidth - filled);
-  lines.push(`[${bar}] ${pct}% (${state.completedPairs}/${totalPairs} pairs)`);
 
-  // Per-worker rows
-  for (const worker of state.workers) {
-    const statusIcon =
-      worker.status === "running"
-        ? "▶"
-        : worker.status === "fixing"
-          ? "🔧"
-          : worker.status === "waiting"
-            ? "⏸"
-            : "✓";
-    lines.push(
-      `  ${statusIcon} ${worker.refactoring} | ${worker.currentRepo || "-"} | ${worker.candidatesTested} candidates | ${worker.status}`,
-    );
-  }
+  const workerSummaries = state.workers
+    .map((w) => `${w.refactoring}:${w.status}${w.currentRepo ? `@${w.currentRepo}` : ""}`)
+    .join("  ");
 
-  // Summary row
-  lines.push(
-    `Found: ${state.errorsFound} errors (${state.errorsFixed} fixed, ${state.errorsUnresolved} unresolved)`,
-  );
-  lines.push(""); // trailing newline
+  const line = `[${pct}% ${state.completedPairs}/${totalPairs}] ${state.errorsFound} errors (${state.errorsFixed} fixed, ${state.errorsUnresolved} unresolved)  ${workerSummaries}`;
 
-  const output = lines.join("\n");
-  process.stderr.write(output);
-  lastDashboardLines = lines.length;
+  // Only print when state actually changed
+  if (line === lastDashboardSnapshot) return;
+  lastDashboardSnapshot = line;
+
+  process.stderr.write(`${line}\n`);
 }
 
 function printFinalSummary(
@@ -930,6 +923,7 @@ async function main(): Promise<void> {
   // Setup state directories
   mkdirSync(STATE_DIR, { recursive: true });
   mkdirSync(WORKTREES_DIR, { recursive: true });
+  mkdirSync(LOGS_DIR, { recursive: true });
 
   // Load refactorings
   process.stderr.write("Loading refactorings...\n");
@@ -944,7 +938,8 @@ async function main(): Promise<void> {
   const repos = getRepoList();
   const selectedRepos = repoFilter ? repos.filter((r) => repoFilter.includes(r.name)) : repos;
   process.stderr.write(`${selectedRepos.length} repo(s)\n`);
-  process.stderr.write(`Workers: ${maxWorkers}, Max applies: ${maxApplies}\n\n`);
+  process.stderr.write(`Workers: ${maxWorkers}, Max applies: ${maxApplies}\n`);
+  process.stderr.write(`Logs: ${LOGS_DIR}/<refactoring>.log\n\n`);
 
   // Dashboard state
   const dashboard: DashboardState = {
