@@ -308,6 +308,34 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       }
     }
 
+    // Refuse to inline when the initializer reads from a property that is
+    // reassigned between the declaration and a usage site. The variable
+    // captures the value at declaration time; after inlining, the expression
+    // would be evaluated at usage time — after the property was overwritten —
+    // producing a different (or infinitely-recursive) result.
+    // Example: `const orig = desc.value; desc.value = wrap(orig);`
+    // Inlining `orig` into the wrapper body would read the already-overwritten
+    // `desc.value`, causing infinite recursion.
+    if (Node.isPropertyAccessExpression(initializer)) {
+      const propText = initializer.getText();
+      const declEnd = decl.getEnd();
+      // Find all assignments in the file where the LHS matches the initializer text
+      for (const binExpr of sf.getDescendantsOfKind(SyntaxKind.BinaryExpression)) {
+        if (binExpr.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) continue;
+        const lhs = binExpr.getLeft();
+        if (!Node.isPropertyAccessExpression(lhs)) continue;
+        if (lhs.getText() !== propText) continue;
+        // Only flag if the assignment is after the declaration
+        if (binExpr.getStart() > declEnd) {
+          errors.push(
+            `Variable '${target}' captures '${propText}' which is reassigned later. ` +
+              `Inlining would read the overwritten value instead of the captured one.`,
+          );
+          return { ok: false, errors };
+        }
+      }
+    }
+
     // Reject when multiple declarations share the same name in the file.
     // The params {file, target} cannot disambiguate which one to inline,
     // so the result would be non-deterministic.
