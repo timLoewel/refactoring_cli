@@ -297,6 +297,19 @@ function isStringLiteralPropertyName(node: Node): boolean {
 }
 
 /**
+ * Returns true if this node is the initializer (value) of an enum member.
+ * TypeScript enum initializers must be compile-time constant expressions
+ * (string/numeric literals or references to other enum members) — a `const`
+ * variable reference is not valid, so extracting the initializer breaks the enum.
+ */
+function isEnumMemberInitializer(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.EnumMember) return false;
+  const enumMember = parent as unknown as { getInitializer?: () => Node | undefined };
+  return enumMember.getInitializer?.() === node;
+}
+
+/**
  * Returns true if this PropertyAccessExpression is used as the callee of a CallExpression.
  * Extracting `obj.method` from `obj.method(args)` into `const v = obj.method; v(args)`
  * breaks the `this` binding — the method loses its receiver.
@@ -615,6 +628,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isNumericLiteralPropertyName(n))
       .filter((n) => !isInJSDocContext(n))
       .filter((n) => !isModuleSpecifier(n))
+      .filter((n) => !isEnumMemberInitializer(n))
       .filter((n) => !isAssignmentLHS(n))
       .filter((n) => !isContextuallyTypedCallArgument(n))
       .filter((n) => !isContextuallyTypedAssignmentRHS(n))
@@ -828,6 +842,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isNumericLiteralPropertyName(node)) continue;
         if (isInJSDocContext(node)) continue;
         if (isModuleSpecifier(node)) continue;
+        if (isEnumMemberInitializer(node)) continue;
         if (isAssignmentLHS(node)) continue;
         if (isContextuallyTypedCallArgument(node)) continue;
         if (isContextuallyTypedAssignmentRHS(node)) continue;
