@@ -1,5 +1,5 @@
 import { Node, SyntaxKind, ts } from "ts-morph";
-import type { Project } from "ts-morph";
+import type { Project, SourceFile } from "ts-morph";
 import type {
   EnumerateCandidate,
   PreconditionResult,
@@ -7,6 +7,11 @@ import type {
   SourceFileContext,
 } from "../../core/refactoring.types.js";
 import { defineRefactoring, param, resolve } from "../../core/refactoring-builder.js";
+
+// Cache reference positions computed in preconditions so apply() can reuse
+// them without a second findReferencesAsNodes() call. This avoids expensive
+// TypeScript language-service round-trips on codebases with complex types.
+const refPositionCache = new WeakMap<SourceFile, Map<string, number[]>>();
 
 export const inlineVariable = defineRefactoring<SourceFileContext>({
   name: "Inline Variable",
@@ -74,110 +79,114 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
-    // Refuse to inline a variable that is reassigned after initialization.
+    // Compute same-file references once and reuse across all checks.
+    // findReferencesAsNodes() is expensive on large projects — calling it
+    // multiple times for the same symbol causes timeouts on complex codebases.
     const nameNode = decl.getNameNode();
-    if (Node.isIdentifier(nameNode)) {
-      const refs = nameNode
-        .findReferencesAsNodes()
-        .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart());
-      for (const ref of refs) {
-        const parent = ref.getParent();
+    const refs = Node.isIdentifier(nameNode)
+      ? nameNode
+          .findReferencesAsNodes()
+          .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
+      : [];
+
+    // Refuse to inline a variable that is reassigned after initialization.
+    for (const ref of refs) {
+      const parent = ref.getParent();
+      if (
+        parent &&
+        Node.isBinaryExpression(parent) &&
+        parent.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
+        parent.getLeft() === ref
+      ) {
+        errors.push(
+          `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
+        );
+        return { ok: false, errors };
+      }
+      // Also check compound assignments (+=, -=, etc.) and prefix/postfix update expressions
+      if (parent && Node.isBinaryExpression(parent) && parent.getLeft() === ref) {
+        const opKind = parent.getOperatorToken().getKind();
         if (
-          parent &&
-          Node.isBinaryExpression(parent) &&
-          parent.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
-          parent.getLeft() === ref
+          opKind === SyntaxKind.PlusEqualsToken ||
+          opKind === SyntaxKind.MinusEqualsToken ||
+          opKind === SyntaxKind.AsteriskEqualsToken ||
+          opKind === SyntaxKind.SlashEqualsToken ||
+          opKind === SyntaxKind.PercentEqualsToken ||
+          opKind === SyntaxKind.AmpersandEqualsToken ||
+          opKind === SyntaxKind.BarEqualsToken ||
+          opKind === SyntaxKind.CaretEqualsToken ||
+          opKind === SyntaxKind.LessThanLessThanEqualsToken ||
+          opKind === SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+          opKind === SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+          opKind === SyntaxKind.BarBarEqualsToken ||
+          opKind === SyntaxKind.AmpersandAmpersandEqualsToken ||
+          opKind === SyntaxKind.QuestionQuestionEqualsToken
         ) {
           errors.push(
             `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
           );
           return { ok: false, errors };
         }
-        // Also check compound assignments (+=, -=, etc.) and prefix/postfix update expressions
-        if (parent && Node.isBinaryExpression(parent) && parent.getLeft() === ref) {
-          const opKind = parent.getOperatorToken().getKind();
-          if (
-            opKind === SyntaxKind.PlusEqualsToken ||
-            opKind === SyntaxKind.MinusEqualsToken ||
-            opKind === SyntaxKind.AsteriskEqualsToken ||
-            opKind === SyntaxKind.SlashEqualsToken ||
-            opKind === SyntaxKind.PercentEqualsToken ||
-            opKind === SyntaxKind.AmpersandEqualsToken ||
-            opKind === SyntaxKind.BarEqualsToken ||
-            opKind === SyntaxKind.CaretEqualsToken ||
-            opKind === SyntaxKind.LessThanLessThanEqualsToken ||
-            opKind === SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-            opKind === SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-            opKind === SyntaxKind.BarBarEqualsToken ||
-            opKind === SyntaxKind.AmpersandAmpersandEqualsToken ||
-            opKind === SyntaxKind.QuestionQuestionEqualsToken
-          ) {
-            errors.push(
-              `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
-            );
-            return { ok: false, errors };
-          }
+      }
+      if (
+        parent &&
+        (Node.isPrefixUnaryExpression(parent) || Node.isPostfixUnaryExpression(parent))
+      ) {
+        const opKind = parent.getOperatorToken();
+        if (opKind === SyntaxKind.PlusPlusToken || opKind === SyntaxKind.MinusMinusToken) {
+          errors.push(
+            `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
+          );
+          return { ok: false, errors };
         }
-        if (
-          parent &&
-          (Node.isPrefixUnaryExpression(parent) || Node.isPostfixUnaryExpression(parent))
-        ) {
-          const opKind = parent.getOperatorToken();
-          if (opKind === SyntaxKind.PlusPlusToken || opKind === SyntaxKind.MinusMinusToken) {
-            errors.push(
-              `Variable '${target}' is reassigned after initialization and cannot be safely inlined`,
-            );
-            return { ok: false, errors };
-          }
-        }
-        // Check for mutation via method calls (e.g. arr.push(...), set.add(...)).
-        // Inlining would replace each reference with a fresh literal, so mutations
-        // would go to throwaway copies and later reads would see empty values.
-        if (parent && Node.isPropertyAccessExpression(parent) && parent.getExpression() === ref) {
-          const methodName = parent.getName();
-          const MUTATING_METHODS = new Set([
-            "push",
-            "pop",
-            "shift",
-            "unshift",
-            "splice",
-            "sort",
-            "reverse",
-            "fill",
-            "copyWithin",
-            "add",
-            "set",
-            "delete",
-            "clear",
-          ]);
-          if (MUTATING_METHODS.has(methodName)) {
-            const grandparent = parent.getParent();
-            if (
-              grandparent &&
-              Node.isCallExpression(grandparent) &&
-              grandparent.getExpression() === parent
-            ) {
-              errors.push(
-                `Variable '${target}' is mutated via .${methodName}() and cannot be safely inlined`,
-              );
-              return { ok: false, errors };
-            }
-          }
-        }
-        // Check for element access mutation (e.g. arr[0] = ..., obj["key"] = ...)
-        if (parent && Node.isElementAccessExpression(parent) && parent.getExpression() === ref) {
+      }
+      // Check for mutation via method calls (e.g. arr.push(...), set.add(...)).
+      // Inlining would replace each reference with a fresh literal, so mutations
+      // would go to throwaway copies and later reads would see empty values.
+      if (parent && Node.isPropertyAccessExpression(parent) && parent.getExpression() === ref) {
+        const methodName = parent.getName();
+        const MUTATING_METHODS = new Set([
+          "push",
+          "pop",
+          "shift",
+          "unshift",
+          "splice",
+          "sort",
+          "reverse",
+          "fill",
+          "copyWithin",
+          "add",
+          "set",
+          "delete",
+          "clear",
+        ]);
+        if (MUTATING_METHODS.has(methodName)) {
           const grandparent = parent.getParent();
           if (
             grandparent &&
-            Node.isBinaryExpression(grandparent) &&
-            grandparent.getLeft() === parent &&
-            grandparent.getOperatorToken().getKind() === SyntaxKind.EqualsToken
+            Node.isCallExpression(grandparent) &&
+            grandparent.getExpression() === parent
           ) {
             errors.push(
-              `Variable '${target}' is mutated via element access assignment and cannot be safely inlined`,
+              `Variable '${target}' is mutated via .${methodName}() and cannot be safely inlined`,
             );
             return { ok: false, errors };
           }
+        }
+      }
+      // Check for element access mutation (e.g. arr[0] = ..., obj["key"] = ...)
+      if (parent && Node.isElementAccessExpression(parent) && parent.getExpression() === ref) {
+        const grandparent = parent.getParent();
+        if (
+          grandparent &&
+          Node.isBinaryExpression(grandparent) &&
+          grandparent.getLeft() === parent &&
+          grandparent.getOperatorToken().getKind() === SyntaxKind.EqualsToken
+        ) {
+          errors.push(
+            `Variable '${target}' is mutated via element access assignment and cannot be safely inlined`,
+          );
+          return { ok: false, errors };
         }
       }
     }
@@ -205,7 +214,6 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       initializer.getDescendantsOfKind(SyntaxKind.ThisKeyword).length > 0 ||
       initializer.getKind() === SyntaxKind.ThisKeyword;
     if (usesThis) {
-      const nameNode = decl.getNameNode();
       const REBINDING_KINDS = new Set([
         SyntaxKind.FunctionExpression,
         SyntaxKind.FunctionDeclaration,
@@ -214,11 +222,6 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
         SyntaxKind.SetAccessor,
         SyntaxKind.Constructor,
       ]);
-      const refs = Node.isIdentifier(nameNode)
-        ? nameNode
-            .findReferencesAsNodes()
-            .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
-        : [];
       const declStart = decl.getStart();
       for (const ref of refs) {
         let ancestor = ref.getParent();
@@ -266,12 +269,8 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
     // the raw expression, the narrowing is lost and previously-valid property
     // accesses become type errors.
     const varType = decl.getType();
-    if (varType.isUnion() && Node.isIdentifier(nameNode)) {
-      const narrowRefs = nameNode
-        .findReferencesAsNodes()
-        .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart());
-
-      for (const ref of narrowRefs) {
+    if (varType.isUnion() && refs.length > 0) {
+      for (const ref of refs) {
         const parent = ref.getParent();
         // Is this reference the object of a property access? (e.g. `effect.type`)
         if (!parent || !Node.isPropertyAccessExpression(parent) || parent.getExpression() !== ref)
@@ -287,7 +286,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
               const bodyStart = ancestor.getThenStatement().getStart();
               const bodyEnd = ancestor.getEnd();
               if (
-                narrowRefs.some(
+                refs.some(
                   (r) => r !== ref && r.getStart() >= bodyStart && r.getStart() < bodyEnd,
                 )
               ) {
@@ -305,7 +304,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
             if (parent.getStart() >= discrim.getStart() && parent.getEnd() <= discrim.getEnd()) {
               const caseBlock = ancestor.getCaseBlock();
               if (
-                narrowRefs.some(
+                refs.some(
                   (r) =>
                     r !== ref &&
                     r.getStart() >= caseBlock.getStart() &&
@@ -388,13 +387,7 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       initializer.getDescendantsOfKind(SyntaxKind.NewExpression).length > 0 ||
       initializer.getDescendantsOfKind(SyntaxKind.TaggedTemplateExpression).length > 0;
     if (hasSideEffect) {
-      const nameNode = decl.getNameNode();
-      const refCount = Node.isIdentifier(nameNode)
-        ? nameNode
-            .findReferencesAsNodes()
-            .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
-            .length
-        : 0;
+      const refCount = refs.length;
       if (refCount > 1) {
         errors.push(
           `Variable '${target}' has a side-effect initializer and is used ${refCount} times. ` +
@@ -403,6 +396,14 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
         );
       }
     }
+
+    // Cache reference positions so apply() can skip findReferencesAsNodes().
+    let sfCache = refPositionCache.get(sf);
+    if (!sfCache) {
+      sfCache = new Map();
+      refPositionCache.set(sf, sfCache);
+    }
+    sfCache.set(target, refs.map((r) => r.getStart()));
 
     return { ok: errors.length === 0, errors };
   },
@@ -432,10 +433,18 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
+    // Check if preconditions populated the reference-position cache.
+    // When available we skip the expensive findReferencesAsNodes() and
+    // getPreEmitDiagnostics() calls that preconditions already performed.
+    const cachedPositions = refPositionCache.get(sf)?.get(target);
+
     // Snapshot error count before transformation so we can detect regressions.
-    const errorsBefore = sf
-      .getPreEmitDiagnostics()
-      .filter((d) => d.getCategory() === ts.DiagnosticCategory.Error).length;
+    // When preconditions ran, it already verified zero errors — skip the check.
+    const errorsBefore = cachedPositions !== undefined
+      ? 0
+      : sf
+          .getPreEmitDiagnostics()
+          .filter((d) => d.getCategory() === ts.DiagnosticCategory.Error).length;
 
     const initText = initializer.getText();
     // Wrap in parens if initializer is a complex expression that could change
@@ -473,15 +482,22 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       inlineText = needsParens ? `(${initText})` : initText;
     }
 
-    // Use TypeScript's symbol-based reference finder to correctly handle shadowed names
-    // (e.g. a callback parameter with the same name as the outer variable).
-    const nameNode = decl.getNameNode();
-    const refs = Node.isIdentifier(nameNode)
-      ? nameNode
-          .findReferencesAsNodes()
-          .filter((ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart())
-      : [];
-    const refPositions = refs.map((ref) => ref.getStart()).sort((a, b) => b - a); // reverse order so later replacements don't shift earlier positions
+    // Reuse reference positions from preconditions cache when available,
+    // falling back to findReferencesAsNodes() for direct apply() calls.
+    let refPositions: number[];
+    if (cachedPositions) {
+      refPositions = [...cachedPositions].sort((a, b) => b - a);
+    } else {
+      const nameNode = decl.getNameNode();
+      const refs = Node.isIdentifier(nameNode)
+        ? nameNode
+            .findReferencesAsNodes()
+            .filter(
+              (ref) => ref.getSourceFile() === sf && ref.getStart() !== nameNode.getStart(),
+            )
+        : [];
+      refPositions = refs.map((ref) => ref.getStart()).sort((a, b) => b - a);
+    }
 
     // Replace references by re-finding each by position (stable across mutations)
     for (const pos of refPositions) {
