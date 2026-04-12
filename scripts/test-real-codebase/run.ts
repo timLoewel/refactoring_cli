@@ -768,7 +768,6 @@ async function applyAndCheck(
   const t1 = Date.now();
 
   // Scope: changed files + their direct importers (not transitive — avoids project-wide explosion)
-  const changedFileSet = new Set(result.filesChanged);
   const scopeSet = new Set<string>(result.filesChanged);
   for (const changedFile of result.filesChanged) {
     for (const importer of reverseImportMap.get(changedFile) ?? []) {
@@ -778,21 +777,19 @@ async function applyAndCheck(
 
   // Baseline pre-existing diagnostics BEFORE refreshing changed files,
   // so the type checker still has the original versions. Only done once per file.
-  // For changed files, use position-independent keys (code + message) because
-  // positions shift after edits. For importer files, use position-based keys.
+  // Use position-independent keys (code + message) for ALL files: changed files
+  // need them because positions shift after edits, and importer files need them
+  // because refreshing a dependency can cause the type checker to re-resolve
+  // diagnostics with different start offsets even though the importer is unchanged.
   for (const filePath of scopeSet) {
     if (baselineCache.baselined.has(filePath)) continue;
     baselineCache.baselined.add(filePath);
     const sf = tsProject.getSourceFile(filePath);
     if (!sf) continue;
     for (const d of sf.getPreEmitDiagnostics()) {
-      if (changedFileSet.has(filePath)) {
-        const msg = d.getMessageText();
-        const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
-        baselineCache.keys.add(`${filePath}:msg:${d.getCode()}:${msgStr}`);
-      } else {
-        baselineCache.keys.add(`${filePath}:${d.getStart() ?? -1}:${d.getCode()}`);
-      }
+      const msg = d.getMessageText();
+      const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
+      baselineCache.keys.add(`${filePath}:msg:${d.getCode()}:${msgStr}`);
     }
   }
 
@@ -813,20 +810,14 @@ async function applyAndCheck(
     .map((p) => tsProject.getSourceFile(p))
     .filter((sf): sf is NonNullable<typeof sf> => sf !== undefined);
   // Only count diagnostics that are NEW — filter out pre-existing errors to avoid
-  // false failures from pre-existing TypeORM issues in importer files.
+  // false failures from pre-existing issues in importer files.
   const allDiagnostics = scopedFiles.flatMap((sf) => sf.getPreEmitDiagnostics());
   const diagnostics = allDiagnostics.filter((d) => {
     const diagFile = d.getSourceFile()?.getFilePath();
     if (!diagFile) return true; // keep if no file info
-    if (changedFileSet.has(diagFile)) {
-      // For changed files: filter out pre-existing errors using position-independent keys
-      const msg = d.getMessageText();
-      const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
-      const key = `${diagFile}:msg:${d.getCode()}:${msgStr}`;
-      return !baselineCache.keys.has(key);
-    }
-    // For importer files: keep only if NOT pre-existing
-    const key = `${diagFile}:${d.getStart() ?? -1}:${d.getCode()}`;
+    const msg = d.getMessageText();
+    const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
+    const key = `${diagFile}:msg:${d.getCode()}:${msgStr}`;
     return !baselineCache.keys.has(key);
   });
   const tscMs = Date.now() - t1;
