@@ -426,6 +426,12 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         if ((declCounts.get(name) ?? 0) > 1) continue;
         const varStmt = decl.getParent()?.getParent();
         if (varStmt && Node.isVariableStatement(varStmt) && varStmt.isExported()) continue;
+        // Skip function-local variables: they are self-contained (always renamed
+        // correctly via the fast AST-walk) and well-covered by fixture tests.
+        // Enumerating them for real-world codebase testing triggers expensive
+        // downstream test runs with low signal (e.g. ts-pattern match.ts).
+        const nameNode = decl.getNameNode();
+        if (Node.isIdentifier(nameNode) && getEnclosingFunctionBody(nameNode)) continue;
         candidates.push({ file, target: name });
       }
       for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
