@@ -13,6 +13,24 @@ import { defineRefactoring, param, resolve } from "../../core/refactoring-builde
 // TypeScript language-service round-trips on codebases with complex types.
 const refPositionCache = new WeakMap<SourceFile, Map<string, number[]>>();
 
+/** Strip type-level wrappers (non-null assertions, type assertions, parens)
+ *  to get the core runtime expression for text comparison. */
+function stripTypeWrappers(node: Node): Node {
+  let current = node;
+  for (;;) {
+    if (
+      Node.isNonNullExpression(current) ||
+      Node.isAsExpression(current) ||
+      Node.isParenthesizedExpression(current)
+    ) {
+      current = current.getExpression();
+      continue;
+    }
+    break;
+  }
+  return current;
+}
+
 export const inlineVariable = defineRefactoring<SourceFileContext>({
   name: "Inline Variable",
   kebabName: "inline-variable",
@@ -355,6 +373,40 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
           errors.push(
             `Variable '${target}' captures '${propText}' which is reassigned later. ` +
               `Inlining would read the overwritten value instead of the captured one.`,
+          );
+          return { ok: false, errors };
+        }
+      }
+    }
+
+    // Reject when the initializer reads a property from an object and there is
+    // an intervening method/element-access call on the same base object between
+    // the declaration and a usage site. The call could mutate the object, changing
+    // the property value that the variable captured at declaration time.
+    // Example: `const len = arr.length; arr.push(x); use(len)` — after inlining,
+    // `arr.length` would be evaluated after the push, producing a different value.
+    if (Node.isPropertyAccessExpression(initializer) && refs.length > 0) {
+      const baseText = stripTypeWrappers(initializer.getExpression()).getText();
+      const declEnd = decl.getEnd();
+      const lastRefPos = Math.max(...refs.map((r) => r.getStart()));
+
+      for (const callExpr of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+        const callStart = callExpr.getStart();
+        if (callStart <= declEnd || callStart >= lastRefPos) continue;
+
+        const callee = callExpr.getExpression();
+        let callBase: Node | undefined;
+        if (Node.isPropertyAccessExpression(callee)) {
+          callBase = callee.getExpression();
+        } else if (Node.isElementAccessExpression(callee)) {
+          callBase = callee.getExpression();
+        }
+
+        if (callBase && stripTypeWrappers(callBase).getText() === baseText) {
+          errors.push(
+            `Variable '${target}' captures '${initializer.getText()}' but ` +
+              `the base object may be modified by an intervening method call. ` +
+              `Inlining would evaluate the property read after the mutation.`,
           );
           return { ok: false, errors };
         }
