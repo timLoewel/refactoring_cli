@@ -154,6 +154,18 @@ function isContextuallyTypedCallArgument(node: Node): boolean {
 }
 
 /**
+ * Returns true if this node is the expression inside an `as const` assertion.
+ * e.g. in `["a", "b"] as const`, the ArrayLiteralExpression is wrapped in AsConst.
+ */
+function isWrappedInAsConst(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.AsExpression) return false;
+  // Check that the type assertion is specifically `const`
+  const parentText = parent.getText().trim();
+  return /\bas\s+const$/.test(parentText);
+}
+
+/**
  * Returns true if this expression is the right-hand side of an assignment expression
  * (`=` operator in a BinaryExpression) and is a contextually-typed node kind.
  * The LHS (e.g. `this.prop`, `obj["key"]`) provides contextual typing to the RHS;
@@ -342,6 +354,80 @@ function isTernaryConditionWithNarrowedBranches(node: Node): boolean {
   for (const name of collectIdentifierNames(condExpr.getWhenFalse())) branchNames.add(name);
   for (const name of branchNames) {
     if (condNames.has(name)) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true if this node is inside the then or else branch of an IfStatement
+ * and shares an identifier with the condition.
+ * Extracting such a node above the if-statement loses type narrowing provided by the condition
+ * (e.g. discriminated union checks, `in` operator, typeof guards).
+ */
+function isInNarrowedIfBranch(node: Node): boolean {
+  let current: Node | undefined = node;
+  while (current) {
+    const parent = current.getParent();
+    if (!parent) break;
+    if (parent.getKind() === ts.SyntaxKind.IfStatement) {
+      const ifStmt = parent.asKindOrThrow(ts.SyntaxKind.IfStatement);
+      const thenStmt = ifStmt.getThenStatement();
+      const elseStmt = ifStmt.getElseStatement();
+      if (current === thenStmt || current === elseStmt) {
+        const condition = ifStmt.getExpression();
+        const condNames = collectIdentifierNames(condition);
+        const nodeNames = collectIdentifierNames(node);
+        for (const name of nodeNames) {
+          if (condNames.has(name)) return true;
+        }
+      }
+    }
+    current = parent;
+  }
+  return false;
+}
+
+/**
+ * Returns true if this node is the right operand (or nested inside the right operand)
+ * of a logical `||` or `&&` binary expression and shares an identifier with the left operand.
+ * The left operand may provide type narrowing via short-circuit evaluation (e.g.
+ * `x === null || x.foo` narrows `x` to non-null for the right side). Extracting the
+ * right operand into a variable before the expression loses that narrowing.
+ */
+function isInShortCircuitNarrowedPosition(node: Node): boolean {
+  let current: Node | undefined = node;
+  while (current) {
+    const parent = current.getParent();
+    if (!parent) break;
+    if (parent.getKind() === ts.SyntaxKind.BinaryExpression) {
+      const binary = parent as unknown as {
+        getOperatorToken?: () => Node;
+        getLeft?: () => Node;
+        getRight?: () => Node;
+      };
+      const op = binary.getOperatorToken?.();
+      if (op) {
+        const opKind = op.getKind();
+        if (
+          opKind === ts.SyntaxKind.BarBarToken ||
+          opKind === ts.SyntaxKind.AmpersandAmpersandToken
+        ) {
+          if (binary.getRight?.() === current) {
+            const left = binary.getLeft?.();
+            if (left) {
+              const leftNames = collectIdentifierNames(left);
+              const nodeNames = collectIdentifierNames(node);
+              for (const name of nodeNames) {
+                if (leftNames.has(name)) return true;
+              }
+            }
+          }
+        }
+      }
+    }
+    // Stop at statement boundaries
+    if (Node.isStatement(current)) break;
+    current = parent;
   }
   return false;
 }
@@ -589,12 +675,14 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       };
     }
 
-    // Reject if any match is inside a ternary branch that shares identifiers with
-    // the condition — extracting it above the ternary loses type narrowing.
+    // Reject if any match is inside a ternary branch or if-statement branch that shares
+    // identifiers with the condition — extracting it above loses type narrowing.
     for (const matchNode of scopedMatches) {
       if (
         isInNarrowedTernaryBranch(matchNode) ||
-        isTernaryConditionWithNarrowedBranches(matchNode)
+        isTernaryConditionWithNarrowedBranches(matchNode) ||
+        isInNarrowedIfBranch(matchNode) ||
+        isInShortCircuitNarrowedPosition(matchNode)
       ) {
         return {
           success: false,
@@ -677,14 +765,25 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     const firstMatch = scopedMatches[0];
     const matchesToReplace = isImpure && firstMatch ? [firstMatch] : scopedMatches;
 
+    // Check if any matched node is wrapped in `as const` — if so, we need to
+    // move the assertion to the extracted variable declaration and strip it from
+    // the usage site (since `varName as const` is invalid TypeScript).
+    const hasAsConst = matchesToReplace.some((n) => isWrappedInAsConst(n));
+
     // Replace occurrences in reverse order to avoid position shifts
     const sortedMatches = [...matchesToReplace].sort((a, b) => b.getStart() - a.getStart());
     for (const node of sortedMatches) {
-      node.replaceWithText(varName);
+      if (isWrappedInAsConst(node)) {
+        const asConstParent = node.getParentOrThrow();
+        asConstParent.replaceWithText(varName);
+      } else {
+        node.replaceWithText(varName);
+      }
     }
 
     // After replacements, find the statement at (or just after) the recorded position
-    const newDeclaration = `const ${varName} = ${targetText};`;
+    const asConstSuffix = hasAsConst ? " as const" : "";
+    const newDeclaration = `const ${varName} = ${targetText}${asConstSuffix};`;
 
     if (Node.isBlock(scopeParent)) {
       // insertStatements counts comment nodes (SingleLineCommentTrivia etc.) as entries,
@@ -738,6 +837,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isContextuallyTypedPropertyValue(node)) continue;
         if (isInNarrowedTernaryBranch(node)) continue;
         if (isTernaryConditionWithNarrowedBranches(node)) continue;
+        if (isInNarrowedIfBranch(node)) continue;
+        if (isInShortCircuitNarrowedPosition(node)) continue;
         const text = node.getText().trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
