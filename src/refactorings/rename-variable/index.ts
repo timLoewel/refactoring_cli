@@ -150,6 +150,12 @@ function renameBlockScopedLocal(
       parent.getNameNode() === id
     ) continue;
 
+    // Skip enum member names (enum Foo { bar = 1 } — "bar" is a member key, not a variable ref)
+    if (Node.isEnumMember(parent) && parent.getNameNode() === id) continue;
+
+    // Skip JSX attribute names (<Comp scope={scope}> — "scope" before "=" is a prop name)
+    if (Node.isJsxAttribute(parent) && parent.getNameNode() === id) continue;
+
     // Skip labels (different namespace from variables)
     const parentKind = parent?.getKind();
     if (
