@@ -262,6 +262,27 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
     if (!findNameNode(sf, target)) {
       errors.push(`Variable '${target}' not found in file`);
     } else {
+      // Reject renaming parameters in function/method/constructor overload
+      // signatures (no body).  These are type-level declarations with no
+      // runtime behavior — renaming has no semantic effect.
+      const nameNode = findNameNode(sf, target)!;
+      const maybeParamDecl = nameNode.getParent();
+      if (Node.isParameterDeclaration(maybeParamDecl)) {
+        const funcParent = maybeParamDecl.getParent();
+        if (
+          funcParent &&
+          (Node.isFunctionDeclaration(funcParent) ||
+            Node.isMethodDeclaration(funcParent) ||
+            Node.isConstructorDeclaration(funcParent)) &&
+          !funcParent.getBody()
+        ) {
+          errors.push(
+            `Parameter '${target}' is in an overload signature (no body). ` +
+              `Overload parameters are type-level declarations — renaming has no runtime effect.`,
+          );
+        }
+      }
+
       // Reject renaming exported variables — external consumers import by name
       const varDecl = sf
         .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
@@ -444,6 +465,15 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       }
       for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
         if (isTypeOnlyParameter(p)) continue;
+        // Skip parameters in overload signatures (no body) — type-level only
+        const funcParent = p.getParent();
+        if (
+          funcParent &&
+          (Node.isFunctionDeclaration(funcParent) ||
+            Node.isMethodDeclaration(funcParent) ||
+            Node.isConstructorDeclaration(funcParent)) &&
+          !funcParent.getBody()
+        ) continue;
         const nameNode = p.getNameNode();
         if (Node.isIdentifier(nameNode)) {
           const name = nameNode.getText();
