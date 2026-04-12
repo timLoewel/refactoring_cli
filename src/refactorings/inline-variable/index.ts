@@ -44,6 +44,22 @@ export const inlineVariable = defineRefactoring<SourceFileContext>({
       return { ok: false, errors };
     }
 
+    // Refuse to inline when the variable has an explicit type annotation and the
+    // initializer is an empty array literal. Without the annotation, `[]` is
+    // inferred as `never[]`, which causes type errors on operations like `.push()`
+    // that rely on the element type provided by the annotation.
+    if (
+      decl.getTypeNode() &&
+      initializer.getKind() === SyntaxKind.ArrayLiteralExpression &&
+      initializer.asKindOrThrow(SyntaxKind.ArrayLiteralExpression).getElements().length === 0
+    ) {
+      errors.push(
+        `Variable '${target}' has a type-annotated empty array literal. ` +
+          `Inlining would lose the type annotation, causing \`[]\` to be inferred as \`never[]\`.`,
+      );
+      return { ok: false, errors };
+    }
+
     // Refuse to inline when the source file already has type errors. Pre-existing
     // errors can interact unpredictably with the transformation and may be
     // misattributed to the refactoring by downstream tooling.
