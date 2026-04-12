@@ -58,7 +58,11 @@ function getLocalVariableScope(nameNode: Identifier): TsNode | undefined {
   const declList = decl.getParent();
   if (!declList || !Node.isVariableDeclarationList(declList)) return undefined;
   if (declList.getDeclarationKind() === VariableDeclarationKind.Var) return undefined;
-  return getEnclosingFunctionBody(nameNode);
+  // For function-local variables, scope to the enclosing function body.
+  // For module-level const/let (non-exported, guaranteed by preconditions),
+  // scope to the source file — avoids expensive language-service rename that
+  // can time out on large projects.
+  return getEnclosingFunctionBody(nameNode) ?? nameNode.getSourceFile();
 }
 
 /**
