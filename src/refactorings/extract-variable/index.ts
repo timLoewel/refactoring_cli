@@ -244,25 +244,40 @@ function isInitializerOfTypedDeclaration(node: Node): boolean {
 }
 
 /**
- * Returns true if this ArrowFunction/FunctionExpression is a property value inside an
- * object literal AND has at least one parameter without an explicit type annotation.
+ * Returns true if this expression is a property value inside an object literal
+ * that gets contextual typing from the parent object's expected type.
+ *
+ * For functions: extracting loses contextual typing of parameters (implicit any errors).
+ * For objects/arrays: extracting loses the property's expected type, causing type mismatches.
+ *
  * The object literal's expected type provides contextual typing to property values;
- * extracting the function into a standalone `const` loses that context, causing
- * "Parameter implicitly has an 'any' type" errors.
+ * extracting them into a standalone `const` loses that context, causing type errors.
  */
 function isContextuallyTypedPropertyValue(node: Node): boolean {
   const kind = node.getKind();
-  if (kind !== SyntaxKind.ArrowFunction && kind !== SyntaxKind.FunctionExpression) return false;
+  const isFunctionKind =
+    kind === SyntaxKind.ArrowFunction || kind === SyntaxKind.FunctionExpression;
+  const isObjectOrArrayKind =
+    kind === SyntaxKind.ObjectLiteralExpression || kind === SyntaxKind.ArrayLiteralExpression;
+
+  if (!isFunctionKind && !isObjectOrArrayKind) return false;
+
   const parent = node.getParent();
   if (!parent || parent.getKind() !== ts.SyntaxKind.PropertyAssignment) return false;
   // Check that the node is the initializer (value), not the name
   const propAssign = parent as unknown as { getInitializer?: () => Node | undefined };
   if (propAssign.getInitializer?.() !== node) return false;
-  // Only problematic when at least one parameter lacks an explicit type annotation
-  const fn =
-    node.asKind(ts.SyntaxKind.ArrowFunction) ?? node.asKind(ts.SyntaxKind.FunctionExpression);
-  if (!fn) return false;
-  return fn.getParameters().some((p) => p.getTypeNode() === undefined);
+
+  // For functions, only problematic when at least one parameter lacks an explicit type annotation
+  if (isFunctionKind) {
+    const fn =
+      node.asKind(ts.SyntaxKind.ArrowFunction) ?? node.asKind(ts.SyntaxKind.FunctionExpression);
+    if (!fn) return false;
+    return fn.getParameters().some((p) => p.getTypeNode() === undefined);
+  }
+
+  // For object/array literals, always reject since extracting loses the property's type context
+  return true;
 }
 
 /**
@@ -841,6 +856,22 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     );
     const firstMatch = scopedMatches[0];
     const matchesToReplace = isImpure && firstMatch ? [firstMatch] : scopedMatches;
+
+    // Reject when every occurrence to replace spans the full expression of its
+    // ExpressionStatement. Extracting such a statement into `const v = expr; v;`
+    // produces a redundant bare reference with no other meaningful usage.
+    const allAreFullStatements = matchesToReplace.every((node) => {
+      const parent = node.getParent();
+      if (!parent || !Node.isExpressionStatement(parent)) return false;
+      return parent.getExpression() === node;
+    });
+    if (allAreFullStatements) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Precondition failed: '${targetText}' is the entire expression of every matching statement — extraction would produce no useful references`,
+      };
+    }
 
     // Check if any matched node is wrapped in `as const` — if so, we need to
     // move the assertion to the extracted variable declaration and strip it from
