@@ -28,7 +28,9 @@ describe("RefactorClient", () => {
   it("connects to a running daemon and applies a refactoring", async () => {
     await startDaemon(tmpDir);
 
-    const client = await RefactorClient.connect(tmpDir);
+    const connectResult = await RefactorClient.connect(tmpDir);
+    expect(connectResult.isOk()).toBe(true);
+    const client = connectResult._unsafeUnwrap();
     const result = await client.apply("rename-variable", {
       file: join(tmpDir, "src", "index.ts"),
       target: "greeting",
@@ -49,7 +51,9 @@ describe("RefactorClient", () => {
     );
     await startDaemon(tmpDir);
 
-    const client = await RefactorClient.connect(tmpDir);
+    const connectResult = await RefactorClient.connect(tmpDir);
+    expect(connectResult.isOk()).toBe(true);
+    const client = connectResult._unsafeUnwrap();
 
     const r1 = await client.apply("rename-variable", {
       file: join(tmpDir, "src", "index.ts"),
@@ -70,7 +74,9 @@ describe("RefactorClient", () => {
 
   it("shutdown stops the daemon", async () => {
     await startDaemon(tmpDir);
-    const client = await RefactorClient.connect(tmpDir);
+    const connectResult = await RefactorClient.connect(tmpDir);
+    expect(connectResult.isOk()).toBe(true);
+    const client = connectResult._unsafeUnwrap();
     await client.shutdown();
 
     // Daemon should be stopped — a new connect should fail or start fresh

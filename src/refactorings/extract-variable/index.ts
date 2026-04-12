@@ -210,7 +210,8 @@ function isContextuallyTypedPropertyValue(node: Node): boolean {
   const propAssign = parent as unknown as { getInitializer?: () => Node | undefined };
   if (propAssign.getInitializer?.() !== node) return false;
   // Only problematic when at least one parameter lacks an explicit type annotation
-  const fn = node.asKind(ts.SyntaxKind.ArrowFunction) ?? node.asKind(ts.SyntaxKind.FunctionExpression);
+  const fn =
+    node.asKind(ts.SyntaxKind.ArrowFunction) ?? node.asKind(ts.SyntaxKind.FunctionExpression);
   if (!fn) return false;
   return fn.getParameters().some((p) => p.getTypeNode() === undefined);
 }
@@ -228,6 +229,33 @@ function isArgumentInDecorator(node: Node): boolean {
   const grandParent = parent.getParent();
   if (!grandParent) return false;
   return grandParent.getKind() === ts.SyntaxKind.Decorator;
+}
+
+/**
+ * Returns true if this NumericLiteral node is used as a property name in a declaration
+ * (e.g. `{ 1: value }`) rather than as a value expression.
+ * Replacing a numeric property key with an identifier changes semantics:
+ * `{ 1: v }` has numeric key 1, but `{ name: v }` has string key "name".
+ */
+function isNumericLiteralPropertyName(node: Node): boolean {
+  if (node.getKind() !== SyntaxKind.NumericLiteral) return false;
+  const parent = node.getParent();
+  if (!parent) return false;
+  const parentKind = parent.getKind();
+  switch (parentKind) {
+    case ts.SyntaxKind.PropertyDeclaration:
+    case ts.SyntaxKind.MethodDeclaration:
+    case ts.SyntaxKind.GetAccessor:
+    case ts.SyntaxKind.SetAccessor:
+    case ts.SyntaxKind.PropertySignature:
+    case ts.SyntaxKind.MethodSignature:
+    case ts.SyntaxKind.PropertyAssignment: {
+      const named = parent as unknown as { getNameNode?: () => Node | undefined };
+      return named.getNameNode?.() === node;
+    }
+    default:
+      return false;
+  }
 }
 
 /**
@@ -293,6 +321,27 @@ function isInNarrowedTernaryBranch(node: Node): boolean {
       }
     }
     current = parent;
+  }
+  return false;
+}
+
+/**
+ * Returns true if this node is the condition of a ConditionalExpression and the
+ * branches share identifiers with the condition. Extracting the condition into a
+ * boolean variable loses TypeScript's type-narrowing (e.g. `x != null` no longer
+ * narrows `x` in the branches), causing type errors downstream.
+ */
+function isTernaryConditionWithNarrowedBranches(node: Node): boolean {
+  const parent = node.getParent();
+  if (!parent || parent.getKind() !== ts.SyntaxKind.ConditionalExpression) return false;
+  const condExpr = parent.asKindOrThrow(ts.SyntaxKind.ConditionalExpression);
+  if (condExpr.getCondition() !== node) return false;
+  const condNames = collectIdentifierNames(node);
+  const branchNames = new Set<string>();
+  for (const name of collectIdentifierNames(condExpr.getWhenTrue())) branchNames.add(name);
+  for (const name of collectIdentifierNames(condExpr.getWhenFalse())) branchNames.add(name);
+  for (const name of branchNames) {
+    if (condNames.has(name)) return true;
   }
   return false;
 }
@@ -477,6 +526,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isBindingIdentifier(n))
       .filter((n) => !isInTypeContext(n))
       .filter((n) => !isStringLiteralPropertyName(n))
+      .filter((n) => !isNumericLiteralPropertyName(n))
       .filter((n) => !isInJSDocContext(n))
       .filter((n) => !isModuleSpecifier(n))
       .filter((n) => !isAssignmentLHS(n))
@@ -542,7 +592,10 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     // Reject if any match is inside a ternary branch that shares identifiers with
     // the condition — extracting it above the ternary loses type narrowing.
     for (const matchNode of scopedMatches) {
-      if (isInNarrowedTernaryBranch(matchNode)) {
+      if (
+        isInNarrowedTernaryBranch(matchNode) ||
+        isTernaryConditionWithNarrowedBranches(matchNode)
+      ) {
         return {
           success: false,
           filesChanged: [],
@@ -673,6 +726,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isBindingIdentifier(node)) continue;
         if (isInTypeContext(node)) continue;
         if (isStringLiteralPropertyName(node)) continue;
+        if (isNumericLiteralPropertyName(node)) continue;
         if (isInJSDocContext(node)) continue;
         if (isModuleSpecifier(node)) continue;
         if (isAssignmentLHS(node)) continue;
@@ -682,6 +736,8 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         if (isInitializerOfTypedDeclaration(node)) continue;
         if (isMethodCallCallee(node)) continue;
         if (isContextuallyTypedPropertyValue(node)) continue;
+        if (isInNarrowedTernaryBranch(node)) continue;
+        if (isTernaryConditionWithNarrowedBranches(node)) continue;
         const text = node.getText().trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);

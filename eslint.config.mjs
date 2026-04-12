@@ -16,6 +16,8 @@ export default tseslint.config(
             "scripts/test-real-codebase/*.ts",
             "scripts/auto-fix-loop/*.ts",
             "src/refactorings/*/*.test.ts",
+            "src/core/*.test.ts",
+            "src/core/*/*.test.ts",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
