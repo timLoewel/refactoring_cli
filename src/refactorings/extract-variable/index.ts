@@ -166,6 +166,43 @@ function isWrappedInAsConst(node: Node): boolean {
 }
 
 /**
+ * Returns true if this ObjectLiteralExpression or ArrayLiteralExpression is nested
+ * inside an object literal that is passed as a call/new argument.
+ * Contextual typing flows from the call signature through property assignments into
+ * nested object literals; extracting a nested literal loses that context and widens
+ * string literal types (breaking discriminated unions like `{ type: "transform" }`).
+ */
+function isNestedInContextuallyTypedArgument(node: Node): boolean {
+  const kind = node.getKind();
+  if (kind !== SyntaxKind.ObjectLiteralExpression && kind !== SyntaxKind.ArrayLiteralExpression)
+    return false;
+  let current: Node | undefined = node.getParent();
+  while (current) {
+    const currentKind = current.getKind();
+    if (
+      currentKind === ts.SyntaxKind.PropertyAssignment ||
+      currentKind === ts.SyntaxKind.ShorthandPropertyAssignment ||
+      currentKind === ts.SyntaxKind.SpreadAssignment ||
+      currentKind === ts.SyntaxKind.SpreadElement
+    ) {
+      current = current.getParent();
+      continue;
+    }
+    if (
+      currentKind === ts.SyntaxKind.ObjectLiteralExpression ||
+      currentKind === ts.SyntaxKind.ArrayLiteralExpression
+    ) {
+      current = current.getParent();
+      continue;
+    }
+    return (
+      currentKind === ts.SyntaxKind.CallExpression || currentKind === ts.SyntaxKind.NewExpression
+    );
+  }
+  return false;
+}
+
+/**
  * Returns true if this expression is the right-hand side of an assignment expression
  * (`=` operator in a BinaryExpression) and is a contextually-typed node kind.
  * The LHS (e.g. `this.prop`, `obj["key"]`) provides contextual typing to the RHS;
@@ -631,6 +668,7 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
       .filter((n) => !isEnumMemberInitializer(n))
       .filter((n) => !isAssignmentLHS(n))
       .filter((n) => !isContextuallyTypedCallArgument(n))
+      .filter((n) => !isNestedInContextuallyTypedArgument(n))
       .filter((n) => !isContextuallyTypedAssignmentRHS(n))
       .filter((n) => !isArgumentInDecorator(n))
       .filter((n) => !isInitializerOfTypedDeclaration(n))
@@ -669,6 +707,31 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
         success: false,
         filesChanged: [],
         description: "Could not find parent scope for insertion",
+      };
+    }
+
+    // Reject if the chosen variable name already exists as a declaration in the scope.
+    // Inserting a duplicate `const` would cause "Cannot redeclare block-scoped variable".
+    // Note: getChildren() on SourceFile/Block returns syntax tokens (SyntaxList, braces),
+    // not statements — we must use getStatements() to find VariableStatements.
+    const scopeStatements = Node.isBlock(scopeParent)
+      ? scopeParent.getStatements()
+      : Node.isSourceFile(scopeParent)
+        ? scopeParent.getStatements()
+        : [];
+    const existingNames = new Set<string>();
+    for (const child of scopeStatements) {
+      if (Node.isVariableStatement(child)) {
+        for (const decl of child.getDeclarations()) {
+          existingNames.add(decl.getName());
+        }
+      }
+    }
+    if (existingNames.has(varName)) {
+      return {
+        success: false,
+        filesChanged: [],
+        description: `Precondition failed: variable '${varName}' already exists in scope`,
       };
     }
 
