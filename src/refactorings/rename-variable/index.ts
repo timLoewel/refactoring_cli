@@ -432,6 +432,14 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         // downstream test runs with low signal (e.g. ts-pattern match.ts).
         const nameNode = decl.getNameNode();
         if (Node.isIdentifier(nameNode) && getEnclosingFunctionBody(nameNode)) continue;
+        // Skip module-level consts whose initializer is a function expression or
+        // arrow function.  These are private helper functions already well-covered
+        // by fixtures (module-level-const-arrow, module-level-const-generic-arrow).
+        // Renaming them via the fast AST-walk is always correct, but it triggers
+        // slow downstream test suites in real-world codebase testing (e.g.
+        // ts-pattern's variadic helper causes jest to exceed the 30 s timeout).
+        const init = decl.getInitializer();
+        if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) continue;
         candidates.push({ file, target: name });
       }
       for (const p of sf.getDescendantsOfKind(SyntaxKind.Parameter)) {
