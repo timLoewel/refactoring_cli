@@ -141,7 +141,8 @@ function renameBlockScopedLocal(
     if (
       (Node.isFunctionDeclaration(parent) || Node.isFunctionExpression(parent)) &&
       parent.getNameNode() === id
-    ) continue;
+    )
+      continue;
 
     // Skip member names in type/class declarations
     if (Node.isPropertySignature(parent) && parent.getNameNode() === id) continue;
@@ -152,7 +153,8 @@ function renameBlockScopedLocal(
         Node.isGetAccessorDeclaration(parent) ||
         Node.isSetAccessorDeclaration(parent)) &&
       parent.getNameNode() === id
-    ) continue;
+    )
+      continue;
 
     // Skip enum member names (enum Foo { bar = 1 } — "bar" is a member key, not a variable ref)
     if (Node.isEnumMember(parent) && parent.getNameNode() === id) continue;
@@ -166,7 +168,8 @@ function renameBlockScopedLocal(
       parentKind === SyntaxKind.LabeledStatement ||
       parentKind === SyntaxKind.BreakStatement ||
       parentKind === SyntaxKind.ContinueStatement
-    ) continue;
+    )
+      continue;
 
     // Shorthand property assignment ({ handler }) → ({ handler: newName })
     if (Node.isShorthandPropertyAssignment(parent)) {
@@ -207,7 +210,12 @@ function removeUnusedTsExpectErrorDirectives(sf: SourceFile): void {
         const { line } = sf.getLineAndColumnAtPos(start);
         const lineIdx = line - 1;
         const lineText = lines[lineIdx];
-        if (lineIdx >= 0 && lineIdx < lines.length && lineText !== undefined && lineText.trim().startsWith("//")) {
+        if (
+          lineIdx >= 0 &&
+          lineIdx < lines.length &&
+          lineText !== undefined &&
+          lineText.trim().startsWith("//")
+        ) {
           linesToRemove.add(lineIdx);
         }
       }
@@ -265,7 +273,8 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       // Reject renaming parameters in function/method/constructor overload
       // signatures (no body).  These are type-level declarations with no
       // runtime behavior — renaming has no semantic effect.
-      const nameNode = findNameNode(sf, target)!;
+      // Safe: findNameNode(sf, target) was already checked on line 262
+      const nameNode = findNameNode(sf, target) as NonNullable<ReturnType<typeof findNameNode>>;
       const maybeParamDecl = nameNode.getParent();
       if (Node.isParameterDeclaration(maybeParamDecl)) {
         const funcParent = maybeParamDecl.getParent();
@@ -302,13 +311,11 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
       const varDeclCount = sf
         .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
         .filter((d) => d.getName() === target).length;
-      const paramDeclCount = sf
-        .getDescendantsOfKind(SyntaxKind.Parameter)
-        .filter((p) => {
-          if (isTypeOnlyParameter(p)) return false;
-          const n = p.getNameNode();
-          return Node.isIdentifier(n) && n.getText() === target;
-        }).length;
+      const paramDeclCount = sf.getDescendantsOfKind(SyntaxKind.Parameter).filter((p) => {
+        if (isTypeOnlyParameter(p)) return false;
+        const n = p.getNameNode();
+        return Node.isIdentifier(n) && n.getText() === target;
+      }).length;
       if (varDeclCount + paramDeclCount > 1) {
         errors.push(
           `Multiple declarations of '${target}' found in file. Rename is ambiguous without positional context to disambiguate.`,
@@ -374,10 +381,39 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
         }
       }
     } else {
-      // For block-scoped local variables (const/let inside a function body)
-      // or function parameters, without shadowing, use a fast AST-walk rename
-      // instead of the language service, which can time out on projects with
-      // complex types.
+      // Check if this is a parameter in a function with a type predicate return type.
+      // These need special handling: rename the parameter name and explicitly update
+      // the type predicate subject to avoid expensive language-service calls that
+      // can time out on complex type files. Then use fast AST-walk renaming for
+      // remaining references in the function body.
+      const paramDecl = nameNode.getParent();
+      const oldName = nameNode.getText();
+
+      if (Node.isParameterDeclaration(paramDecl)) {
+        const funcNode = paramDecl.getParent();
+        if (
+          funcNode &&
+          (Node.isFunctionDeclaration(funcNode) ||
+            Node.isMethodDeclaration(funcNode) ||
+            Node.isFunctionExpression(funcNode) ||
+            Node.isArrowFunction(funcNode) ||
+            Node.isConstructorDeclaration(funcNode) ||
+            Node.isGetAccessorDeclaration(funcNode) ||
+            Node.isSetAccessorDeclaration(funcNode))
+        ) {
+          // Check if the function has a type predicate return type
+          const predicate = funcNode.getDescendantsOfKind(SyntaxKind.TypePredicate)[0];
+          if (predicate) {
+            // Rename the type predicate subject
+            const predIdent = predicate.getFirstChildByKind(SyntaxKind.Identifier);
+            if (predIdent && predIdent.getText() === oldName) {
+              predIdent.replaceWithText(name);
+            }
+          }
+        }
+      }
+
+      // Use fast AST-walk renaming for the parameter and its references
       const localScope = getLocalVariableScope(nameNode);
       const paramScope = localScope ? undefined : getParameterFunctionScope(nameNode);
       const fastScope = localScope ?? paramScope;
@@ -473,7 +509,14 @@ export const renameVariable = defineRefactoring<SourceFileContext>({
             Node.isMethodDeclaration(funcParent) ||
             Node.isConstructorDeclaration(funcParent)) &&
           !funcParent.getBody()
-        ) continue;
+        )
+          continue;
+        // Skip parameters in functions with type predicate return types.
+        // Renaming such parameters triggers expensive type-checking that can
+        // exceed the 30s timeout in real-world codebase testing (e.g. ts-pattern).
+        if (funcParent && funcParent.getDescendantsOfKind(SyntaxKind.TypePredicate).length > 0) {
+          continue;
+        }
         const nameNode = p.getNameNode();
         if (Node.isIdentifier(nameNode)) {
           const name = nameNode.getText();
