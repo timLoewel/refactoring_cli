@@ -17,7 +17,7 @@ fi
 # no import edges). Using a manual threshold until this is fixed upstream.
 # See: algebraic connectivity = 0.0 caused by ~100 sub-symbols with zero edges.
 ROAM_HEALTH_MIN=25
-if command -v roam &> /dev/null; then
+if command -v roam >/dev/null 2>&1; then
   roam index
   SCORE=$(roam --json health 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('health_score',0))" 2>/dev/null || echo 0)
   echo "Health score: $SCORE (threshold: $ROAM_HEALTH_MIN)"
