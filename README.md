@@ -8,29 +8,7 @@ Designed to be called by AI coding agents (Claude Code, OpenCode, etc.) but work
 
 ## Tested Against Real Codebases
 
-Every refactoring is validated against 28 open-source TypeScript projects spanning validation libraries, DI containers, functional programming, state management, ORMs, pattern matching, and more.
-
-### Two-tier verification
-
-- **Compile-and-test** (18 repos): zod, date-fns, inversify, ts-pattern, superstruct, neverthrow, remeda, immer, true-myth, purify-ts, class-validator, class-transformer, valibot, tsyringe, typedi, awilix, path-to-regexp, jotai — each refactoring must compile cleanly _and_ pass the project's own test suite on the changed files
-- **Compile-only** (10 repos): typeorm, rxjs, fp-ts, io-ts, immutable-js, mobx, kysely, routing-controllers, yup, trpc — each refactoring must produce valid TypeScript
-
-### How it works
-
-The test runner (`scripts/test-real-codebase/run.ts`) clones each repo at a pinned version, installs dependencies, and verifies baseline compilation and tests pass before any refactoring is attempted.
-
-For each repo, it enumerates all symbols (variables, functions, classes, methods, properties) using ts-morph, then applies each refactoring in a weighted-random order:
-
-1. **Apply** — the refactoring is applied in-place via the CLI
-2. **Type-check** — in-process ts-morph diagnostics are scoped to changed files and their direct importers, with pre-existing errors baselined out
-3. **Test** (compile-and-test repos only) — scoped tests are run via `vitest related` or `jest --findRelatedTests` on the changed files
-4. **Rollback** — `git checkout .` restores the repo to its original state before the next candidate
-
-Failures are classified as _syntax_ (type errors) or _semantic_ (tests fail), then triaged into fixture tests that guard against regressions.
-
-### Auto-fix loop
-
-The auto-fix loop (`scripts/auto-fix-loop/orchestrator.ts`) scales this up: it runs every refactoring against every repo in parallel using git worktrees (one per refactoring), and when a failure is found, spawns a sandboxed Claude Code agent to diagnose the bug, write a minimal fixture, fix the refactoring, and commit — all without human intervention. Fixes are merged back to main and other worktrees are rebased automatically. The loop continues until all candidates are exhausted or the budget is reached.
+Every refactoring is validated against dozens of open-source TypeScript projects chosen for the variety of patterns they exercise — validation libraries, DI containers, functional programming, state management, ORMs, pattern matching, and more. Synthetic fixtures miss the edge cases real code throws at an AST. Verification runs in two tiers: a syntax tier that requires the result to type-check, and a semantic tier that additionally requires the project's own tests to pass on the changed files. Anything that breaks becomes a regression fixture before it can ship.
 
 ## Installation
 
