@@ -498,10 +498,7 @@ function loadRefactorings(): RefactoringInfo[] {
   }
   const all = (listOut.output.data as { refactorings: ListEntry[] }).refactorings;
 
-  const tsOnly = all.filter(
-    (r) =>
-      !r.kebabName.endsWith("-python") && (!refactoringFilter || r.kebabName === refactoringFilter),
-  );
+  const tsOnly = all.filter((r) => !refactoringFilter || r.kebabName === refactoringFilter);
 
   if (refactoringFilter && tsOnly.length === 0) {
     process.stderr.write(`Unknown refactoring: ${refactoringFilter}\n`);

@@ -157,7 +157,7 @@ function loadRefactorings(): string[] {
     const all = (parsed.data?.refactorings ?? parsed.refactorings ?? []) as {
       kebabName: string;
     }[];
-    const names = all.map((r) => r.kebabName).filter((n) => !n.endsWith("-python"));
+    const names = all.map((r) => r.kebabName);
 
     if (refactoringFilter) {
       return names.filter((n) => refactoringFilter.includes(n));
