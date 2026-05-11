@@ -17,6 +17,7 @@
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "test:real": "node_modules/.bin/tsx scripts/test-real-codebase/run.ts",
+    "auto-fix": "node_modules/.bin/tsx scripts/auto-fix-loop/orchestrator.ts",
     "prepublishOnly": "npm run build",
     "prepare": "husky"
   },

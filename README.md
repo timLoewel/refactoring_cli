@@ -4,6 +4,8 @@ Agent-consumable CLI for applying [Martin Fowler's catalog of refactorings](http
 
 Designed to be called by AI coding agents (Claude Code, OpenCode, etc.) but works just as well from the command line.
 
+> **Contributors:** run `bash scripts/init.sh` to install all dependencies (uv, roam, Node ≥ 22, npm packages) on Ubuntu/Debian or Arch.
+
 ## Tested Against Real Codebases
 
 Every refactoring is validated against 28 open-source TypeScript projects spanning validation libraries, DI containers, functional programming, state management, ORMs, pattern matching, and more.
