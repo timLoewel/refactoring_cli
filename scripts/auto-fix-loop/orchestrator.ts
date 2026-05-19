@@ -5,7 +5,6 @@ import {
   mkdirSync,
   readFileSync,
   writeFileSync,
-  readdirSync,
   unlinkSync,
   symlinkSync,
 } from "fs";
@@ -59,22 +58,33 @@ interface FixAgentResult {
   stuckReport?: string;
 }
 
-interface WorkerState {
+// One row per refactoring. Persistent for the whole run — workers come and go,
+// but the worktree, branch, tried-set, log, and findings outlive any one worker.
+interface RefactoringState {
   refactoring: string;
   worktreePath: string;
   branchName: string;
-  currentRepo: string;
-  candidatesTested: number;
-  status: "running" | "fixing" | "waiting" | "done";
-  findings: Finding[];
   triedSetFile: string;
   logFile: string;
+  candidatesTested: number;
+  findings: Finding[];
+}
+
+// One row per parallel worker slot. Workers don't own a refactoring; they pick
+// (refactoring, repo) pairs from the scheduler. Fields update as the slot moves
+// between pairs.
+interface WorkerSlot {
+  workerId: number;
+  refactoring: string;
+  repo: string;
+  status: "idle" | "running" | "fixing" | "merging" | "waiting" | "done";
 }
 
 interface DashboardState {
-  workers: WorkerState[];
+  workers: WorkerSlot[];
   totalRefactorings: number;
   totalRepos: number;
+  totalPairs: number;
   completedPairs: number;
   errorsFound: number;
   errorsFixed: number;
@@ -321,6 +331,74 @@ function preflightSandboxDeps(): void {
   }
 }
 
+// --- Scheduler ---
+//
+// All (refactoring, repo) pairs sit in a single shared pending set. Workers
+// claim pairs subject to two invariants:
+//   * a refactoring is held by at most one worker at a time (so its worktree
+//     is never read/written concurrently and its branch state is consistent),
+//   * a repo is held by at most one worker at a time (so the shared
+//     tmp/real-codebase/<repo>-<ref> cache is mutated by exactly one writer).
+//
+// Initial pair order is staggered so that the first N workers naturally pick
+// distinct refactorings AND distinct repos.
+
+type PairKey = string;
+const PAIR_SEP = "\x1f"; // Unit Separator (absent from kebab refactoring/repo names)
+
+function pairKey(refactoring: string, repo: string): PairKey {
+  return `${refactoring}${PAIR_SEP}${repo}`;
+}
+
+function parsePair(key: PairKey): { refactoring: string; repo: string } {
+  const idx = key.indexOf(PAIR_SEP);
+  return { refactoring: key.slice(0, idx), repo: key.slice(idx + 1) };
+}
+
+interface SchedulerState {
+  pending: Set<PairKey>;
+  refactoringInUse: Set<string>;
+  repoInUse: Set<string>;
+}
+
+function buildSchedule(refactorings: string[], repos: RepoInfo[]): Set<PairKey> {
+  // Sort by (rIdx + pIdx, rIdx) so the schedule begins with the diagonal
+  // (R0,P0), (R1,P1), (R2,P2), ... before filling in off-diagonal pairs.
+  // Combined with the mutex, the first min(workers, R, P) claims have
+  // distinct refactorings and distinct repos.
+  const all: { r: string; p: string; rIdx: number; pIdx: number }[] = [];
+  for (let i = 0; i < refactorings.length; i++) {
+    for (let j = 0; j < repos.length; j++) {
+      all.push({ r: refactorings[i] ?? "", p: repos[j]?.name ?? "", rIdx: i, pIdx: j });
+    }
+  }
+  all.sort((a, b) => {
+    const sumDiff = a.rIdx + a.pIdx - (b.rIdx + b.pIdx);
+    return sumDiff !== 0 ? sumDiff : a.rIdx - b.rIdx;
+  });
+  const set = new Set<PairKey>();
+  for (const { r, p } of all) set.add(pairKey(r, p));
+  return set;
+}
+
+function tryClaim(s: SchedulerState): { refactoring: string; repo: string } | null {
+  for (const key of s.pending) {
+    const { refactoring, repo } = parsePair(key);
+    if (!s.refactoringInUse.has(refactoring) && !s.repoInUse.has(repo)) {
+      s.pending.delete(key);
+      s.refactoringInUse.add(refactoring);
+      s.repoInUse.add(repo);
+      return { refactoring, repo };
+    }
+  }
+  return null;
+}
+
+function releaseClaim(s: SchedulerState, refactoring: string, repo: string): void {
+  s.refactoringInUse.delete(refactoring);
+  s.repoInUse.delete(repo);
+}
+
 // --- Merge-rebase coordination ---
 
 let mergeLockActive = false;
@@ -344,41 +422,53 @@ function releaseMergeLock(): void {
   }
 }
 
-async function mergeAndRebase(fixWorker: WorkerState, allWorkers: WorkerState[]): Promise<void> {
+async function mergeAndRebase(
+  fixedRefactoring: string,
+  refStates: Map<string, RefactoringState>,
+  scheduler: SchedulerState,
+): Promise<void> {
   await acquireMergeLock();
   try {
-    // Merge fix worker's branch into main (ff-only)
-    const mergeResult = spawnSync("git", ["merge", fixWorker.branchName, "--ff-only"], {
+    const fromBranch = refStates.get(fixedRefactoring)?.branchName;
+    if (!fromBranch) return;
+
+    // Merge the fix into main (ff-only).
+    const mergeResult = spawnSync("git", ["merge", fromBranch, "--ff-only"], {
       cwd: ROOT,
       encoding: "utf8",
     });
     if (mergeResult.status !== 0) {
-      process.stderr.write(`Merge failed for ${fixWorker.branchName}: ${mergeResult.stderr}\n`);
+      process.stderr.write(`Merge failed for ${fromBranch}: ${mergeResult.stderr}\n`);
       return;
     }
 
-    // Rebase all other active worktrees
-    for (const worker of allWorkers) {
-      if (worker === fixWorker || worker.status === "done") continue;
+    // Rebase every OTHER refactoring's worktree onto the new main. Each rebase
+    // must hold the refactoring's mutex so no worker reads/writes the worktree
+    // concurrently. We poll the lock (cheap; rebases are infrequent).
+    for (const [refactoring, state] of refStates) {
+      if (refactoring === fixedRefactoring) continue;
 
-      const rebaseResult = spawnSync("git", ["rebase", "main"], {
-        cwd: worker.worktreePath,
-        encoding: "utf8",
-      });
-
-      if (rebaseResult.status !== 0) {
-        // Rebase conflict — try conflict-resolution agent
-        const resolved = await resolveRebaseConflict(worker, fixWorker);
-        if (!resolved) {
-          // Abort rebase and discard worker's conflicting commit
-          spawnSync("git", ["rebase", "--abort"], {
-            cwd: worker.worktreePath,
-            encoding: "utf8",
-          });
-          process.stderr.write(
-            `Rebase conflict unresolvable for ${worker.refactoring} — aborted.\n`,
-          );
+      while (scheduler.refactoringInUse.has(refactoring)) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      scheduler.refactoringInUse.add(refactoring);
+      try {
+        const rebaseResult = spawnSync("git", ["rebase", "main"], {
+          cwd: state.worktreePath,
+          encoding: "utf8",
+        });
+        if (rebaseResult.status !== 0) {
+          const resolved = await resolveRebaseConflict(state);
+          if (!resolved) {
+            spawnSync("git", ["rebase", "--abort"], {
+              cwd: state.worktreePath,
+              encoding: "utf8",
+            });
+            process.stderr.write(`Rebase conflict unresolvable for ${refactoring} — aborted.\n`);
+          }
         }
+      } finally {
+        scheduler.refactoringInUse.delete(refactoring);
       }
     }
   } finally {
@@ -386,18 +476,14 @@ async function mergeAndRebase(fixWorker: WorkerState, allWorkers: WorkerState[])
   }
 }
 
-async function resolveRebaseConflict(
-  conflictWorker: WorkerState,
-  _mergedWorker: WorkerState,
-): Promise<boolean> {
+async function resolveRebaseConflict(state: RefactoringState): Promise<boolean> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     process.stderr.write(
-      `Attempting conflict resolution for ${conflictWorker.refactoring} (attempt ${attempt}/2)...\n`,
+      `Attempting conflict resolution for ${state.refactoring} (attempt ${attempt}/2)...\n`,
     );
 
-    // Get conflict context
     const conflictDiff = spawnSync("git", ["diff"], {
-      cwd: conflictWorker.worktreePath,
+      cwd: state.worktreePath,
       encoding: "utf8",
     }).stdout;
 
@@ -413,7 +499,7 @@ async function resolveRebaseConflict(
     const prompt = `You are resolving a git rebase conflict in a worktree.
 
 ## Context
-- Worktree branch: ${conflictWorker.branchName}
+- Worktree branch: ${state.branchName}
 - Merged commit: ${mergedDiff}
 - Merged commit changes: ${mergedCommitDiff}
 
@@ -428,18 +514,18 @@ ${conflictDiff}
 
 If you cannot resolve the conflict, output: STUCK`;
 
-    const promptFile = join(STATE_DIR, `conflict-${conflictWorker.refactoring}.md`);
+    const promptFile = join(STATE_DIR, `conflict-${state.refactoring}.md`);
     writeFileSync(promptFile, prompt);
 
     const agentResult = spawnSync(
       "claude",
       buildSandboxedClaudeArgs({
-        worktreeDir: conflictWorker.worktreePath,
-        refactoring: conflictWorker.refactoring,
+        worktreeDir: state.worktreePath,
+        refactoring: state.refactoring,
       }),
       {
         input: readFileSync(promptFile, "utf8"),
-        cwd: conflictWorker.worktreePath,
+        cwd: state.worktreePath,
         encoding: "utf8",
         maxBuffer: 10 * 1024 * 1024,
         timeout: 300_000,
@@ -453,9 +539,8 @@ If you cannot resolve the conflict, output: STUCK`;
     }
 
     if (agentResult.status === 0) {
-      // Check if rebase was completed
       const statusResult = spawnSync("git", ["status", "--porcelain"], {
-        cwd: conflictWorker.worktreePath,
+        cwd: state.worktreePath,
         encoding: "utf8",
       });
       if (!statusResult.stdout.includes("UU") && !statusResult.stdout.includes("AA")) {
@@ -698,145 +783,161 @@ function estimateLine(sourceBefore: string, target: string): number {
   return idx >= 0 ? idx + 1 : 1;
 }
 
-async function runWorker(
-  refactoring: string,
-  repos: RepoInfo[],
-  allWorkers: WorkerState[],
+// Run one (refactoring, repo) pair: keep retrying run.ts until either the
+// triedSet exhausts the repo's candidates (clean exit) or a fix attempt
+// fails and the agent gives up. The pair's refactoring and repo locks are
+// held by the caller (workerLoop) — we never release them here.
+async function processPair(
+  pair: { refactoring: string; repo: string },
+  refState: RefactoringState,
+  repoInfo: RepoInfo,
+  refStates: Map<string, RefactoringState>,
+  scheduler: SchedulerState,
+  slot: WorkerSlot,
   dashboard: DashboardState,
-): Promise<Finding[]> {
-  const worktreePath = createWorktree(refactoring);
-  const branchName = `auto-fix/${refactoring}`;
-  const triedSetFile = join(STATE_DIR, `${refactoring}.tried.ndjson`);
-  const logFile = join(LOGS_DIR, `${refactoring}.log`);
-  mkdirSync(STATE_DIR, { recursive: true });
-  mkdirSync(LOGS_DIR, { recursive: true });
-  writeFileSync(logFile, `=== ${refactoring} worker started at ${new Date().toISOString()} ===\n`);
-
-  const worker: WorkerState = {
-    refactoring,
-    worktreePath,
-    branchName,
-    currentRepo: "",
-    candidatesTested: 0,
-    status: "running",
-    findings: [],
-    triedSetFile,
-    logFile,
-  };
-  allWorkers.push(worker);
-
-  try {
-    for (const repo of repos) {
-      if (repoFilter && !repoFilter.includes(repo.name)) continue;
-
-      worker.currentRepo = repo.name;
-      worker.status = "running";
+): Promise<void> {
+  let hasMoreFailures = true;
+  while (hasMoreFailures) {
+    while (mergeLockActive) {
+      slot.status = "waiting";
       renderDashboard(dashboard);
-
-      // Inner loop: run until no more failures on this repo
-      let hasMoreFailures = true;
-      while (hasMoreFailures) {
-        // Wait if merge lock is active
-        while (mergeLockActive) {
-          worker.status = "waiting";
-          renderDashboard(dashboard);
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-
-        worker.status = "running";
-        renderDashboard(dashboard);
-
-        const result = await spawnRunTs(
-          refactoring,
-          repo.name,
-          triedSetFile,
-          worktreePath,
-          logFile,
-        );
-
-        if (result.code === 0) {
-          // Clean exit — no failures, move to next repo
-          hasMoreFailures = false;
-          try {
-            const parsed = JSON.parse(result.stdout.trim().split("\n").pop() ?? "{}");
-            worker.candidatesTested += parsed.candidatesTested ?? 0;
-          } catch {
-            // ignore parse errors
-          }
-          dashboard.completedPairs++;
-        } else {
-          // Failure found — parse FailureReport
-          let failureReport: FailureReport | null = null;
-          try {
-            const lastLine = result.stdout.trim().split("\n").pop() ?? "";
-            failureReport = JSON.parse(lastLine) as FailureReport;
-          } catch {
-            process.stderr.write(
-              `Failed to parse failure report for ${refactoring}/${repo.name}: ${result.stdout.slice(0, 200)}\n`,
-            );
-            hasMoreFailures = false;
-            continue;
-          }
-
-          worker.candidatesTested += failureReport.candidatesTestedSoFar;
-          dashboard.errorsFound++;
-          renderDashboard(dashboard);
-
-          // Spawn fix agent
-          worker.status = "fixing";
-          renderDashboard(dashboard);
-
-          const fixResult = await spawnFixAgent(failureReport, worktreePath);
-
-          const finding: Finding = {
-            refactoring,
-            repo: repo.name,
-            repoUrl: repo.url,
-            repoRef: repo.ref,
-            errorType: failureReport.errorType,
-            candidate: {
-              file: failureReport.candidate.file,
-              target: failureReport.candidate.target,
-              line: estimateLine(failureReport.sourceBefore, failureReport.candidate.target),
-            },
-            exampleCode: failureReport.sourceBefore,
-            error: failureReport.error,
-            diff: failureReport.diff,
-            resolution: fixResult.success ? "fixed" : "unresolved",
-            fixturePath: fixResult.fixturePath,
-            commitHash: fixResult.commitHash,
-            fixSummary: fixResult.fixSummary,
-            stuckReport: fixResult.stuckReport,
-          };
-          worker.findings.push(finding);
-
-          if (fixResult.success) {
-            dashboard.errorsFixed++;
-            // Merge fix and rebase other worktrees
-            await mergeAndRebase(worker, allWorkers);
-            // Continue testing same repo (tried-set ensures no re-draws)
-          } else {
-            dashboard.errorsUnresolved++;
-            // Agent stuck — continue to next candidate (run.ts will skip via tried-set)
-          }
-        }
-
-        renderDashboard(dashboard);
-      }
+      await new Promise((r) => setTimeout(r, 1000));
     }
-  } finally {
-    worker.status = "done";
+
+    slot.status = "running";
     renderDashboard(dashboard);
 
-    // Write findings to disk
-    const findingsPath = join(STATE_DIR, `${refactoring}.findings.json`);
-    writeFileSync(findingsPath, JSON.stringify(worker.findings, null, 2));
+    const result = await spawnRunTs(
+      pair.refactoring,
+      pair.repo,
+      refState.triedSetFile,
+      refState.worktreePath,
+      refState.logFile,
+    );
 
-    // Cleanup worktree
-    cleanupWorktree(worktreePath, branchName);
+    if (result.code === 0) {
+      hasMoreFailures = false;
+      try {
+        const parsed = JSON.parse(result.stdout.trim().split("\n").pop() ?? "{}");
+        refState.candidatesTested += parsed.candidatesTested ?? 0;
+      } catch {
+        // ignore parse errors
+      }
+      dashboard.completedPairs++;
+    } else {
+      let failureReport: FailureReport;
+      try {
+        const lastLine = result.stdout.trim().split("\n").pop() ?? "";
+        failureReport = JSON.parse(lastLine) as FailureReport;
+      } catch {
+        process.stderr.write(
+          `Failed to parse failure report for ${pair.refactoring}/${pair.repo}: ${result.stdout.slice(0, 200)}\n`,
+        );
+        hasMoreFailures = false;
+        continue;
+      }
+
+      refState.candidatesTested += failureReport.candidatesTestedSoFar;
+      dashboard.errorsFound++;
+
+      slot.status = "fixing";
+      renderDashboard(dashboard);
+
+      const fixResult = await spawnFixAgent(failureReport, refState.worktreePath);
+
+      const finding: Finding = {
+        refactoring: pair.refactoring,
+        repo: pair.repo,
+        repoUrl: repoInfo.url,
+        repoRef: repoInfo.ref,
+        errorType: failureReport.errorType,
+        candidate: {
+          file: failureReport.candidate.file,
+          target: failureReport.candidate.target,
+          line: estimateLine(failureReport.sourceBefore, failureReport.candidate.target),
+        },
+        exampleCode: failureReport.sourceBefore,
+        error: failureReport.error,
+        diff: failureReport.diff,
+        resolution: fixResult.success ? "fixed" : "unresolved",
+        fixturePath: fixResult.fixturePath,
+        commitHash: fixResult.commitHash,
+        fixSummary: fixResult.fixSummary,
+        stuckReport: fixResult.stuckReport,
+      };
+      refState.findings.push(finding);
+
+      if (fixResult.success) {
+        dashboard.errorsFixed++;
+        slot.status = "merging";
+        renderDashboard(dashboard);
+        await mergeAndRebase(pair.refactoring, refStates, scheduler);
+        // Continue testing the same pair (tried-set ensures no re-draws).
+      } else {
+        dashboard.errorsUnresolved++;
+        // Agent stuck — break out; tried-set marks the candidate so future
+        // claims on this pair skip it.
+        hasMoreFailures = false;
+      }
+    }
+
+    renderDashboard(dashboard);
   }
 
-  return worker.findings;
+  // Persist findings incrementally so a crash mid-run doesn't lose them.
+  const findingsPath = join(STATE_DIR, `${pair.refactoring}.findings.json`);
+  writeFileSync(findingsPath, JSON.stringify(refState.findings, null, 2));
+}
+
+// One long-lived worker slot. Keeps grabbing pairs from the scheduler until
+// pending is drained. Each iteration: claim a pair, process it, release locks.
+async function workerLoop(
+  slot: WorkerSlot,
+  scheduler: SchedulerState,
+  refStates: Map<string, RefactoringState>,
+  repoInfoByName: Map<string, RepoInfo>,
+  dashboard: DashboardState,
+): Promise<void> {
+  while (true) {
+    let pair = tryClaim(scheduler);
+    while (!pair) {
+      if (scheduler.pending.size === 0) {
+        slot.status = "done";
+        slot.refactoring = "";
+        slot.repo = "";
+        renderDashboard(dashboard);
+        return;
+      }
+      slot.status = "idle";
+      slot.refactoring = "";
+      slot.repo = "";
+      renderDashboard(dashboard);
+      await new Promise((r) => setTimeout(r, 200));
+      pair = tryClaim(scheduler);
+    }
+
+    slot.refactoring = pair.refactoring;
+    slot.repo = pair.repo;
+    slot.status = "running";
+    renderDashboard(dashboard);
+
+    const refState = refStates.get(pair.refactoring);
+    const repoInfo = repoInfoByName.get(pair.repo);
+    if (!refState || !repoInfo) {
+      releaseClaim(scheduler, pair.refactoring, pair.repo);
+      continue;
+    }
+
+    try {
+      await processPair(pair, refState, repoInfo, refStates, scheduler, slot, dashboard);
+    } catch (err) {
+      process.stderr.write(
+        `Worker ${slot.workerId} error on ${pair.refactoring}/${pair.repo}: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    } finally {
+      releaseClaim(scheduler, pair.refactoring, pair.repo);
+    }
+  }
 }
 
 // --- Dashboard (append-only to avoid ANSI escape interleaving) ---
@@ -849,14 +950,17 @@ function renderDashboard(state: DashboardState): void {
   if (now - lastDashboardTime < 2000) return; // 2-second debounce
   lastDashboardTime = now;
 
-  const totalPairs = state.totalRefactorings * state.totalRepos;
-  const pct = totalPairs > 0 ? Math.round((state.completedPairs / totalPairs) * 100) : 0;
+  const pct =
+    state.totalPairs > 0 ? Math.round((state.completedPairs / state.totalPairs) * 100) : 0;
 
   const workerSummaries = state.workers
-    .map((w) => `${w.refactoring}:${w.status}${w.currentRepo ? `@${w.currentRepo}` : ""}`)
+    .map((w) => {
+      if (!w.refactoring) return `w${w.workerId}:${w.status}`;
+      return `w${w.workerId}:${w.refactoring}@${w.repo}:${w.status}`;
+    })
     .join("  ");
 
-  const line = `[${pct}% ${state.completedPairs}/${totalPairs}] ${state.errorsFound} errors (${state.errorsFixed} fixed, ${state.errorsUnresolved} unresolved)  ${workerSummaries}`;
+  const line = `[${pct}% ${state.completedPairs}/${state.totalPairs}] ${state.errorsFound} errors (${state.errorsFixed} fixed, ${state.errorsUnresolved} unresolved)  ${workerSummaries}`;
 
   // Only print when state actually changed
   if (line === lastDashboardSnapshot) return;
@@ -1004,89 +1108,92 @@ async function main(): Promise<void> {
   }
   process.stderr.write(`${refactorings.length} refactoring(s): ${refactorings.join(", ")}\n`);
 
-  // Get repo list for progress tracking
+  // Resolve repo list
   const repos = getRepoList();
   const selectedRepos = repoFilter ? repos.filter((r) => repoFilter.includes(r.name)) : repos;
+  if (selectedRepos.length === 0) {
+    process.stderr.write("No repos selected.\n");
+    process.exit(1);
+  }
   process.stderr.write(`${selectedRepos.length} repo(s)\n`);
-  process.stderr.write(`Workers: ${maxWorkers}, Max applies: ${maxApplies}\n`);
+
+  // Cap worker count by both axes — no point having more workers than the
+  // narrower dimension, since the mutex would starve them.
+  const numWorkers = Math.min(maxWorkers, refactorings.length, selectedRepos.length);
+  process.stderr.write(
+    `Workers: ${numWorkers} (capped by min(${maxWorkers}, refactorings=${refactorings.length}, repos=${selectedRepos.length})), Max applies: ${maxApplies}\n`,
+  );
   process.stderr.write(`Logs: ${LOGS_DIR}/<refactoring>.log\n\n`);
 
-  // Dashboard state
+  // Pre-create one worktree per refactoring + initialize per-refactoring state.
+  // Worktrees outlive any individual worker; workers swap between them.
+  process.stderr.write("Creating worktrees...\n");
+  const refStates = new Map<string, RefactoringState>();
+  for (const refactoring of refactorings) {
+    const worktreePath = createWorktree(refactoring);
+    const branchName = `auto-fix/${refactoring}`;
+    const triedSetFile = join(STATE_DIR, `${refactoring}.tried.ndjson`);
+    const logFile = join(LOGS_DIR, `${refactoring}.log`);
+    writeFileSync(logFile, `=== ${refactoring} log started at ${new Date().toISOString()} ===\n`);
+    refStates.set(refactoring, {
+      refactoring,
+      worktreePath,
+      branchName,
+      triedSetFile,
+      logFile,
+      candidatesTested: 0,
+      findings: [],
+    });
+  }
+  const repoInfoByName = new Map(selectedRepos.map((r) => [r.name, r] as [string, RepoInfo]));
+
+  // Build the shared (refactoring, repo) schedule. Mutex on both axes ensures
+  // each refactoring and each repo is held by at most one worker at a time.
+  const scheduler: SchedulerState = {
+    pending: buildSchedule(refactorings, selectedRepos),
+    refactoringInUse: new Set(),
+    repoInUse: new Set(),
+  };
+  const totalPairs = scheduler.pending.size;
+  process.stderr.write(`${totalPairs} pair(s) to process\n\n`);
+
   const dashboard: DashboardState = {
     workers: [],
     totalRefactorings: refactorings.length,
     totalRepos: selectedRepos.length,
+    totalPairs,
     completedPairs: 0,
     errorsFound: 0,
     errorsFixed: 0,
     errorsUnresolved: 0,
   };
 
-  // Worker pool
-  const allWorkers: WorkerState[] = [];
-  dashboard.workers = allWorkers;
-  const queue = [...refactorings];
-  const activeWorkers: Promise<Finding[]>[] = [];
+  // Spawn worker slots. Each slot is a long-lived promise that pulls pairs
+  // from the scheduler until pending is empty.
+  const slots: WorkerSlot[] = [];
+  for (let i = 0; i < numWorkers; i++) {
+    slots.push({ workerId: i + 1, refactoring: "", repo: "", status: "idle" });
+  }
+  dashboard.workers = slots;
+
+  await Promise.all(
+    slots.map((slot) => workerLoop(slot, scheduler, refStates, repoInfoByName, dashboard)),
+  );
+
+  // Collect all findings from per-refactoring state.
   const allFindings: Finding[] = [];
-
-  async function startNextWorker(): Promise<void> {
-    const refactoring = queue.shift();
-    if (!refactoring) return;
-
-    const workerPromise = runWorker(refactoring, selectedRepos, allWorkers, dashboard);
-    activeWorkers.push(workerPromise);
-
-    workerPromise.then((findings) => {
-      allFindings.push(...findings);
-      // Remove from active pool
-      const idx = activeWorkers.indexOf(workerPromise);
-      if (idx >= 0) activeWorkers.splice(idx, 1);
-    });
-  }
-
-  // Fill initial pool
-  const initialCount = Math.min(maxWorkers, refactorings.length);
-  for (let i = 0; i < initialCount; i++) {
-    await startNextWorker();
-  }
-
-  // Wait for workers, starting new ones as slots open
-  while (activeWorkers.length > 0 || queue.length > 0) {
-    if (activeWorkers.length > 0) {
-      await Promise.race(activeWorkers);
-    }
-    // Start new workers to fill pool
-    while (activeWorkers.length < maxWorkers && queue.length > 0) {
-      await startNextWorker();
-    }
-  }
-
-  // Collect any remaining findings from disk
-  const findingsFiles = readdirSync(STATE_DIR).filter((f) => f.endsWith(".findings.json"));
-  for (const file of findingsFiles) {
-    try {
-      const content = readFileSync(join(STATE_DIR, file), "utf8");
-      const findings = JSON.parse(content) as Finding[];
-      // Deduplicate (in-memory findings already collected)
-      for (const f of findings) {
-        if (
-          !allFindings.some(
-            (af) => af.commitHash === f.commitHash && af.candidate.target === f.candidate.target,
-          )
-        ) {
-          allFindings.push(f);
-        }
-      }
-    } catch {
-      // ignore
-    }
+  for (const state of refStates.values()) {
+    allFindings.push(...state.findings);
   }
 
   // Print final summary to stderr
   printFinalSummary(dashboard, allFindings, refactorings);
 
   // Generate and write findings report
-  const totalCandidates = allWorkers.reduce((sum, w) => sum + w.candidatesTested, 0);
+  const totalCandidates = Array.from(refStates.values()).reduce(
+    (sum, s) => sum + s.candidatesTested,
+    0,
+  );
   const report = generateFindingsReport(allFindings, totalCandidates);
 
   const reportDir = join(ROOT, "tmp/auto-fix-loop");
@@ -1097,6 +1204,11 @@ async function main(): Promise<void> {
 
   // Print report to stdout
   process.stdout.write(report);
+
+  // Cleanup worktrees
+  for (const state of refStates.values()) {
+    cleanupWorktree(state.worktreePath, state.branchName);
+  }
 }
 
 main()
