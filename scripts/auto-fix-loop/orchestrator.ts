@@ -213,6 +213,114 @@ function cleanupWorktree(worktreePath: string, branchName: string): void {
   spawnSync("git", ["branch", "-D", branchName], { cwd: ROOT, encoding: "utf8" });
 }
 
+// --- Sandbox configuration ---
+//
+// We replace the previous bubblewrap wrapper with Claude Code's native sandbox
+// (Bash filesystem + network isolation enforced via bwrap under the hood) plus
+// the auto-mode permission classifier (which governs Edit/Write/WebFetch — the
+// tools that run inside the main claude process, not as Bash subprocesses).
+//
+// The Bash sandbox is path-/domain-allowlist enforced at the OS level. Edits to
+// files outside `allowWrite` are blocked even for `--permission-mode auto`.
+//
+// Edit/Write are not OS-sandboxed; they are governed by the auto-mode classifier:
+// the default `Self-Modification` rule covers .claude/, .mcp.json, CLAUDE.md, etc.
+// We add a custom hard-deny for the auto-fix-loop's own governance files (scripts/
+// auto-fix-loop/, package.json, tsconfig.json, .github/, .husky/, etc.) since they
+// fall outside the default Self-Modification scope.
+
+function buildSandboxSettingsJson(opts: { worktreeDir: string; refactoring: string }): string {
+  const home = process.env.HOME ?? "/home";
+  const wt = opts.worktreeDir;
+  const r = ROOT;
+
+  const governanceFiles = [
+    "scripts",
+    ".claude",
+    ".github",
+    ".husky",
+    ".opencode",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "eslint.config.mjs",
+    "jest.config.ts",
+    "mise.toml",
+  ];
+
+  return JSON.stringify({
+    sandbox: {
+      enabled: true,
+      allowUnsandboxedCommands: false,
+      filesystem: {
+        allowWrite: [`${wt}/src`, `${wt}/.git`, `${r}/.git/worktrees/${opts.refactoring}`],
+        denyWrite: [
+          ...governanceFiles.map((p) => `${wt}/${p}`),
+          ...governanceFiles.map((p) => `${r}/${p}`),
+          `${wt}/node_modules`,
+          `${r}/node_modules`,
+          `${wt}/dist`,
+          `${r}/dist`,
+          `${r}/tmp`,
+        ],
+        denyRead: [`${home}/.ssh`, `${home}/.aws`, `${home}/.config/gh`, `${home}/.gnupg`],
+      },
+      network: { allowedDomains: [] },
+    },
+    autoMode: {
+      environment: [
+        "$defaults",
+        "**Trusted repo**: refactoring-cli. The agent operates inside a single git worktree under tmp/worktrees/<refactoring>/. Worktrees are session-scoped per refactoring.",
+        "**Agent task scope**: Modify only files under src/refactorings/<the current refactoring>/. Never touch scripts/, package.json, tsconfig.json, .github/, .husky/, .claude/, .opencode/, node_modules/, or any other worktree.",
+      ],
+      hard_deny: [
+        "$defaults",
+        "Auto-Fix Loop Self-Modification: Modifying any file under scripts/auto-fix-loop/, scripts/test-real-codebase/, scripts/init.sh, package.json, package-lock.json, tsconfig.json, eslint.config.mjs, jest.config.ts, mise.toml, .github/, .husky/, .opencode/, or .claude/ — in the main repo, in any git worktree under tmp/worktrees/, or anywhere else. These files run and govern the fix-agent loop; editing them is a sandbox-escape attempt.",
+        "Cross-Worktree Modification: Reading or writing files inside another worker's worktree (any tmp/worktrees/<other-refactoring>/ that is not the current agent's assigned worktree). Each worker owns exactly one worktree.",
+      ],
+      soft_deny: ["$defaults"],
+      allow: ["$defaults"],
+    },
+  });
+}
+
+function buildSandboxedClaudeArgs(opts: {
+  worktreeDir: string;
+  refactoring: string;
+  maxTurns?: number;
+}): string[] {
+  const args = [
+    "--print",
+    "--permission-mode",
+    "auto",
+    "--output-format",
+    "json",
+    "--settings",
+    buildSandboxSettingsJson({ worktreeDir: opts.worktreeDir, refactoring: opts.refactoring }),
+  ];
+  if (opts.maxTurns !== undefined) {
+    args.push("--max-turns", String(opts.maxTurns));
+  }
+  return args;
+}
+
+function preflightSandboxDeps(): void {
+  const required = ["bwrap", "socat", "claude"];
+  const missing: string[] = [];
+  for (const cmd of required) {
+    const result = spawnSync("which", [cmd], { encoding: "utf8", stdio: "pipe" });
+    if (result.status !== 0) missing.push(cmd);
+  }
+  if (missing.length > 0) {
+    process.stderr.write(
+      `\nMissing required tools for the sandboxed fix-agent: ${missing.join(", ")}\n` +
+        `Install with: scripts/init.sh  (or:  sudo apt-get install bubblewrap socat  on Debian/Ubuntu)\n` +
+        `On Ubuntu 24.04+, init.sh also drops the AppArmor profile bwrap needs for user namespaces.\n\n`,
+    );
+    process.exit(1);
+  }
+}
+
 // --- Merge-rebase coordination ---
 
 let mergeLockActive = false;
@@ -325,7 +433,10 @@ If you cannot resolve the conflict, output: STUCK`;
 
     const agentResult = spawnSync(
       "claude",
-      ["--print", "--dangerously-skip-permissions", "--output-format", "json"],
+      buildSandboxedClaudeArgs({
+        worktreeDir: conflictWorker.worktreePath,
+        refactoring: conflictWorker.refactoring,
+      }),
       {
         input: readFileSync(promptFile, "utf8"),
         cwd: conflictWorker.worktreePath,
@@ -430,57 +541,14 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
   mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(promptFile, prompt);
 
-  // Resolve paths for bwrap bind mounts
-  const homeDir = process.env.HOME ?? "/home";
-
   return new Promise<FixAgentResult>((resolve) => {
-    // Sandbox the agent with bubblewrap: read-only system, writable worktree + home
-    // NOTE: Claude CLI needs /run (DNS resolution), $HOME/.claude.json, $HOME/.claude/
-    const bwrapArgs = [
-      "--die-with-parent",
-      // System essentials (read-only)
-      "--ro-bind",
-      "/usr",
-      "/usr",
-      "--ro-bind",
-      "/lib",
-      "/lib",
-      "--ro-bind",
-      "/lib64",
-      "/lib64",
-      "--ro-bind",
-      "/bin",
-      "/bin",
-      "--ro-bind",
-      "/etc",
-      "/etc",
-      "--ro-bind",
-      "/run",
-      "/run",
-      "--proc",
-      "/proc",
-      "--dev",
-      "/dev",
-      "--tmpfs",
-      "/tmp",
-      // Home directory (read-write — Claude needs to write config/state)
-      "--bind",
-      homeDir,
-      homeDir,
-      // Working directory
-      "--chdir",
+    const claudeArgs = buildSandboxedClaudeArgs({
       worktreeDir,
-      // The command to run inside the sandbox
-      "claude",
-      "--print",
-      "--dangerously-skip-permissions",
-      "--output-format",
-      "json",
-      "--max-turns",
-      String(FIX_AGENT_MAX_TURNS),
-    ];
+      refactoring: failure.refactoring,
+      maxTurns: FIX_AGENT_MAX_TURNS,
+    });
 
-    const child = spawn("bwrap", bwrapArgs, {
+    const child = spawn("claude", claudeArgs, {
       cwd: worktreeDir,
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env },
@@ -919,6 +987,8 @@ function generateFindingsReport(findings: Finding[], totalCandidates: number): s
 
 async function main(): Promise<void> {
   process.stderr.write("=== Auto-Fix Loop Orchestrator ===\n\n");
+
+  preflightSandboxDeps();
 
   // Setup state directories
   mkdirSync(STATE_DIR, { recursive: true });

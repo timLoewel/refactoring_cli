@@ -27,16 +27,43 @@ esac
 log "detected: ${PRETTY_NAME:-$ID} (using $PKG)"
 
 # --- System prerequisites ---
+# bubblewrap + socat are required by Claude Code's native sandbox, which the
+# auto-fix-loop relies on to isolate the spawned fix-agent (npm run auto-fix).
 need_pkgs=()
-command -v curl >/dev/null || need_pkgs+=(curl)
-command -v git  >/dev/null || need_pkgs+=(git)
-command -v bash >/dev/null || need_pkgs+=(bash)
+command -v curl  >/dev/null || need_pkgs+=(curl)
+command -v git   >/dev/null || need_pkgs+=(git)
+command -v bash  >/dev/null || need_pkgs+=(bash)
+command -v bwrap >/dev/null || need_pkgs+=(bubblewrap)
+command -v socat >/dev/null || need_pkgs+=(socat)
 if (( ${#need_pkgs[@]} )); then
   log "installing system packages: ${need_pkgs[*]}"
   case "$PKG" in
     apt)    sudo apt-get update && sudo apt-get install -y "${need_pkgs[@]}" ;;
     pacman) sudo pacman -Sy --needed --noconfirm "${need_pkgs[@]}" ;;
   esac
+fi
+
+# --- AppArmor profile for bwrap (Ubuntu 24.04+) ---
+# Ubuntu 24.04's default AppArmor policy blocks unprivileged user namespaces,
+# which bubblewrap needs. Drop a profile that grants `userns` to /usr/bin/bwrap.
+# Only relevant on apt-based systems with AppArmor active (skipped on WSL2,
+# where /sys/kernel/security/apparmor is absent, and on Arch).
+if [[ "$PKG" == "apt" && -d /etc/apparmor.d && -e /sys/kernel/security/apparmor ]]; then
+  if [[ ! -f /etc/apparmor.d/bwrap ]]; then
+    log "installing AppArmor profile for bwrap (Ubuntu 24.04+ unprivileged userns)"
+    sudo tee /etc/apparmor.d/bwrap >/dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+EOF
+    sudo systemctl reload apparmor 2>/dev/null || true
+  else
+    log "AppArmor profile for bwrap already present"
+  fi
 fi
 
 # --- uv (Astral Python tool manager) ---
