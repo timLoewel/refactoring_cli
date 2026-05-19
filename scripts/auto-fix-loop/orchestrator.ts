@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "child_process";
 import {
   appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -258,21 +259,26 @@ function buildSandboxSettingsJson(opts: { worktreeDir: string; refactoring: stri
     "mise.toml",
   ];
 
+  // bwrap mount targets must exist as regular paths on disk; symlinks (like the
+  // node_modules → ROOT/node_modules link we create per worktree) and non-existent
+  // dirs (like dist/ before a build) cause bwrap to abort with "Can't create file
+  // at <path>". Filter to existing-and-non-symlink paths. node_modules and
+  // dist are intentionally excluded — node_modules is a symlink, dist may be
+  // missing, and the auto-mode classifier's default Irreversible-Local-Destruction
+  // rule already soft-denies edits inside both directories.
+  const mountableDenyWrite = [
+    ...governanceFiles.map((p) => `${wt}/${p}`),
+    ...governanceFiles.map((p) => `${r}/${p}`),
+    `${r}/tmp`,
+  ].filter((p) => existsSync(p) && !lstatSync(p).isSymbolicLink());
+
   return JSON.stringify({
     sandbox: {
       enabled: true,
       allowUnsandboxedCommands: false,
       filesystem: {
         allowWrite: [`${wt}/src`, `${wt}/.git`, `${r}/.git/worktrees/${opts.refactoring}`],
-        denyWrite: [
-          ...governanceFiles.map((p) => `${wt}/${p}`),
-          ...governanceFiles.map((p) => `${r}/${p}`),
-          `${wt}/node_modules`,
-          `${r}/node_modules`,
-          `${wt}/dist`,
-          `${r}/dist`,
-          `${r}/tmp`,
-        ],
+        denyWrite: mountableDenyWrite,
         denyRead: [`${home}/.ssh`, `${home}/.aws`, `${home}/.config/gh`, `${home}/.gnupg`],
       },
       network: { allowedDomains: [] },
@@ -783,6 +789,26 @@ function estimateLine(sourceBefore: string, target: string): number {
   return idx >= 0 ? idx + 1 : 1;
 }
 
+// Find a JSON line in stdout matching a shape predicate. Iterates from the end
+// (the report is the last meaningful line in success/failure modes) and skips
+// non-JSON noise (daemon log lines, blank lines, etc.). Lets us parse run.ts
+// output robustly even if it interleaves daemon stdout or emits extra summary
+// lines around the actual report.
+function findJsonLine<T>(stdout: string, predicate: (obj: unknown) => obj is T): T | null {
+  const lines = stdout.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i]?.trim() ?? "";
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      const obj = JSON.parse(trimmed) as unknown;
+      if (predicate(obj)) return obj;
+    } catch {
+      // not a JSON line — skip
+    }
+  }
+  return null;
+}
+
 // Run one (refactoring, repo) pair: keep retrying run.ts until either the
 // triedSet exhausts the repo's candidates (clean exit) or a fix attempt
 // fails and the agent gives up. The pair's refactoring and repo locks are
@@ -817,19 +843,23 @@ async function processPair(
 
     if (result.code === 0) {
       hasMoreFailures = false;
-      try {
-        const parsed = JSON.parse(result.stdout.trim().split("\n").pop() ?? "{}");
-        refState.candidatesTested += parsed.candidatesTested ?? 0;
-      } catch {
-        // ignore parse errors
-      }
+      const summary = findJsonLine(
+        result.stdout,
+        (o): o is { success: boolean; candidatesTested?: number } =>
+          typeof (o as { success?: unknown }).success === "boolean",
+      );
+      refState.candidatesTested += summary?.candidatesTested ?? 0;
       dashboard.completedPairs++;
     } else {
-      let failureReport: FailureReport;
-      try {
-        const lastLine = result.stdout.trim().split("\n").pop() ?? "";
-        failureReport = JSON.parse(lastLine) as FailureReport;
-      } catch {
+      const failureReport = findJsonLine(
+        result.stdout,
+        (o): o is FailureReport =>
+          typeof (o as Partial<FailureReport>).refactoring === "string" &&
+          typeof (o as Partial<FailureReport>).repo === "string" &&
+          (o as Partial<FailureReport>).candidate != null &&
+          typeof (o as Partial<FailureReport>).errorType === "string",
+      );
+      if (!failureReport) {
         process.stderr.write(
           `Failed to parse failure report for ${pair.refactoring}/${pair.repo}: ${result.stdout.slice(0, 200)}\n`,
         );
