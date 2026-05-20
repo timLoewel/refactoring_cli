@@ -277,7 +277,10 @@ function buildSandboxSettingsJson(opts: { worktreeDir: string; refactoring: stri
       enabled: true,
       allowUnsandboxedCommands: false,
       filesystem: {
-        allowWrite: [`${wt}/src`, `${wt}/.git`, `${r}/.git/worktrees/${opts.refactoring}`],
+        // Whole worktree is writable so Claude can drop its per-session .gitconfig
+        // at the worktree root (needed for git commits from inside the sandbox).
+        // Governance paths within the worktree are still blocked via denyWrite.
+        allowWrite: [`${wt}`, `${r}/.git/worktrees/${opts.refactoring}`],
         denyWrite: mountableDenyWrite,
         denyRead: [`${home}/.ssh`, `${home}/.aws`, `${home}/.config/gh`, `${home}/.gnupg`],
       },
