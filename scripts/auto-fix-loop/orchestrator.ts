@@ -213,6 +213,17 @@ function createWorktree(refactoring: string): string {
     symlinkSync(nodeModulesSrc, nodeModulesDst);
   }
 
+  // Pre-create dotfiles Claude Code's sandbox tries to overlay-mount at the
+  // worktree root (.gitconfig for git author identity, .bashrc for shell init,
+  // .gitmodules for git submodule control). Without these as existing files,
+  // bwrap fails to create the mount target and every Bash call errors with
+  // "Can't create file at <wt>/<dotfile>: Read-only file system" — burning
+  // the fix-agent's 25 turns before it can make any real progress.
+  for (const f of [".gitconfig", ".bashrc", ".gitmodules"]) {
+    const p = join(worktreePath, f);
+    if (!existsSync(p)) writeFileSync(p, "");
+  }
+
   return worktreePath;
 }
 
