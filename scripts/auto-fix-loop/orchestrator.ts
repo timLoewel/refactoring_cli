@@ -219,7 +219,7 @@ function createWorktree(refactoring: string): string {
   // bwrap fails to create the mount target and every Bash call errors with
   // "Can't create file at <wt>/<dotfile>: Read-only file system" — burning
   // the fix-agent's 25 turns before it can make any real progress.
-  for (const f of [".gitconfig", ".bashrc", ".gitmodules"]) {
+  for (const f of [".gitconfig", ".gitmodules", ".bashrc", ".bash_profile", ".profile"]) {
     const p = join(worktreePath, f);
     if (!existsSync(p)) writeFileSync(p, "");
   }
