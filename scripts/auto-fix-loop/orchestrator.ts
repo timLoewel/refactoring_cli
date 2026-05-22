@@ -220,8 +220,10 @@ function createWorktree(refactoring: string): string {
   // "Can't create file at <wt>/<dotfile>: Read-only file system" — burning
   // the fix-agent's 25 turns before it can make any real progress.
   for (const f of [
+    // git
     ".gitconfig",
     ".gitmodules",
+    // shell init
     ".bashrc",
     ".bash_profile",
     ".profile",
@@ -229,6 +231,12 @@ function createWorktree(refactoring: string): string {
     ".zshenv",
     ".zprofile",
     ".zlogin",
+    // tool configs Claude Code overlays into the sandbox
+    ".mcp.json",
+    ".ripgreprc",
+    ".npmrc",
+    ".yarnrc",
+    ".editorconfig",
   ]) {
     const p = join(worktreePath, f);
     if (!existsSync(p)) writeFileSync(p, "");
