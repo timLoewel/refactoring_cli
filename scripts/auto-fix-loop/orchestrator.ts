@@ -246,7 +246,20 @@ function createWorktree(refactoring: string): string {
     ".ripgreprc",
     ".editorconfig",
   ];
-  const sandboxMountDirs = [".vscode", ".vscode-server"];
+  // Directory-type mandatory-deny targets (Claude mounts a read-only empty dir
+  // over each). .git/config and .git/hooks are intentionally omitted: in a
+  // worktree .git is a file, so Claude's own "file ancestor" guard skips them.
+  const sandboxMountDirs = [
+    ".vscode",
+    ".vscode-server",
+    ".claude/agents",
+    ".claude/commands",
+    ".claude/skills",
+    ".config/gh",
+    ".config/git",
+    ".config/pip",
+    ".pip",
+  ];
   for (const f of sandboxMountFiles) {
     const p = join(worktreePath, f);
     if (!existsSync(p)) writeFileSync(p, "");
