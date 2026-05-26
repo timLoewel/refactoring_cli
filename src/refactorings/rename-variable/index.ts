@@ -66,6 +66,22 @@ function getLocalVariableScope(nameNode: Identifier): TsNode | undefined {
 }
 
 /**
+ * Whether the identifier names a TypeScript parameter property — a constructor
+ * parameter with an accessibility/readonly modifier (e.g.
+ * `constructor(private readonly x: T)`). Such a parameter simultaneously
+ * declares a class member, so references like `this.x` live outside the
+ * constructor body and require language-service rename to update.
+ */
+function isParameterProperty(nameNode: Identifier): boolean {
+  const paramDecl = nameNode.getParent();
+  if (!paramDecl || !Node.isParameterDeclaration(paramDecl)) return false;
+  return ts.isParameterPropertyDeclaration(
+    paramDecl.compilerNode,
+    paramDecl.compilerNode.parent,
+  );
+}
+
+/**
  * Returns the enclosing function node (not just the body) if the identifier is
  * a parameter of a function-like declaration. The full function node is returned
  * so that the parameter declaration itself is within the rename scope.
@@ -73,6 +89,11 @@ function getLocalVariableScope(nameNode: Identifier): TsNode | undefined {
 function getParameterFunctionScope(nameNode: Identifier): TsNode | undefined {
   const decl = nameNode.getParent();
   if (!Node.isParameterDeclaration(decl)) return undefined;
+  // Parameter properties create a class member; references such as `this.x`
+  // live outside the constructor body, so the fast AST-walk (scoped to the
+  // constructor) would miss them. Returning undefined falls through to the
+  // language-service rename, which updates the member and all its references.
+  if (isParameterProperty(nameNode)) return undefined;
   const funcNode = decl.getParent();
   if (!funcNode) return undefined;
   if (
