@@ -213,33 +213,47 @@ function createWorktree(refactoring: string): string {
     symlinkSync(nodeModulesSrc, nodeModulesDst);
   }
 
-  // Pre-create dotfiles Claude Code's sandbox tries to overlay-mount at the
-  // worktree root (.gitconfig for git author identity, .bashrc for shell init,
-  // .gitmodules for git submodule control). Without these as existing files,
-  // bwrap fails to create the mount target and every Bash call errors with
-  // "Can't create file at <wt>/<dotfile>: Read-only file system" — burning
-  // the fix-agent's 25 turns before it can make any real progress.
-  for (const f of [
-    // git
-    ".gitconfig",
-    ".gitmodules",
-    // shell init
-    ".bashrc",
+  // Claude Code's sandbox enforces a hardcoded "mandatory deny" list: it mounts
+  // a read-only overlay over a fixed set of sensitive dotfiles to stop the agent
+  // creating/modifying them (shell rc, git config, editor/tool config). When the
+  // target exists, bwrap does `--ro-bind <path> <path>` (works for files+dirs);
+  // when it's MISSING, bwrap tries to create a /dev/null mount target and fails
+  // with "Can't create file at <wt>/<path>: Read-only file system" — breaking
+  // every Bash call so the fix-agent burns all 25 turns diagnosing its own env.
+  //
+  // Claude pre-creates these in $HOME/cwd, but inside the sandbox HOME is remapped
+  // to the worktree, so the worktree copies are missing. We pre-create them here.
+  // List extracted from the claude binary's mandatory-deny array; existsSync guard
+  // leaves the repo's real files (package.json, .gitignore, etc.) untouched.
+  const sandboxMountFiles = [
     ".bash_profile",
+    ".bashrc",
+    ".bash_aliases",
     ".profile",
     ".zshrc",
     ".zshenv",
     ".zprofile",
     ".zlogin",
-    // tool configs Claude Code overlays into the sandbox
-    ".mcp.json",
-    ".ripgreprc",
+    ".gitconfig",
+    ".gitmodules",
+    ".gitignore",
+    ".netrc",
     ".npmrc",
     ".yarnrc",
+    ".yarnrc.yml",
+    ".bunfig.toml",
+    ".mcp.json",
+    ".ripgreprc",
     ".editorconfig",
-  ]) {
+  ];
+  const sandboxMountDirs = [".vscode", ".vscode-server"];
+  for (const f of sandboxMountFiles) {
     const p = join(worktreePath, f);
     if (!existsSync(p)) writeFileSync(p, "");
+  }
+  for (const d of sandboxMountDirs) {
+    const p = join(worktreePath, d);
+    if (!existsSync(p)) mkdirSync(p, { recursive: true });
   }
 
   return worktreePath;
