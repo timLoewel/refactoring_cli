@@ -641,6 +641,41 @@ function referencesParameterNotAccessibleAtScope(node: Node, scopeParent: Node):
   return false;
 }
 
+/**
+ * If `node` is an optional chain (its value is possibly `undefined` because of a
+ * `?.` somewhere inside it) and it is the object being accessed by a parent
+ * property/element access that relies on the chain's short-circuit (the parent
+ * has no `?.` of its own), returns that parent access node.
+ *
+ * In `a?.b[0]`, the `[0]` access is part of the same optional chain as `a?.b` —
+ * if `a` is nullish the whole thing short-circuits to `undefined`. Extracting the
+ * `a?.b` prefix into `const x = a?.b` (type `B | undefined`) and replacing it with
+ * a bare `x[0]` drops that short-circuit, making `x` possibly-undefined at the
+ * `[0]` dereference. The caller must instead re-introduce `?.` on the parent
+ * access (`x?.[0]`) to preserve both the type and the runtime semantics.
+ */
+function getOptionalChainContinuationParent(node: Node): Node | undefined {
+  if (!ts.isOptionalChain(node.compilerNode)) return undefined;
+  const parent = node.getParent();
+  if (!parent) return undefined;
+  const parentKind = parent.getKind();
+  if (
+    parentKind !== ts.SyntaxKind.PropertyAccessExpression &&
+    parentKind !== ts.SyntaxKind.ElementAccessExpression
+  ) {
+    return undefined;
+  }
+  const parentCompiler = parent.compilerNode as
+    | ts.PropertyAccessExpression
+    | ts.ElementAccessExpression;
+  // The matched node must be the object being accessed, not the argument/name.
+  if (parentCompiler.expression !== node.compilerNode) return undefined;
+  // If the parent already carries its own `?.`, the chain stays intact after
+  // extraction — no fix needed.
+  if (parentCompiler.questionDotToken !== undefined) return undefined;
+  return parent;
+}
+
 export const extractVariable = defineRefactoring<SourceFileContext>({
   name: "Extract Variable",
   kebabName: "extract-variable",
@@ -881,9 +916,19 @@ export const extractVariable = defineRefactoring<SourceFileContext>({
     // Replace occurrences in reverse order to avoid position shifts
     const sortedMatches = [...matchesToReplace].sort((a, b) => b.getStart() - a.getStart());
     for (const node of sortedMatches) {
+      // Compute the optional-chain continuation parent before mutating, since
+      // replacing the node invalidates the AST around it.
+      const chainParent = isWrappedInAsConst(node)
+        ? undefined
+        : getOptionalChainContinuationParent(node);
       if (isWrappedInAsConst(node)) {
         const asConstParent = node.getParentOrThrow();
         asConstParent.replaceWithText(varName);
+      } else if (chainParent && Node.isPropertyAccessExpression(chainParent)) {
+        chainParent.replaceWithText(`${varName}?.${chainParent.getName()}`);
+      } else if (chainParent && Node.isElementAccessExpression(chainParent)) {
+        const argExpr = chainParent.getArgumentExpression();
+        chainParent.replaceWithText(`${varName}?.[${argExpr ? argExpr.getText() : ""}]`);
       } else {
         node.replaceWithText(varName);
       }
