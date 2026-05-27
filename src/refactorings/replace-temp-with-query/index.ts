@@ -195,6 +195,31 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
               `Replacing with a function would create a fresh value at each call site, losing mutations.`,
           );
         }
+
+        // `typeof target` references are rewritten to `ReturnType<typeof fn>`.
+        // Two sub-cases cannot be rewritten faithfully:
+        //  - complex type queries (`typeof target.member`, type-argument use),
+        //    which are not a bare `typeof target`;
+        //  - an un-annotated literal-typed temp, whose type would widen
+        //    (e.g. `"foo"` -> `string`) once it flows through a function.
+        const typeQueryRefs = refs.filter(
+          (id) => id.getFirstAncestorByKind(SyntaxKind.TypeQuery) !== undefined,
+        );
+        const hasComplexTypeQuery = typeQueryRefs.some((id) => !Node.isTypeQuery(id.getParent()));
+        if (hasComplexTypeQuery) {
+          errors.push(
+            `Variable '${target}' is used in a complex 'typeof' type query ` +
+              `(e.g. 'typeof ${target}.member'), which cannot be rewritten as a query call.`,
+          );
+        } else if (typeQueryRefs.length > 0 && !decl.getTypeNode()) {
+          const t = decl.getType();
+          if (t.isStringLiteral() || t.isNumberLiteral() || t.isBooleanLiteral()) {
+            errors.push(
+              `Variable '${target}' has a literal type and is used in a 'typeof' type query. ` +
+                `Replacing it with a query function would widen the type and change the assertion.`,
+            );
+          }
+        }
       }
     }
 
@@ -247,24 +272,50 @@ export const replaceTempWithQuery = defineRefactoring<SourceFileContext>({
     // Replace only identifier references that resolve to the SAME declaration.
     // Other variables with the same name in different scopes must not be touched.
     const declSymbol = decl.getSymbol();
-    const references = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
+    const matchingIds = sf.getDescendantsOfKind(SyntaxKind.Identifier).filter((id) => {
       if (id.getText() !== target) return false;
-      if (!isValueReference(id)) return false;
-      // Only replace references whose symbol matches the target declaration
       const refSymbol = id.getSymbol();
       return refSymbol !== undefined && refSymbol === declSymbol;
     });
 
-    const sorted = [...references].sort((a, b) => b.getStart() - a.getStart());
-    for (const ref of sorted) {
+    // A `typeof target` reference lives in a type position, where a call
+    // expression is illegal. The type of the temp equals the query function's
+    // return type, so rewrite `typeof target` as `ReturnType<typeof fn>`
+    // (unwrapping the Promise when the query is async).
+    const typeQueryReplacement = hasAwait
+      ? `Awaited<ReturnType<typeof ${funcName}>>`
+      : `ReturnType<typeof ${funcName}>`;
+
+    const replacements: { node: Node; text: string; fallback?: string }[] = [];
+    for (const id of matchingIds) {
+      const typeQuery = id.getFirstAncestorByKind(SyntaxKind.TypeQuery);
+      if (typeQuery) {
+        // Only simple `typeof target` is handled (preconditions reject the rest).
+        if (Node.isTypeQuery(id.getParent())) {
+          replacements.push({ node: typeQuery, text: typeQueryReplacement });
+        }
+      } else if (isValueReference(id)) {
+        replacements.push({
+          node: id,
+          text: callExpr,
+          fallback: `${funcName}(${funcArgs})`,
+        });
+      }
+    }
+
+    // Replace from the end of the file backwards so earlier offsets stay valid.
+    replacements.sort((a, b) => b.node.getStart() - a.node.getStart());
+    for (const { node, text, fallback } of replacements) {
       try {
-        ref.replaceWithText(callExpr);
+        node.replaceWithText(text);
       } catch {
-        // Fallback: try without await if the replacement fails (e.g. in non-async context)
-        try {
-          ref.replaceWithText(`${funcName}(${funcArgs})`);
-        } catch {
-          // Skip this reference if replacement is not possible
+        // Fallback: try without await if the replacement fails (e.g. non-async context)
+        if (fallback !== undefined) {
+          try {
+            node.replaceWithText(fallback);
+          } catch {
+            // Skip this reference if replacement is not possible
+          }
         }
       }
     }
