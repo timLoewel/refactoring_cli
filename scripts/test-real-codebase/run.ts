@@ -786,7 +786,11 @@ async function applyAndCheck(
     for (const d of sf.getPreEmitDiagnostics()) {
       const msg = d.getMessageText();
       const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
-      baselineCache.keys.add(`${filePath}:msg:${d.getCode()}:${msgStr}`);
+      // Options/config/global diagnostics (compiler-option deprecations, etc.)
+      // have no source file. Key them under a shared "global" bucket so they
+      // are matched regardless of which scoped file surfaced them.
+      const diagFile = d.getSourceFile()?.getFilePath() ?? "global";
+      baselineCache.keys.add(`${diagFile}:msg:${d.getCode()}:${msgStr}`);
     }
   }
 
@@ -810,8 +814,11 @@ async function applyAndCheck(
   // false failures from pre-existing issues in importer files.
   const allDiagnostics = scopedFiles.flatMap((sf) => sf.getPreEmitDiagnostics());
   const diagnostics = allDiagnostics.filter((d) => {
-    const diagFile = d.getSourceFile()?.getFilePath();
-    if (!diagFile) return true; // keep if no file info
+    // No-file diagnostics (compiler-option deprecations, config/global errors)
+    // are not introduced by editing a source file; match them against the
+    // shared "global" baseline bucket so pre-existing ones are filtered out
+    // while genuinely new global diagnostics are still surfaced.
+    const diagFile = d.getSourceFile()?.getFilePath() ?? "global";
     const msg = d.getMessageText();
     const msgStr = typeof msg === "string" ? msg : msg.getMessageText();
     const key = `${diagFile}:msg:${d.getCode()}:${msgStr}`;
