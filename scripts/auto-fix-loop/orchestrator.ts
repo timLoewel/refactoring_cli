@@ -18,6 +18,11 @@ const RUN_TS = join(ROOT, "scripts/test-real-codebase/run.ts");
 const STATE_DIR = join(ROOT, "tmp/auto-fix-state");
 const WORKTREES_DIR = join(ROOT, "tmp/worktrees");
 const LOGS_DIR = join(ROOT, "tmp/auto-fix-logs");
+// Append-only per-attempt metrics. One JSONL row per fix-agent invocation —
+// captures cost/turns/duration/session_id from the agent's own --output-format
+// json envelope plus orchestrator-side tier/verified/outcome. session_id doubles
+// as the transcript index: `find ~/.claude/projects -name "<session_id>.jsonl"`.
+const METRICS_FILE = join(STATE_DIR, "attempts.ndjson");
 
 // --- Interfaces ---
 
@@ -57,6 +62,16 @@ interface FixAgentResult {
   commitHash?: string;
   fixSummary?: string;
   stuckReport?: string;
+  // Envelope metadata from `claude --output-format json` plus a flag telling us
+  // whether the agent emitted a parseable result block (vs. we fell back to
+  // commit-state inference). Threaded through every resolve() in spawnFixAgent.
+  model?: string;
+  numTurns?: number;
+  costUsd?: number;
+  durationMs?: number;
+  sessionId?: string;
+  subtype?: string;
+  resultBlockParsed?: boolean;
 }
 
 // One row per refactoring. Persistent for the whole run — workers come and go,
@@ -363,6 +378,7 @@ function buildSandboxedClaudeArgs(opts: {
   worktreeDir: string;
   refactoring: string;
   maxTurns?: number;
+  model?: string;
 }): string[] {
   const args = [
     "--print",
@@ -373,6 +389,9 @@ function buildSandboxedClaudeArgs(opts: {
     "--settings",
     buildSandboxSettingsJson({ worktreeDir: opts.worktreeDir, refactoring: opts.refactoring }),
   ];
+  if (opts.model) {
+    args.push("--model", opts.model);
+  }
   if (opts.maxTurns !== undefined) {
     args.push("--max-turns", String(opts.maxTurns));
   }
@@ -685,7 +704,18 @@ When done (or stuck), output exactly one JSON block:
 const FIX_AGENT_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const FIX_AGENT_MAX_TURNS = 25;
 
-async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promise<FixAgentResult> {
+// Tiered model selection. Tier 1 is the cheap default — Sonnet handles most
+// mechanical edge cases at ~1/5 the per-token cost of Opus. Tier 2 escalates
+// only the cases Sonnet can't verify. Both tiers are logged so the Sonnet
+// success rate and net cost savings are directly measurable from METRICS_FILE.
+const FIX_MODEL_PRIMARY = "claude-sonnet-4-6";
+const FIX_MODEL_ESCALATION = "claude-opus-4-7";
+
+async function spawnFixAgent(
+  failure: FailureReport,
+  worktreeDir: string,
+  model: string,
+): Promise<FixAgentResult> {
   const prompt = buildFixAgentPrompt(failure, worktreeDir);
   const promptFile = join(STATE_DIR, `fix-${failure.refactoring}-${Date.now()}.md`);
   mkdirSync(STATE_DIR, { recursive: true });
@@ -696,6 +726,7 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
       worktreeDir,
       refactoring: failure.refactoring,
       maxTurns: FIX_AGENT_MAX_TURNS,
+      model,
     });
 
     const child = spawn("claude", claudeArgs, {
@@ -737,51 +768,82 @@ async function spawnFixAgent(failure: FailureReport, worktreeDir: string): Promi
       if (timedOut) {
         resolve({
           success: false,
+          model,
+          subtype: "timeout",
+          resultBlockParsed: false,
           stuckReport: `Agent timed out after ${FIX_AGENT_TIMEOUT_MS / 1000}s. Partial stderr: ${stderr.slice(-500)}`,
         });
         return;
       }
 
-      // Parse agent output to find the JSON result
+      // The --output-format json envelope carries cost/turns/session metadata.
+      let parsed: {
+        result?: string;
+        num_turns?: number;
+        total_cost_usd?: number;
+        duration_ms?: number;
+        session_id?: string;
+        subtype?: string;
+      };
       try {
-        const parsed = JSON.parse(stdout);
-        const resultText: string = parsed.result ?? stdout;
-
-        // Extract JSON block from agent output
-        const jsonMatch = resultText.match(/```json\s*\n([\s\S]*?)\n```/);
-        if (jsonMatch?.[1]) {
-          resolve(JSON.parse(jsonMatch[1]) as FixAgentResult);
-          return;
-        }
-
-        // Try to find commit hash from git log
-        const logResult = spawnSync("git", ["log", "-1", "--format=%H"], {
-          cwd: worktreeDir,
-          encoding: "utf8",
-        });
-        const lastCommit = logResult.stdout.trim();
-        const mainHead = spawnSync("git", ["rev-parse", "main"], {
-          cwd: ROOT,
-          encoding: "utf8",
-        }).stdout.trim();
-
-        if (lastCommit !== mainHead) {
-          // Agent made a commit
-          resolve({
-            success: true,
-            commitHash: lastCommit,
-            fixSummary: "Fix applied (details in commit message)",
-          });
-        } else {
-          resolve({
-            success: false,
-            stuckReport: `Agent exited with code ${code}. Output: ${resultText.slice(0, 500)}`,
-          });
-        }
+        parsed = JSON.parse(stdout) as typeof parsed;
       } catch {
         resolve({
           success: false,
+          model,
+          resultBlockParsed: false,
           stuckReport: `Failed to parse agent output. Exit code: ${code}. Stderr: ${stderr.slice(0, 500)}`,
+        });
+        return;
+      }
+
+      const meta = {
+        model,
+        numTurns: typeof parsed.num_turns === "number" ? parsed.num_turns : undefined,
+        costUsd: typeof parsed.total_cost_usd === "number" ? parsed.total_cost_usd : undefined,
+        durationMs: typeof parsed.duration_ms === "number" ? parsed.duration_ms : undefined,
+        sessionId: typeof parsed.session_id === "string" ? parsed.session_id : undefined,
+        subtype: typeof parsed.subtype === "string" ? parsed.subtype : undefined,
+      };
+
+      const resultText: string = parsed.result ?? stdout;
+      const jsonMatch = resultText.match(/```json\s*\n([\s\S]*?)\n```/);
+      if (jsonMatch?.[1]) {
+        try {
+          const agentResult = JSON.parse(jsonMatch[1]) as FixAgentResult;
+          resolve({ ...agentResult, ...meta, resultBlockParsed: true });
+          return;
+        } catch {
+          // malformed block — fall through to commit-state inference
+        }
+      }
+
+      // No parseable result block. Infer agent self-reported success from whether
+      // a commit landed in the worktree. Merge is still gated on an independent
+      // jest run in processPair, so a false-positive here can't land a bad fix.
+      const lastCommit = spawnSync("git", ["log", "-1", "--format=%H"], {
+        cwd: worktreeDir,
+        encoding: "utf8",
+      }).stdout.trim();
+      const mainHead = spawnSync("git", ["rev-parse", "main"], {
+        cwd: ROOT,
+        encoding: "utf8",
+      }).stdout.trim();
+
+      if (lastCommit && lastCommit !== mainHead) {
+        resolve({
+          success: true,
+          commitHash: lastCommit,
+          fixSummary: "Fix applied (details in commit message)",
+          ...meta,
+          resultBlockParsed: false,
+        });
+      } else {
+        resolve({
+          success: false,
+          stuckReport: `Agent exited with code ${code}. Output: ${resultText.slice(0, 500)}`,
+          ...meta,
+          resultBlockParsed: false,
         });
       }
     });
@@ -846,6 +908,70 @@ function estimateLine(sourceBefore: string, target: string): number {
   const lines = sourceBefore.split("\n");
   const idx = lines.findIndex((l) => l.includes(target));
   return idx >= 0 ? idx + 1 : 1;
+}
+
+// Ground-truth check: re-run the refactoring's targeted jest suite in the
+// worktree. A pass means the agent's new fixture passes AND no sibling fixture
+// regressed. Used to gate merge — we no longer trust the agent's self-report.
+function verifyFix(refactoring: string, worktreeDir: string): boolean {
+  const testName = kebabToTitleCase(refactoring);
+  const r = spawnSync(
+    "node",
+    [
+      "--experimental-vm-modules",
+      "node_modules/.bin/jest",
+      "--forceExit",
+      "--testNamePattern",
+      testName,
+    ],
+    {
+      cwd: worktreeDir,
+      encoding: "utf8",
+      timeout: 180_000,
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+  return r.status === 0;
+}
+
+// Roll back a failed attempt so the next tier (or next pair claim) starts from
+// a clean worktree. `git reset --hard` discards committed and tracked changes;
+// the scoped `git clean` only removes untracked files inside this refactoring's
+// fixtures dir (leftover fixture files from the failed attempt). Sandbox
+// scaffolding (.bashrc, .vscode, etc.) and the node_modules symlink elsewhere
+// in the worktree are untouched.
+function resetWorktreeAttempt(worktreeDir: string, refactoring: string, toRef: string): void {
+  if (!toRef) return;
+  spawnSync("git", ["reset", "--hard", toRef], { cwd: worktreeDir, encoding: "utf8" });
+  spawnSync("git", ["clean", "-fd", "--", `src/refactorings/${refactoring}/fixtures`], {
+    cwd: worktreeDir,
+    encoding: "utf8",
+  });
+}
+
+// Per-attempt metrics row. Append-only; one row per fix-agent invocation
+// (including both tiers of a tiered attempt). Best-effort — never fails the run.
+function logAttempt(row: Record<string, unknown>): void {
+  try {
+    mkdirSync(STATE_DIR, { recursive: true });
+    appendFileSync(METRICS_FILE, JSON.stringify({ ts: new Date().toISOString(), ...row }) + "\n");
+  } catch {
+    // metrics are best-effort
+  }
+}
+
+function fixResultMeta(r: FixAgentResult): Record<string, unknown> {
+  return {
+    model: r.model,
+    agentSuccess: r.success,
+    numTurns: r.numTurns,
+    costUsd: r.costUsd,
+    durationMs: r.durationMs,
+    sessionId: r.sessionId,
+    subtype: r.subtype,
+    resultBlockParsed: r.resultBlockParsed,
+    commitHash: r.commitHash,
+  };
 }
 
 // Find a JSON line in stdout matching a shape predicate. Iterates from the end
@@ -932,7 +1058,54 @@ async function processPair(
       slot.status = "fixing";
       renderDashboard(dashboard);
 
-      const fixResult = await spawnFixAgent(failureReport, refState.worktreePath);
+      // Capture worktree HEAD so a failed attempt (or both tiers failing) can be
+      // rolled back to a clean state before escalating or releasing the pair.
+      const preAttemptHead = spawnSync("git", ["rev-parse", "HEAD"], {
+        cwd: refState.worktreePath,
+        encoding: "utf8",
+      }).stdout.trim();
+
+      // Tier 1: Sonnet. Cheap default — handles most mechanical AST edge cases
+      // at ~1/5 the per-token cost of Opus.
+      let fixResult = await spawnFixAgent(failureReport, refState.worktreePath, FIX_MODEL_PRIMARY);
+      let verified = fixResult.success && verifyFix(pair.refactoring, refState.worktreePath);
+      logAttempt({
+        refactoring: pair.refactoring,
+        repo: pair.repo,
+        candidateFile: failureReport.candidate.file,
+        candidateTarget: failureReport.candidate.target,
+        errorType: failureReport.errorType,
+        tier: 1,
+        ...fixResultMeta(fixResult),
+        verified,
+        outcome: verified ? "fixed" : "escalated",
+      });
+
+      if (!verified) {
+        // Roll back Sonnet's failed attempt so Opus starts from a clean worktree
+        // (drops any commits/changes/leftover fixtures Sonnet introduced).
+        resetWorktreeAttempt(refState.worktreePath, pair.refactoring, preAttemptHead);
+
+        const escalated = await spawnFixAgent(
+          failureReport,
+          refState.worktreePath,
+          FIX_MODEL_ESCALATION,
+        );
+        const escVerified = escalated.success && verifyFix(pair.refactoring, refState.worktreePath);
+        logAttempt({
+          refactoring: pair.refactoring,
+          repo: pair.repo,
+          candidateFile: failureReport.candidate.file,
+          candidateTarget: failureReport.candidate.target,
+          errorType: failureReport.errorType,
+          tier: 2,
+          ...fixResultMeta(escalated),
+          verified: escVerified,
+          outcome: escVerified ? "fixed" : "unresolved",
+        });
+        fixResult = escalated;
+        verified = escVerified;
+      }
 
       const finding: Finding = {
         refactoring: pair.refactoring,
@@ -948,7 +1121,7 @@ async function processPair(
         exampleCode: failureReport.sourceBefore,
         error: failureReport.error,
         diff: failureReport.diff,
-        resolution: fixResult.success ? "fixed" : "unresolved",
+        resolution: verified ? "fixed" : "unresolved",
         fixturePath: fixResult.fixturePath,
         commitHash: fixResult.commitHash,
         fixSummary: fixResult.fixSummary,
@@ -956,7 +1129,7 @@ async function processPair(
       };
       refState.findings.push(finding);
 
-      if (fixResult.success) {
+      if (verified) {
         dashboard.errorsFixed++;
         slot.status = "merging";
         renderDashboard(dashboard);
@@ -964,8 +1137,10 @@ async function processPair(
         // Continue testing the same pair (tried-set ensures no re-draws).
       } else {
         dashboard.errorsUnresolved++;
-        // Agent stuck — break out; tried-set marks the candidate so future
-        // claims on this pair skip it.
+        // Both tiers failed. Roll back so the next pair claim on this worktree
+        // starts clean, then stop drawing from this pair (tried-set marks the
+        // candidate so it won't be re-drawn).
+        resetWorktreeAttempt(refState.worktreePath, pair.refactoring, preAttemptHead);
         hasMoreFailures = false;
       }
     }
@@ -1212,7 +1387,8 @@ async function main(): Promise<void> {
   process.stderr.write(
     `Workers: ${numWorkers} (capped by min(${maxWorkers}, refactorings=${refactorings.length}, repos=${selectedRepos.length})), Max applies: ${maxApplies}\n`,
   );
-  process.stderr.write(`Logs: ${LOGS_DIR}/<refactoring>.log\n\n`);
+  process.stderr.write(`Logs: ${LOGS_DIR}/<refactoring>.log\n`);
+  process.stderr.write(`Metrics: ${METRICS_FILE}\n\n`);
 
   // Pre-create one worktree per refactoring + initialize per-refactoring state.
   // Worktrees outlive any individual worker; workers swap between them.
